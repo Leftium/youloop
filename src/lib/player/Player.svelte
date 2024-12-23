@@ -28,6 +28,7 @@
 	let repeatB = 38;
 
 	let currentTime = 0;
+	let duration: number | undefined = undefined;
 	let paused = true;
 	let muted = false;
 	let loop = true;
@@ -35,12 +36,34 @@
 
 	let fullscreen = false;
 
+	export function formatVideoTime(totalSeconds: number | undefined) {
+		if (totalSeconds == undefined) {
+			return '?:??';
+		}
+		const intSeconds = Math.floor(totalSeconds);
+
+		// https://stackoverflow.com/a/34841026/117030
+		var hours = Math.floor(intSeconds / 3600);
+		var minutes = Math.floor(intSeconds / 60) % 60;
+		var seconds = intSeconds % 60;
+
+		return [hours, minutes, seconds]
+			.map((v) => (v < 10 ? '0' + v : v))
+			.filter((v, i) => v !== '00' || i > 0)
+			.join(':')
+			.replace(/^0/, '');
+	}
+
 	onMount(() => {
 		if (!player) {
 			alert('No Player');
 		}
 		const unsubscribe = player.subscribe((e) => {
 			currentTime = e.currentTime;
+			if (e.duration) {
+				duration = e.duration;
+			}
+
 			if (e.currentTime < repeatA || e.currentTime > repeatB) {
 				if (!loop) {
 					paused = true;
@@ -193,17 +216,22 @@
 		<button onclick={makeTogglePlaybackRate(200)} class:active={playbackRate === 200}>2x</button>
 	</div>
 
-	<input
-		type="range"
-		name=""
-		id=""
-		min="0"
-		step="0.01"
-		{oninput}
-		bind:value={currentTime}
-		max={player?.duration || 0}
-	/>
-	{currentTime}
+	<div>
+		<div class="timestamps">
+			<div>{formatVideoTime(currentTime)} / {formatVideoTime(duration)}</div>
+			<div>{formatVideoTime(repeatA)} - {formatVideoTime(repeatB)}</div>
+		</div>
+		<input
+			type="range"
+			name=""
+			id=""
+			min="0"
+			step="0.01"
+			{oninput}
+			bind:value={currentTime}
+			max={duration || 999}
+		/>
+	</div>
 
 	<input
 		type="range"
@@ -212,9 +240,8 @@
 		min="0"
 		step="0.01"
 		bind:value={repeatA}
-		max={player?.duration || 999}
+		max={duration || 999}
 	/>
-	{repeatA}
 
 	<input
 		type="range"
@@ -223,9 +250,8 @@
 		min="0"
 		step="0.01"
 		bind:value={repeatB}
-		max={player?.duration || 999}
+		max={duration || 999}
 	/>
-	{repeatB}
 </div>
 
 <style lang="scss">
@@ -251,6 +277,13 @@
 	/* Fix extra height on iOS: https://github.com/vidstack/player/issues/1445 */
 	:global([data-media-player]) {
 		contain: layout;
+	}
+
+	div .timestamps {
+		display: flex;
+		justify-content: space-between;
+
+		font-family: Lato, sans-serif;
 	}
 
 	div [role='group'] {
