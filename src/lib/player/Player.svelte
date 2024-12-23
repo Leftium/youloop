@@ -44,9 +44,13 @@
 		[repeatA, repeatB] = [repeatB, repeatA];
 	}
 
-	if (repeatA === 0 && repeatB === 0) {
-		repeatA = 1;
-		repeatB = 999;
+	if (repeatA <= 0) {
+		// Non-zero value forces a video frame to show; otherwise weird poster.
+		repeatA = 0.02;
+	}
+
+	if (repeatB <= 0) {
+		repeatB = 99999;
 	}
 
 	let currentTime = $state(0);
