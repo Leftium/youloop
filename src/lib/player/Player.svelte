@@ -162,26 +162,16 @@
 	</media-controls>
 </media-player>
 
-<div>
-	<div class="timestamps">
-		<div>{formatVideoTime(currentTime)} / {formatVideoTime(duration)}</div>
-		<div>{formatVideoTime(repeatA)} - {formatVideoTime(repeatB)}</div>
-	</div>
-	<input
-		type="range"
-		name=""
-		id=""
-		min="0"
-		step="0.1"
-		{oninput}
-		bind:value={currentTime}
-		max={duration || 999}
-	/>
+<div class="timestamps">
+	<div>{formatVideoTime(currentTime)} / {formatVideoTime(duration)}</div>
+	<div>{formatVideoTime(repeatA)} - {formatVideoTime(repeatB)}</div>
 </div>
 
-<input type="range" name="" id="" min="0" step="0.1" bind:value={repeatA} max={duration || 999} />
-
-<input type="range" name="" id="" min="0" step="0.1" bind:value={repeatB} max={duration || 999} />
+<div class="wrap-sliders">
+	<input type="range" min="0" step="0.1" bind:value={repeatA} max={duration || 999} />
+	<input type="range" min="0" step="0.1" bind:value={repeatB} max={duration || 999} />
+	<input type="range" min="0" step="0.1" {oninput} bind:value={currentTime} max={duration || 999} />
+</div>
 
 <div class="controls">
 	<div role="group">
@@ -263,11 +253,35 @@
 		contain: layout;
 	}
 
-	div .timestamps {
+	.timestamps {
 		display: flex;
 		justify-content: space-between;
 
 		font-family: Lato, sans-serif;
+	}
+
+	.wrap-sliders {
+		position: relative;
+
+		// Pico range slider values:
+		height: 1.25rem;
+		margin-bottom: var(--pico-spacing);
+
+		input[type='range'] {
+			position: absolute;
+			top: 0;
+			left: 0;
+			right: 0;
+			pointer-events: none; // Prevent direction interaction.
+
+			&:not(:first-child)::-webkit-slider-runnable-track {
+				background: transparent;
+			}
+
+			&::-webkit-slider-thumb {
+				pointer-events: all; // Re-enable interaction.
+			}
+		}
 	}
 
 	div [role='group'] {
