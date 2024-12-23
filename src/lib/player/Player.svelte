@@ -23,9 +23,11 @@
 	let player: MediaPlayerElement;
 
 	const framerate = 30;
-	const repeatA = 25;
-	const repeatB = 38;
 
+	let repeatA = 25;
+	let repeatB = 38;
+
+	let currentTime = 0;
 	let paused = true;
 	let muted = false;
 	let loop = true;
@@ -35,10 +37,10 @@
 
 	onMount(() => {
 		if (!player) {
-			return;
+			alert('No Player');
 		}
-
 		const unsubscribe = player.subscribe((e) => {
+			currentTime = e.currentTime;
 			if (e.currentTime < repeatA || e.currentTime > repeatB) {
 				if (!loop) {
 					paused = true;
@@ -107,6 +109,16 @@
 			paused = player.paused = true;
 			player.currentTime += (numFrames * 1) / framerate;
 		};
+	}
+
+	function oninput() {
+		player.currentTime = currentTime;
+		if (currentTime < repeatA) {
+			repeatA = currentTime;
+		}
+		if (currentTime > repeatB) {
+			repeatB = currentTime;
+		}
 	}
 </script>
 
@@ -180,6 +192,40 @@
 		<button onclick={makeTogglePlaybackRate(100)} class:active={playbackRate === 100}>1x</button>
 		<button onclick={makeTogglePlaybackRate(200)} class:active={playbackRate === 200}>2x</button>
 	</div>
+
+	<input
+		type="range"
+		name=""
+		id=""
+		min="0"
+		step="0.01"
+		{oninput}
+		bind:value={currentTime}
+		max={player?.duration || 0}
+	/>
+	{currentTime}
+
+	<input
+		type="range"
+		name=""
+		id=""
+		min="0"
+		step="0.01"
+		bind:value={repeatA}
+		max={player?.duration || 999}
+	/>
+	{repeatA}
+
+	<input
+		type="range"
+		name=""
+		id=""
+		min="0"
+		step="0.01"
+		bind:value={repeatB}
+		max={player?.duration || 999}
+	/>
+	{repeatB}
 </div>
 
 <style>
