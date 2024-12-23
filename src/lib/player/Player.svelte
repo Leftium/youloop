@@ -228,7 +228,9 @@
 	{repeatB}
 </div>
 
-<style>
+<style lang="scss">
+	@use '@picocss/pico/scss/colors' as *;
+
 	media-controls:global([role='group']) {
 		display: flex;
 		position: absolute;
@@ -253,6 +255,8 @@
 
 	div [role='group'] {
 		width: auto;
+
+		background-color: $red-600;
 
 		button {
 			padding-inline: 20px;
