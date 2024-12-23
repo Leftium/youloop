@@ -1,5 +1,8 @@
 <script>
+	import '../app.scss';
 	import Player from '$lib/player/Player.svelte';
 </script>
 
-<Player></Player>
+<main class="container">
+	<Player></Player>
+</main>

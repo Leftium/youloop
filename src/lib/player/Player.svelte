@@ -1,7 +1,6 @@
 <script lang="ts">
 	import type { MediaPlayerElement } from 'vidstack/elements';
 	import 'vidstack/bundle';
-	import 'vidstack/icons';
 	import { onMount } from 'svelte';
 
 	let player: MediaPlayerElement;
@@ -101,29 +100,48 @@
 </media-player>
 
 <div>
-	<button onclick={togglePaused}>Play</button>
+	<div role="group"><button onclick={togglePaused}>Play</button></div>
 
-	<button onclick={makeStepFrame(-1)}>&lt;</button>
-	<button onclick={makeStepFrame(1)}>&gt;</button>
+	<div role="group">
+		<button onclick={makeStepFrame(-1)}>&lt;</button>
+		<button onclick={makeStepFrame(1)}>&gt;</button>
+	</div>
 
-	<button onclick={toggleLoop}>Loop={loop}</button>
-	<button onclick={toggleMute}>Muted={muted}</button>
+	<div role="group"><button onclick={toggleLoop}>Loop={loop}</button></div>
 
-	<button onclick={makeTogglePlaybackRate()}>Speed={playbackRate}%</button>
-	<button onclick={makeTogglePlaybackRate(25)}>25%</button>
-	<button onclick={makeTogglePlaybackRate(50)}>50%</button>
-	<button onclick={makeTogglePlaybackRate(100)}>100%</button>
-	<button onclick={makeTogglePlaybackRate(200)}>200%</button>
+	<div role="group"><button onclick={toggleMute}>Muted={muted}</button></div>
+
+	<div role="group">
+		<button onclick={makeTogglePlaybackRate()}>Speed={playbackRate}%</button>
+		<button onclick={makeTogglePlaybackRate(25)}>25%</button>
+		<button onclick={makeTogglePlaybackRate(50)}>50%</button>
+		<button onclick={makeTogglePlaybackRate(100)}>100%</button>
+		<button onclick={makeTogglePlaybackRate(200)}>200%</button>
+	</div>
 </div>
 
 <style>
-	.vds-controls-group {
+	media-controls:global([role='group']) {
+		display: flex;
+		position: absolute;
+	}
+
+	media-controls-group.vds-controls-group {
 		display: flex;
 		flex-direction: row-reverse;
+		flex-grow: 0;
 	}
 
 	/* Fix extra height on iOS: https://github.com/vidstack/player/issues/1445 */
 	:global([data-media-player]) {
 		contain: layout;
+	}
+
+	div [role='group'] {
+		width: auto;
+
+		button {
+			margin-left: 1px;
+		}
 	}
 </style>
