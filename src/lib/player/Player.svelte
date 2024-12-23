@@ -96,6 +96,12 @@
 		if (!player) {
 			alert('No Player');
 		}
+
+		player.addEventListener('error', (event) => {
+			console.log('PLAYER ERROR');
+			console.log(event);
+		});
+
 		const unsubscribe = player.subscribe((e) => {
 			currentTime = e.currentTime;
 			if (e.duration) {
