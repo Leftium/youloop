@@ -44,6 +44,11 @@
 		[repeatA, repeatB] = [repeatB, repeatA];
 	}
 
+	if (repeatA === 0 && repeatB === 0) {
+		repeatA = 1;
+		repeatB = 999;
+	}
+
 	let currentTime = $state(0);
 	let duration: number | undefined = $state();
 	let paused = $state(true);
@@ -95,6 +100,9 @@
 			currentTime = e.currentTime;
 			if (e.duration) {
 				duration = e.duration;
+				if (repeatB > duration) {
+					repeatB = duration;
+				}
 			}
 
 			if (e.currentTime < repeatA || e.currentTime > repeatB) {
