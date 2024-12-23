@@ -343,7 +343,7 @@
 				position: absolute;
 				top: 0;
 				bottom: 0;
-				background-color: $pumpkin-450;
+				background-color: $amber;
 
 				pointer-events: none;
 			}
@@ -368,7 +368,7 @@
 
 			&::-webkit-slider-thumb {
 				pointer-events: all; // Re-enable interaction.
-				background-color: $pumpkin-350;
+				background-color: $pumpkin;
 				border-color: transparent;
 			}
 
