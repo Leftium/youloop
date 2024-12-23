@@ -24,17 +24,33 @@
 
 	const framerate = 30;
 
-	let repeatA = 25;
-	let repeatB = 38;
+	let currentTime = $state(0);
+	let duration: number | undefined = $state();
+	let paused = $state(true);
+	let muted = $state(false);
+	let loop = $state(true);
+	let playbackRate = $state(100);
 
-	let currentTime = 0;
-	let duration: number | undefined = undefined;
-	let paused = true;
-	let muted = false;
-	let loop = true;
-	let playbackRate = 100;
+	let repeatA = $state(25);
+	let repeatB = $state(38);
 
-	let fullscreen = false;
+	let percentA = $derived.by(() => {
+		if (duration === undefined) {
+			return '0%';
+		}
+
+		return `${(repeatA / duration) * 100}%`;
+	});
+
+	let percentB = $derived.by(() => {
+		if (duration === undefined) {
+			return '100%';
+		}
+
+		return `${100 - (repeatB / duration) * 100}%`;
+	});
+
+	let fullscreen = $state(false);
 
 	export function formatVideoTime(totalSeconds: number | undefined) {
 		if (totalSeconds == undefined) {
@@ -168,6 +184,12 @@
 </div>
 
 <div class="wrap-sliders">
+	<input type="range" />
+
+	<div class="wrap-connector">
+		<div class="connector" style:left={percentA} style:right={percentB}></div>
+	</div>
+
 	<input
 		type="range"
 		class="repeat-a"
@@ -176,6 +198,7 @@
 		bind:value={repeatA}
 		max={duration || 999}
 	/>
+
 	<input
 		type="range"
 		class="repeat-b"
@@ -289,6 +312,27 @@
 		height: 1.25rem;
 		margin-bottom: var(--pico-spacing);
 
+		.wrap-connector {
+			position: absolute;
+			top: 0;
+			bottom: 0;
+
+			// Shrink width by half of slider thumb on each side.
+			left: calc(1.25rem / 2);
+			right: calc(1.25rem / 2);
+
+			pointer-events: none;
+
+			.connector {
+				position: absolute;
+				top: 0;
+				bottom: 0;
+				background-color: $pumpkin-450;
+
+				pointer-events: none;
+			}
+		}
+
 		input[type='range'] {
 			position: absolute;
 			top: 0;
@@ -296,6 +340,12 @@
 			right: 0;
 			pointer-events: none; // Prevent direction interaction.
 
+			// Just want track; hide thumb of first slider.
+			&:first-child::-webkit-slider-thumb {
+				display: none;
+			}
+
+			// Hide tracks of other sliders.
 			&:not(:first-child)::-webkit-slider-runnable-track {
 				background: transparent;
 			}
