@@ -168,9 +168,31 @@
 </div>
 
 <div class="wrap-sliders">
-	<input type="range" min="0" step="0.1" bind:value={repeatA} max={duration || 999} />
-	<input type="range" min="0" step="0.1" bind:value={repeatB} max={duration || 999} />
-	<input type="range" min="0" step="0.1" {oninput} bind:value={currentTime} max={duration || 999} />
+	<input
+		type="range"
+		class="repeat-a"
+		min="0"
+		step="0.1"
+		bind:value={repeatA}
+		max={duration || 999}
+	/>
+	<input
+		type="range"
+		class="repeat-b"
+		min="0"
+		step="0.1"
+		bind:value={repeatB}
+		max={duration || 999}
+	/>
+	<input
+		type="range"
+		class="current-time"
+		min="0"
+		step="0.1"
+		{oninput}
+		bind:value={currentTime}
+		max={duration || 999}
+	/>
 </div>
 
 <div class="controls">
@@ -280,6 +302,16 @@
 
 			&::-webkit-slider-thumb {
 				pointer-events: all; // Re-enable interaction.
+				background-color: $pumpkin-350;
+				border-color: transparent;
+			}
+
+			&.current-time::-webkit-slider-thumb {
+				width: 1rem;
+				height: 1rem;
+				border-color: transparent;
+				margin-top: #{(-(1rem * 0.5) + (0.375rem * 0.5))};
+				background-color: $red-600;
 			}
 		}
 	}
