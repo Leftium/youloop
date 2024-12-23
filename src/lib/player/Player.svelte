@@ -24,15 +24,28 @@
 
 	const framerate = 30;
 
+	interface Props {
+		youtubeId: string | null;
+		repeatA: number;
+		repeatB: number;
+	}
+
+	let {
+		youtubeId = $bindable('dt-SqNL4z3w'),
+		repeatA = $bindable(25),
+		repeatB = $bindable(38)
+	}: Props = $props();
+
+	if (youtubeId === null) {
+		youtubeId = 'dt-SqNL4z3w';
+	}
+
 	let currentTime = $state(0);
 	let duration: number | undefined = $state();
 	let paused = $state(true);
 	let muted = $state(false);
 	let loop = $state(true);
 	let playbackRate = $state(100);
-
-	let repeatA = $state(25);
-	let repeatB = $state(38);
 
 	let percentA = $derived.by(() => {
 		if (duration === undefined) {
@@ -175,7 +188,7 @@
 	}
 </script>
 
-<media-player bind:this={player} playsinline src="youtube/dt-SqNL4z3w">
+<media-player bind:this={player} playsinline src="youtube/{youtubeId}">
 	<media-provider onclick={togglePaused} role="none"></media-provider>
 
 	<media-controls class="vds-controls">
