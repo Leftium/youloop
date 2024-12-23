@@ -276,7 +276,7 @@
 		{/key}
 	</div>
 
-	<div role="group">
+	<div class="speed-buttons" role="group">
 		<button onclick={makeTogglePlaybackRate()}> <IcRoundSpeed /></button>
 		<button onclick={makeTogglePlaybackRate(25)} class:active={playbackRate === 25}
 			>&frac14;x</button
@@ -399,6 +399,10 @@
 			&:global(.active) {
 				font-weight: bold;
 			}
+		}
+
+		&.speed-buttons button {
+			width: 4.1rem;
 		}
 	}
 </style>
