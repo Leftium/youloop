@@ -161,7 +161,7 @@
 	}
 
 	function handleInputRepeatA() {
-		currentTime = currentTime = repeatA;
+		player.currentTime = currentTime = repeatA;
 		if (repeatA > repeatB) {
 			repeatB = repeatA;
 		}
