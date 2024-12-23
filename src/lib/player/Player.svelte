@@ -40,6 +40,10 @@
 		youtubeId = 'dt-SqNL4z3w';
 	}
 
+	if (repeatA > repeatB) {
+		[repeatA, repeatB] = [repeatB, repeatA];
+	}
+
 	let currentTime = $state(0);
 	let duration: number | undefined = $state();
 	let paused = $state(true);
