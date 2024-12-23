@@ -8,7 +8,12 @@
 
 	const framerate = 30;
 	const repeatA = 25;
-	const repeatB = 40;
+	const repeatB = 38;
+
+	let paused = true;
+	let muted = false;
+	let loop = true;
+	let playbackRate = 100;
 
 	onMount(() => {
 		if (!player) {
@@ -17,7 +22,12 @@
 
 		const unsubscribe = player.subscribe((e) => {
 			if (e.currentTime < repeatA || e.currentTime > repeatB) {
-				player.currentTime = repeatA;
+				if (!loop) {
+					paused = true;
+					player.paused = paused;
+				} else {
+					player.currentTime = repeatA;
+				}
 			}
 		});
 
@@ -26,28 +36,85 @@
 		};
 	});
 
-	function onclick(e: MouseEvent) {
-		if (e.shiftKey) {
-			player.currentTime += 1 / framerate;
-		} else {
-			player.paused = !player.paused;
+	function togglePaused(e: MouseEvent) {
+		paused = !paused;
+		player.paused = paused;
+
+		if (!paused && (player.currentTime < repeatA || player.currentTime > repeatB)) {
+			player.currentTime = repeatA;
 		}
+	}
+
+	function toggleFullscreen() {
+		// TODO: Special case "fullscreen" for iOS on iPhone
+		// https://developer.mozilla.org/en-US/docs/Web/API/Fullscreen_API#browser_compatibility
+
+		if (document.fullscreenElement) {
+			document.exitFullscreen();
+		} else {
+			player.requestFullscreen();
+		}
+	}
+
+	function toggleMute() {
+		muted = !muted;
+		player.muted = muted;
+	}
+
+	function toggleLoop() {
+		loop = !loop;
+	}
+
+	function makeTogglePlaybackRate(rate?: number) {
+		if (rate) {
+			return function () {
+				playbackRate = rate;
+				player.playbackRate = playbackRate / 100;
+			};
+		} else {
+			return function () {
+				playbackRate /= 2;
+				if (playbackRate < 25) {
+					playbackRate = 200;
+				}
+				player.playbackRate = playbackRate / 100;
+			};
+		}
+	}
+
+	function makeStepFrame(numFrames: number) {
+		return function () {
+			player.currentTime += (numFrames * 1) / framerate;
+		};
 	}
 </script>
 
-<media-player bind:this={player} playsInline src="youtube/dt-SqNL4z3w">
-	<media-provider {onclick} role="none"></media-provider>
+<media-player bind:this={player} playsinline src="youtube/dt-SqNL4z3w">
+	<media-provider onclick={togglePaused} role="none"></media-provider>
 
 	<media-controls class="vds-controls">
 		<div class="vds-controls-spacer"></div>
 		<media-controls-group class="vds-controls-group">
-			<media-fullscreen-button class="vds-button">
-				<media-icon type="fullscreen" class="fs-enter-icon vds-icon"></media-icon>
-				<media-icon type="fullscreen-exit" class="fs-exit-icon vds-icon"></media-icon>
-			</media-fullscreen-button>
+			<button onclick={toggleFullscreen}>Fullscreen</button>
 		</media-controls-group>
 	</media-controls>
 </media-player>
+
+<div>
+	<button onclick={togglePaused}>Play</button>
+
+	<button onclick={makeStepFrame(-1)}>&lt;</button>
+	<button onclick={makeStepFrame(1)}>&gt;</button>
+
+	<button onclick={toggleLoop}>Loop={loop}</button>
+	<button onclick={toggleMute}>Muted={muted}</button>
+
+	<button onclick={makeTogglePlaybackRate()}>Speed={playbackRate}%</button>
+	<button onclick={makeTogglePlaybackRate(25)}>25%</button>
+	<button onclick={makeTogglePlaybackRate(50)}>50%</button>
+	<button onclick={makeTogglePlaybackRate(100)}>100%</button>
+	<button onclick={makeTogglePlaybackRate(200)}>200%</button>
+</div>
 
 <style>
 	.vds-controls-group {
@@ -55,8 +122,8 @@
 		flex-direction: row-reverse;
 	}
 
-	:global(.vds-button[data-active] .fs-enter-icon),
-	.vds-button:not([data-active]) .fs-exit-icon {
-		display: none;
+	/* Fix extra height on iOS: https://github.com/vidstack/player/issues/1445 */
+	:global([data-media-player]) {
+		contain: layout;
 	}
 </style>
