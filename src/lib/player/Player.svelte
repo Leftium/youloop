@@ -150,13 +150,27 @@
 		};
 	}
 
-	function oninput() {
+	function handleInputCurrentTime() {
 		player.currentTime = currentTime;
 		if (currentTime < repeatA) {
 			repeatA = currentTime;
 		}
 		if (currentTime > repeatB) {
 			repeatB = currentTime;
+		}
+	}
+
+	function handleInputRepeatA() {
+		currentTime = currentTime = repeatA;
+		if (repeatA > repeatB) {
+			repeatB = repeatA;
+		}
+	}
+
+	function handleInputRepeatB() {
+		player.currentTime = currentTime = repeatB;
+		if (repeatB < repeatA) {
+			repeatA = repeatB;
 		}
 	}
 </script>
@@ -195,6 +209,7 @@
 		class="repeat-a"
 		min="0"
 		step="0.1"
+		oninput={handleInputRepeatA}
 		bind:value={repeatA}
 		max={duration || 999}
 	/>
@@ -204,6 +219,7 @@
 		class="repeat-b"
 		min="0"
 		step="0.1"
+		oninput={handleInputRepeatB}
 		bind:value={repeatB}
 		max={duration || 999}
 	/>
@@ -212,7 +228,7 @@
 		class="current-time"
 		min="0"
 		step="0.1"
-		{oninput}
+		oninput={handleInputCurrentTime}
 		bind:value={currentTime}
 		max={duration || 999}
 	/>
