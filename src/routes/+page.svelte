@@ -16,7 +16,7 @@
 </script>
 
 <main class="container">
-	<pre>{JSON.stringify({ repeatA, repeatB }, null, 4)}</pre>
+	<pre hidden>{JSON.stringify({ repeatA, repeatB }, null, 4)}</pre>
 
 	<a href="https://youtu.be/{youtubeId}">youtu.be/{youtubeId}</a>
 
