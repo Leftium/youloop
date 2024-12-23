@@ -162,6 +162,27 @@
 	</media-controls>
 </media-player>
 
+<div>
+	<div class="timestamps">
+		<div>{formatVideoTime(currentTime)} / {formatVideoTime(duration)}</div>
+		<div>{formatVideoTime(repeatA)} - {formatVideoTime(repeatB)}</div>
+	</div>
+	<input
+		type="range"
+		name=""
+		id=""
+		min="0"
+		step="0.1"
+		{oninput}
+		bind:value={currentTime}
+		max={duration || 999}
+	/>
+</div>
+
+<input type="range" name="" id="" min="0" step="0.1" bind:value={repeatA} max={duration || 999} />
+
+<input type="range" name="" id="" min="0" step="0.1" bind:value={repeatB} max={duration || 999} />
+
 <div class="controls">
 	<div role="group">
 		{#key paused}
@@ -215,43 +236,6 @@
 		<button onclick={makeTogglePlaybackRate(100)} class:active={playbackRate === 100}>1x</button>
 		<button onclick={makeTogglePlaybackRate(200)} class:active={playbackRate === 200}>2x</button>
 	</div>
-
-	<div>
-		<div class="timestamps">
-			<div>{formatVideoTime(currentTime)} / {formatVideoTime(duration)}</div>
-			<div>{formatVideoTime(repeatA)} - {formatVideoTime(repeatB)}</div>
-		</div>
-		<input
-			type="range"
-			name=""
-			id=""
-			min="0"
-			step="0.01"
-			{oninput}
-			bind:value={currentTime}
-			max={duration || 999}
-		/>
-	</div>
-
-	<input
-		type="range"
-		name=""
-		id=""
-		min="0"
-		step="0.01"
-		bind:value={repeatA}
-		max={duration || 999}
-	/>
-
-	<input
-		type="range"
-		name=""
-		id=""
-		min="0"
-		step="0.01"
-		bind:value={repeatB}
-		max={duration || 999}
-	/>
 </div>
 
 <style lang="scss">
