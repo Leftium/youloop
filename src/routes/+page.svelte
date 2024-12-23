@@ -18,5 +18,7 @@
 <main class="container">
 	<pre>{JSON.stringify({ repeatA, repeatB }, null, 4)}</pre>
 
+	<a href="https://youtu.be/{youtubeId}">youtu.be/{youtubeId}</a>
+
 	<Player bind:youtubeId bind:repeatA bind:repeatB></Player>
 </main>
