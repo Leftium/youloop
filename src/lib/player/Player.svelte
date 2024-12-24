@@ -360,8 +360,6 @@
 		</div>
 	</div>
 
-	<hr />
-
 	<button class="outline" onclick={pasteYoutubeId}>Paste YouTube URL/ID from clipboard</button>
 	<div>{youtubeIdResultMessage}</div>
 </center>
@@ -389,6 +387,12 @@
 	/* Fix extra height on iOS: https://github.com/vidstack/player/issues/1445 */
 	:global([data-media-player]) {
 		contain: layout;
+	}
+
+	.controls {
+		display: flex;
+		flex-wrap: wrap;
+		justify-content: space-evenly;
 	}
 
 	.timestamps {
