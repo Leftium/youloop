@@ -505,6 +505,11 @@
 				width: 0.75rem;
 				height: 0.75rem;
 			}
+
+			// Adjust width of slider to account for smaller thumb radius.
+			&.current-time {
+				padding-inline: 2px;
+			}
 		}
 	}
 
