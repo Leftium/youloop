@@ -285,34 +285,36 @@
 		<div class="connector" style:left={percentA} style:right={percentB}></div>
 	</div>
 
-	<input
-		type="range"
-		class="repeat-a"
-		min="0"
-		step="0.1"
-		oninput={handleInputRepeatA}
-		bind:value={repeatA}
-		max={duration || 99999}
-	/>
+	{#if duration}
+		<input
+			type="range"
+			class="repeat-a"
+			min="0"
+			step="0.1"
+			oninput={handleInputRepeatA}
+			bind:value={repeatA}
+			max={duration}
+		/>
 
-	<input
-		type="range"
-		class="repeat-b"
-		min="0"
-		step="0.1"
-		oninput={handleInputRepeatB}
-		bind:value={repeatB}
-		max={duration || 99999}
-	/>
-	<input
-		type="range"
-		class="current-time"
-		min="0"
-		step="0.1"
-		oninput={handleInputCurrentTime}
-		bind:value={currentTime}
-		max={duration || 99999}
-	/>
+		<input
+			type="range"
+			class="repeat-b"
+			min="0"
+			step="0.1"
+			oninput={handleInputRepeatB}
+			bind:value={repeatB}
+			max={duration}
+		/>
+		<input
+			type="range"
+			class="current-time"
+			min="0"
+			step="0.1"
+			oninput={handleInputCurrentTime}
+			bind:value={currentTime}
+			max={duration}
+		/>
+	{/if}
 </div>
 
 <center>
