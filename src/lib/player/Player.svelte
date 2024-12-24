@@ -120,7 +120,7 @@
 					paused = true;
 					player.paused = paused;
 				} else {
-					player.currentTime = repeatA;
+					player.currentTime = currentTime = repeatA;
 				}
 			}
 		});
