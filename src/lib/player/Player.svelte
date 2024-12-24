@@ -486,6 +486,8 @@
 			}
 			&::-moz-range-thumb {
 				@include slider-thumb;
+				width: 1rem;
+				height: 1rem;
 			}
 
 			@mixin current-time-slider-thumb {
@@ -500,6 +502,8 @@
 			}
 			&.current-time::-moz-range-thumb {
 				@include current-time-slider-thumb;
+				width: 0.75rem;
+				height: 0.75rem;
 			}
 		}
 	}
