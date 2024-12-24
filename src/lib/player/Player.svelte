@@ -245,11 +245,14 @@
 		}
 
 		await tick();
+		// Reset and match settings for newly loaded video.
 		duration = undefined;
 		repeatA = 0;
 		repeatB = 99999;
 		currentTime = 1;
 		player.currentTime = 1;
+		paused = true;
+		playbackRate = 100;
 	}
 </script>
 
@@ -289,7 +292,7 @@
 		step="0.1"
 		oninput={handleInputRepeatA}
 		bind:value={repeatA}
-		max={duration || 999}
+		max={duration || 99999}
 	/>
 
 	<input
@@ -299,7 +302,7 @@
 		step="0.1"
 		oninput={handleInputRepeatB}
 		bind:value={repeatB}
-		max={duration || 999}
+		max={duration || 99999}
 	/>
 	<input
 		type="range"
@@ -308,7 +311,7 @@
 		step="0.1"
 		oninput={handleInputCurrentTime}
 		bind:value={currentTime}
-		max={duration || 999}
+		max={duration || 99999}
 	/>
 </div>
 
