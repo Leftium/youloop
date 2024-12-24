@@ -55,7 +55,7 @@
 		repeatB = 99999;
 	}
 
-	let currentTime = $state(0);
+	let currentTime = $state(repeatA);
 	let duration: number | undefined = $state();
 	let paused = $state(true);
 	let muted = $state(false);
@@ -64,21 +64,8 @@
 
 	let youtubeIdResultMessage = $state('');
 
-	let percentA = $derived.by(() => {
-		if (duration === undefined) {
-			return '0%';
-		}
-
-		return `${(repeatA / duration) * 100}%`;
-	});
-
-	let percentB = $derived.by(() => {
-		if (duration === undefined) {
-			return '100%';
-		}
-
-		return `${100 - (repeatB / duration) * 100}%`;
-	});
+	let percentA = $derived(`${duration === undefined ? 0 : (repeatA / duration) * 100}%`);
+	let percentB = $derived(`${100 - (duration === undefined ? 0 : (repeatB / duration) * 100)}%`);
 
 	let fullscreen = $state(false);
 
@@ -141,11 +128,10 @@
 	});
 
 	function togglePaused(e: MouseEvent) {
-		paused = !paused;
-		player.paused = paused;
+		player.paused = paused = !paused;
 
 		if (!paused && (player.currentTime < repeatA || player.currentTime > repeatB)) {
-			player.currentTime = repeatA;
+			player.currentTime = currentTime = repeatA;
 		}
 	}
 
@@ -163,8 +149,7 @@
 	}
 
 	function toggleMute() {
-		muted = !muted;
-		player.muted = muted;
+		player.muted = muted = !muted;
 	}
 
 	function toggleLoop() {
@@ -240,7 +225,7 @@
 			youtubeId = matchesId[0];
 			youtubeIdResultMessage = `Found ID: ${youtubeId}`;
 		} else {
-			youtubeIdResultMessage = `No matches in ${clipboardText}`;
+			youtubeIdResultMessage = `No matches in "${clipboardText}"`;
 			return;
 		}
 
@@ -400,13 +385,13 @@
 			button {
 				padding: 4px;
 				border: none;
-				background-color: rgba(0, 0, 0, 0);
+				background-color: transparent;
 			}
 		}
 	}
 
 	/* Fix extra height on iOS: https://github.com/vidstack/player/issues/1445 */
-	:global([data-media-player]) {
+	media-player :global([data-media-player]) {
 		contain: layout;
 	}
 
@@ -441,15 +426,11 @@
 			left: calc(1.25rem / 2);
 			right: calc(1.25rem / 2);
 
-			pointer-events: none;
-
 			.connector {
 				position: absolute;
 				top: 0;
 				bottom: 0;
 				background-color: $amber;
-
-				pointer-events: none;
 			}
 		}
 
