@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { MediaPlayerElement } from 'vidstack/elements';
 	import 'vidstack/bundle';
-	import { onMount } from 'svelte';
+	import { onMount, tick } from 'svelte';
 
 	import IcRoundPlayArrow from '~icons/ic/round-play-arrow';
 	import IcRoundPause from '~icons/ic/round-pause';
@@ -23,6 +23,13 @@
 	let player: MediaPlayerElement;
 
 	const framerate = 30;
+
+	// https://stackoverflow.com/a/27728417/117030
+	const YOUTUBE_URL_ID_REGEX =
+		/^.*(?:(?:youtu\.be\/|v\/|vi\/|u\/\w\/|embed\/|shorts\/)|(?:(?:watch)?\?v(?:i)?=|\&v(?:i)?=))([^#\&\?]*).*/;
+
+	// https://webapps.stackexchange.com/a/101153/1530
+	const YOUTUBE_ID_REGEX = /[0-9A-Za-z_-]{10}[048AEIMQUYcgkosw]/;
 
 	interface Props {
 		youtubeId: string | null;
@@ -54,6 +61,8 @@
 	let muted = $state(false);
 	let loop = $state(true);
 	let playbackRate = $state(100);
+
+	let youtubeIdResultMessage = $state('');
 
 	let percentA = $derived.by(() => {
 		if (duration === undefined) {
@@ -209,6 +218,31 @@
 			repeatA = repeatB;
 		}
 	}
+
+	async function pasteYoutubeId() {
+		const clipboardText = await navigator.clipboard.readText();
+
+		const matchesUrl = clipboardText.match(YOUTUBE_URL_ID_REGEX);
+		const matchesId = clipboardText.match(YOUTUBE_ID_REGEX);
+
+		if (matchesUrl?.[1]) {
+			youtubeId = matchesUrl[1];
+			youtubeIdResultMessage = `Found from URL: ${youtubeId}`;
+		} else if (matchesId?.[0]) {
+			youtubeId = matchesId[0];
+			youtubeIdResultMessage = `Found ID: ${youtubeId}`;
+		} else {
+			youtubeIdResultMessage = `No matches in ${clipboardText}`;
+			return;
+		}
+
+		await tick();
+		duration = undefined;
+		repeatA = 0;
+		repeatB = 99999;
+		currentTime = 1;
+		player.currentTime = 1;
+	}
 </script>
 
 <media-player bind:this={player} playsinline crossOrigin src="youtube/{youtubeId}">
@@ -324,6 +358,13 @@
 		<button onclick={makeTogglePlaybackRate(200)} class:active={playbackRate === 200}>2x</button>
 	</div>
 </div>
+
+<hr />
+
+<center>
+	<button class="outline" onclick={pasteYoutubeId}>Paste YouTube URL/ID from clipboard</button>
+	<div>{youtubeIdResultMessage}</div>
+</center>
 
 <style lang="scss">
 	@use '@picocss/pico/scss/colors' as *;
