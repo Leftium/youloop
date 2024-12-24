@@ -44,11 +44,6 @@
 		[repeatA, repeatB] = [repeatB, repeatA];
 	}
 
-	if (repeatA <= 1) {
-		// Non-zero value forces a video frame to show; otherwise weird poster.
-		repeatA = 1;
-	}
-
 	if (repeatB <= 0) {
 		repeatB = 99999;
 	}
@@ -109,13 +104,19 @@
 		const unsubscribe = player.subscribe((e) => {
 			currentTime = e.currentTime;
 			if (e.duration) {
+				if (!duration) {
+					// Start at non-zero value to force a video frame to show
+					// Otherwise weird poster is shown.
+					currentTime = player.currentTime = 1;
+				}
+
 				duration = e.duration - 1;
 				if (repeatB > duration) {
 					repeatB = duration;
 				}
 			}
 
-			if (e.currentTime < repeatA || e.currentTime > repeatB) {
+			if (currentTime < repeatA || currentTime > repeatB) {
 				if (!loop) {
 					paused = true;
 					player.paused = paused;
