@@ -44,9 +44,9 @@
 		[repeatA, repeatB] = [repeatB, repeatA];
 	}
 
-	if (repeatA <= 0) {
+	if (repeatA <= 1) {
 		// Non-zero value forces a video frame to show; otherwise weird poster.
-		repeatA = 0.02;
+		repeatA = 1;
 	}
 
 	if (repeatB <= 0) {
