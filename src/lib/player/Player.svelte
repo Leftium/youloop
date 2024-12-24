@@ -360,13 +360,13 @@
 
 		<div class="speed-buttons" role="group">
 			<button onclick={makeTogglePlaybackRate()}> <IcRoundSpeed /></button>
-			<button onclick={makeTogglePlaybackRate(200)} class:active={playbackRate === 200}>2x</button>
-			<button onclick={makeTogglePlaybackRate(100)} class:active={playbackRate === 100}>1x</button>
+			<button onclick={makeTogglePlaybackRate(200)} class:active={playbackRate === 200}>2</button>
+			<button onclick={makeTogglePlaybackRate(100)} class:active={playbackRate === 100}>1</button>
 			<button onclick={makeTogglePlaybackRate(50)} class:active={playbackRate === 50}
-				>&frac12;x</button
+				>&frac12;</button
 			>
 			<button onclick={makeTogglePlaybackRate(25)} class:active={playbackRate === 25}
-				>&frac14;x</button
+				>&frac14;</button
 			>
 		</div>
 	</div>
@@ -403,7 +403,9 @@
 	.controls {
 		display: flex;
 		flex-wrap: wrap;
-		justify-content: space-evenly;
+		justify-content: center;
+
+		gap: 5px;
 	}
 
 	.timestamps {
@@ -480,8 +482,8 @@
 		background-color: $red-600;
 
 		button {
-			padding-inline: 14px;
-			padding-block: 12px;
+			padding-inline: 18px;
+			padding-block: 16px;
 			margin-left: 1px;
 
 			:global(svg) {
@@ -489,12 +491,12 @@
 			}
 
 			&:global(.active) {
-				font-weight: bold;
+				font-weight: 900;
 			}
 		}
 
-		&.speed-buttons button {
-			width: 4.1rem;
+		&.speed-buttons button:not(:first-child) {
+			width: 3rem;
 		}
 	}
 </style>
