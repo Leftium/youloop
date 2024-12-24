@@ -210,7 +210,7 @@
 	}
 </script>
 
-<media-player bind:this={player} playsinline src="youtube/{youtubeId}">
+<media-player bind:this={player} playsinline crossOrigin src="youtube/{youtubeId}">
 	<media-provider onclick={togglePaused} role="none"></media-provider>
 
 	<media-controls class="vds-controls">
