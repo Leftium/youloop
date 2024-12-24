@@ -349,18 +349,18 @@
 
 		<div class="speed-buttons" role="group">
 			<button onclick={makeTogglePlaybackRate()}> <IcRoundSpeed /></button>
-			<button onclick={makeTogglePlaybackRate(25)} class:active={playbackRate === 25}
-				>&frac14;x</button
-			>
+			<button onclick={makeTogglePlaybackRate(200)} class:active={playbackRate === 200}>2x</button>
+			<button onclick={makeTogglePlaybackRate(100)} class:active={playbackRate === 100}>1x</button>
 			<button onclick={makeTogglePlaybackRate(50)} class:active={playbackRate === 50}
 				>&frac12;x</button
 			>
-			<button onclick={makeTogglePlaybackRate(100)} class:active={playbackRate === 100}>1x</button>
-			<button onclick={makeTogglePlaybackRate(200)} class:active={playbackRate === 200}>2x</button>
+			<button onclick={makeTogglePlaybackRate(25)} class:active={playbackRate === 25}
+				>&frac14;x</button
+			>
 		</div>
 	</div>
 
-	<button class="outline" onclick={pasteYoutubeId}>Paste YouTube URL/ID from clipboard</button>
+	<button class="outline" onclick={pasteYoutubeId}>Load YouTube URL/ID from clipboard</button>
 	<div>{youtubeIdResultMessage}</div>
 </center>
 
