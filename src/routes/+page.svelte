@@ -11,7 +11,7 @@
 	// svelte-ignore state_referenced_locally
 	if (!youtubeId) {
 		youtubeId = 'dt-SqNL4z3w';
-		repeatA = 25;
+		repeatA = 31;
 		repeatB = 38;
 	}
 
