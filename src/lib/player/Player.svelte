@@ -456,27 +456,50 @@
 			pointer-events: none; // Prevent direction interaction.
 
 			// Just want track; hide thumb of first slider.
-			&:first-child::-webkit-slider-thumb {
+			@mixin hide-thumb-first-slider {
 				display: none;
+				pointer-events: none;
+				background-color: transparent;
+			}
+			&:first-child::-webkit-slider-thumb {
+				@include hide-thumb-first-slider;
+			}
+			&:first-child::-moz-range-thumb {
+				@include hide-thumb-first-slider;
 			}
 
 			// Hide tracks of other sliders.
 			&:not(:first-child)::-webkit-slider-runnable-track {
 				background: transparent;
 			}
+			&:not(:first-child)::-moz-range-track {
+				background: transparent;
+			}
 
-			&::-webkit-slider-thumb {
+			@mixin slider-thumb {
 				pointer-events: all; // Re-enable interaction.
 				background-color: $pumpkin;
 				border-color: transparent;
 			}
+			&::-webkit-slider-thumb {
+				@include slider-thumb;
+			}
+			&::-moz-range-thumb {
+				@include slider-thumb;
+			}
 
-			&.current-time::-webkit-slider-thumb {
+			@mixin current-time-slider-thumb {
 				width: 1rem;
 				height: 1rem;
 				border-color: transparent;
 				margin-top: #{(-(1rem * 0.5) + (0.375rem * 0.5))};
 				background-color: $red-600;
+			}
+			&.current-time::-webkit-slider-thumb {
+				@include current-time-slider-thumb;
+			}
+			&.current-time::-moz-range-thumb {
+				@include current-time-slider-thumb;
 			}
 		}
 	}
