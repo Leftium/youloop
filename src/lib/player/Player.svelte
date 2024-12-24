@@ -109,7 +109,7 @@
 		const unsubscribe = player.subscribe((e) => {
 			currentTime = e.currentTime;
 			if (e.duration) {
-				duration = e.duration;
+				duration = e.duration - 1;
 				if (repeatB > duration) {
 					repeatB = duration;
 				}
