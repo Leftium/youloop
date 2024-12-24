@@ -8,6 +8,13 @@
 	let repeatB = $state(data.repeatB);
 	let youtubeId = $state(data.youtubeId);
 
+	// svelte-ignore state_referenced_locally
+	if (!youtubeId) {
+		youtubeId = 'dt-SqNL4z3w';
+		repeatA = 25;
+		repeatB = 38;
+	}
+
 	$effect(() => {
 		const a = Math.floor(repeatA);
 		const b = Math.floor(repeatB);
