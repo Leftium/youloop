@@ -273,6 +273,16 @@
 	{#if duration}
 		<input
 			type="range"
+			class="current-time"
+			min="0"
+			step="0.1"
+			oninput={handleInputCurrentTime}
+			bind:value={currentTime}
+			max={duration}
+		/>
+
+		<input
+			type="range"
 			class="repeat-a"
 			min="0"
 			step="0.1"
@@ -288,15 +298,6 @@
 			step="0.1"
 			oninput={handleInputRepeatB}
 			bind:value={repeatB}
-			max={duration}
-		/>
-		<input
-			type="range"
-			class="current-time"
-			min="0"
-			step="0.1"
-			oninput={handleInputCurrentTime}
-			bind:value={currentTime}
 			max={duration}
 		/>
 	{/if}
@@ -476,12 +477,27 @@
 				height: 1rem;
 			}
 
+			@mixin current-time-slider-track {
+				pointer-events: all; // Re-enable interaction.
+				height: 1.25rem;
+			}
+			&.current-time::-webkit-slider-runnable-track {
+				@include current-time-slider-track;
+			}
+			&.current-time::-moz-range-track {
+				position: relative;
+				@include current-time-slider-track;
+			}
+
 			@mixin current-time-slider-thumb {
 				width: 1rem;
 				height: 1rem;
+				margin-top: #{(-(1rem * 0.5) + (1.25rem * 0.5))}; // -(thumb-height * 0.5) + (track-height * 0.5)
 				border-color: transparent;
-				margin-top: #{(-(1rem * 0.5) + (0.375rem * 0.5))};
 				background-color: $red-600;
+
+				position: relative;
+				z-index: 1000 !important;
 			}
 			&.current-time::-webkit-slider-thumb {
 				@include current-time-slider-thumb;
