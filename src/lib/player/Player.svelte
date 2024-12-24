@@ -171,6 +171,14 @@
 		loop = !loop;
 	}
 
+	function setRepeatA() {
+		repeatA = currentTime;
+	}
+
+	function setRepeatB() {
+		repeatB = currentTime;
+	}
+
 	function makeTogglePlaybackRate(rate?: number) {
 		if (rate) {
 			return function () {
@@ -264,7 +272,7 @@
 
 <div class="timestamps">
 	<div>{formatVideoTime(currentTime)} / {formatVideoTime(duration)}</div>
-	<div>{formatVideoTime(repeatA)} - {formatVideoTime(repeatB)}</div>
+	<div>{formatVideoTime(repeatA)}A - {formatVideoTime(repeatB)}B</div>
 </div>
 
 <div class="wrap-sliders">
@@ -316,11 +324,14 @@
 					{/if}
 				</button>
 			{/key}
+
+			<button onclick={makeStepFrame(-1)}><IcRoundSkipPrevious /></button>
+			<button onclick={makeStepFrame(1)}><IcRoundSkipNext /></button>
 		</div>
 
 		<div role="group">
-			<button onclick={makeStepFrame(-1)}><IcRoundSkipPrevious /></button>
-			<button onclick={makeStepFrame(1)}><IcRoundSkipNext /></button>
+			<button onclick={setRepeatA}>A</button>
+			<button onclick={setRepeatB}>B</button>
 		</div>
 
 		<div role="group">
@@ -469,8 +480,8 @@
 		background-color: $red-600;
 
 		button {
-			padding-inline: 20px;
-			padding-block: 16px;
+			padding-inline: 14px;
+			padding-block: 12px;
 			margin-left: 1px;
 
 			:global(svg) {
