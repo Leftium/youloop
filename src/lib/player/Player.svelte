@@ -329,7 +329,7 @@
 			<button onclick={makeStepFrame(1)}><IcRoundSkipNext /></button>
 		</div>
 
-		<div role="group">
+		<div class="ab-buttons" role="group">
 			<button onclick={setRepeatA}>A</button>
 			<button onclick={setRepeatB}>B</button>
 		</div>
@@ -359,15 +359,20 @@
 		</div>
 
 		<div class="speed-buttons" role="group">
-			<button onclick={makeTogglePlaybackRate()}> <IcRoundSpeed /></button>
-			<button onclick={makeTogglePlaybackRate(200)} class:active={playbackRate === 200}>2</button>
-			<button onclick={makeTogglePlaybackRate(100)} class:active={playbackRate === 100}>1</button>
-			<button onclick={makeTogglePlaybackRate(50)} class:active={playbackRate === 50}
-				>&frac12;</button
-			>
-			<button onclick={makeTogglePlaybackRate(25)} class:active={playbackRate === 25}
-				>&frac14;</button
-			>
+			<button onclick={makeTogglePlaybackRate()}><IcRoundSpeed /></button>
+
+			<button onclick={makeTogglePlaybackRate(200)}>
+				<span class:active={playbackRate === 200}>2</span>
+			</button>
+			<button onclick={makeTogglePlaybackRate(100)}>
+				<span class:active={playbackRate === 100}>1</span>
+			</button>
+			<button onclick={makeTogglePlaybackRate(50)}>
+				<span class:active={playbackRate === 50}>&frac12;</span>
+			</button>
+			<button onclick={makeTogglePlaybackRate(25)}>
+				<span class:active={playbackRate === 25}>&frac14;</span>
+			</button>
 		</div>
 	</div>
 
@@ -489,14 +494,23 @@
 			:global(svg) {
 				vertical-align: -0.23em;
 			}
-
-			&:global(.active) {
-				font-weight: 900;
-			}
 		}
 
-		&.speed-buttons button:not(:first-child) {
-			width: 3rem;
+		&.ab-buttons button {
+			font-weight: 600;
+		}
+
+		&.speed-buttons {
+			button:not(:first-child) {
+				span {
+					font-weight: 900;
+					opacity: 40%;
+				}
+			}
+
+			:global(.active) {
+				opacity: 100% !important;
+			}
 		}
 	}
 </style>
