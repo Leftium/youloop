@@ -392,7 +392,7 @@
 	}
 
 	/* Fix extra height on iOS: https://github.com/vidstack/player/issues/1445 */
-	media-player :global([data-media-player]) {
+	media-player:global([data-media-player]) {
 		contain: layout;
 	}
 
