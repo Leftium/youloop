@@ -28,4 +28,6 @@
 	<a href="https://youtu.be/{youtubeId}">youtu.be/{youtubeId}</a>
 
 	<Player bind:youtubeId bind:repeatA bind:repeatB></Player>
+
+	<hr />
 </main>
