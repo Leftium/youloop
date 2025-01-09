@@ -321,8 +321,8 @@
 		</div>
 
 		<div class="ab-buttons" role="group">
-			<button onclick={setRepeatA}>A</button>
-			<button onclick={setRepeatB}>B</button>
+			<button class="a-button" onclick={setRepeatA}>A</button>
+			<button class="b-button" onclick={setRepeatB}>B</button>
 		</div>
 
 		<div role="group">
@@ -431,7 +431,7 @@
 				position: absolute;
 				top: 0;
 				bottom: 0;
-				background-color: $amber;
+				background-color: $grey;
 			}
 		}
 
@@ -465,7 +465,7 @@
 
 			@mixin slider-thumb {
 				pointer-events: all; // Re-enable interaction.
-				background-color: $pumpkin;
+				background-color: $azure-250;
 				border-color: transparent;
 			}
 			&::-webkit-slider-thumb {
@@ -475,6 +475,16 @@
 				@include slider-thumb;
 				width: 1rem;
 				height: 1rem;
+			}
+
+			@mixin slider-thumb-b {
+				background-color: $indigo-300;
+			}
+			&.repeat-b::-webkit-slider-thumb {
+				@include slider-thumb-b;
+			}
+			&.repeat-b::-moz-range-thumb {
+				@include slider-thumb-b;
 			}
 
 			@mixin current-time-slider-track {
@@ -494,7 +504,7 @@
 				height: 1rem;
 				margin-top: #{(-(1rem * 0.5) + (1.25rem * 0.5))}; // -(thumb-height * 0.5) + (track-height * 0.5)
 				border-color: transparent;
-				background-color: $red-600;
+				background-color: $red;
 
 				position: relative;
 				z-index: 1000 !important;
@@ -518,7 +528,7 @@
 	div [role='group'] {
 		width: auto;
 
-		background-color: $red-600;
+		background-color: $zinc-450;
 
 		button {
 			padding-inline: 18px;
@@ -532,6 +542,14 @@
 
 		&.ab-buttons button {
 			font-weight: 600;
+		}
+
+		.a-button {
+			color: $azure-350;
+		}
+
+		.b-button {
+			color: $indigo-300;
 		}
 
 		&.speed-buttons {
