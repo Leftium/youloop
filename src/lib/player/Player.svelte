@@ -396,11 +396,6 @@
 		contain: layout;
 	}
 
-	// Quick fix so vertical YouTube videos are contained; not stretched:
-	media-player :global(iframe.vds-youtube[data-no-controls]) {
-		height: 100%;
-	}
-
 	.controls {
 		display: flex;
 		flex-wrap: wrap;
