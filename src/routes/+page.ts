@@ -1,4 +1,4 @@
-export const ssr = false;
+// export const ssr = false;
 
 export const load = ({ url }) => {
 	const youtubeId = url.searchParams.get('v');
