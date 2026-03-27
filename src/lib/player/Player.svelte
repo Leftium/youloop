@@ -99,6 +99,7 @@
 
 		const unsubscribe = player.subscribe((e) => {
 			currentTime = e.currentTime;
+
 			if (e.duration) {
 				if (!duration) {
 					// Start at non-zero value to force a video frame to show
@@ -367,12 +368,21 @@
 		</div>
 	</div>
 
-	<button class="outline" onclick={pasteYoutubeId}>Load YouTube URL/ID from clipboard</button>
+	<button class="outline paste-button" onclick={pasteYoutubeId}>Load YouTube URL/ID from clipboard</button>
 	<div>{youtubeIdResultMessage}</div>
 </center>
 
 <style lang="scss">
-	@use '@picocss/pico/scss/colors' as *;
+	// Pico color values (hardcoded from @picocss/pico v2.0.6 scss/colors/_index.scss)
+	$grey-300: #ababab;
+	$azure-250: #79c0ff;
+	$azure-350: #01aaff;
+	$indigo-300: #b0a3e8;
+	$red-550: #c52f21;
+	// Original youloop used zinc palette for custom player buttons:
+	$zinc-550: #646b79;   // button bg (Pico zinc theme --pico-primary-background)
+	$zinc-600: #5c6370;   // button hover
+	$slate-100: #dfe3eb;  // --pico-range-border-color (track)
 
 	media-controls:global([role='group']) {
 		display: flex;
@@ -396,6 +406,25 @@
 		contain: layout;
 	}
 
+	/*
+	media-provider {
+		overflow: hidden;
+		width: 100%;
+		// Keep it the right aspect-ratio
+		aspect-ratio: 16/9;
+		// No clicking/hover effects
+		pointer-events: none;
+	}
+
+	media-provider :global(iframe) {
+		// Extend it beyond the viewport...
+		width: 300%;
+		height: 100%;
+		// ...and bring it back again
+		margin-left: -100%;
+	}
+    */
+
 	.controls {
 		display: flex;
 		flex-wrap: wrap;
@@ -416,7 +445,7 @@
 
 		// Pico range slider values:
 		height: 1.25rem;
-		margin-bottom: var(--pico-spacing);
+		margin-bottom: var(--nc-spacing);
 
 		.wrap-connector {
 			position: absolute;
@@ -431,11 +460,56 @@
 				position: absolute;
 				top: 0;
 				bottom: 0;
-				background-color: $grey;
+				background-color: $grey-300;
 			}
 		}
 
 		input[type='range'] {
+			// Match Pico's range input dimensions exactly:
+			// track: 0.375rem tall, thumb: 1.25rem diameter
+			-webkit-appearance: none;
+			-moz-appearance: none;
+			appearance: none;
+			background: none;
+			margin: 0;
+			padding: 0;
+			width: 100%;
+			height: 1.25rem; // = thumb height
+
+			// Base track styling (visible on the first slider)
+			&::-webkit-slider-runnable-track {
+				width: 100%;
+				height: 0.375rem;
+				border-radius: 0.1875rem;
+				background-color: $slate-100; // exact Pico range-border-color
+			}
+			&::-moz-range-track {
+				width: 100%;
+				height: 0.375rem;
+				border-radius: 0.1875rem;
+				background-color: $slate-100;
+			}
+
+			// Base thumb styling
+			&::-webkit-slider-thumb {
+				-webkit-appearance: none;
+				width: 1.25rem;
+				height: 1.25rem;
+				border-radius: 50%;
+				border: 2px solid transparent;
+				background-color: var(--nc-primary);
+				cursor: pointer;
+				margin-top: #{(-(1.25rem * 0.5) + (0.375rem * 0.5))}; // center on track
+			}
+			&::-moz-range-thumb {
+				width: 1.25rem;
+				height: 1.25rem;
+				border-radius: 50%;
+				border: 2px solid transparent;
+				background-color: var(--nc-primary);
+				cursor: pointer;
+			}
+
 			position: absolute;
 			top: 0;
 			left: 0;
@@ -502,9 +576,9 @@
 			@mixin current-time-slider-thumb {
 				width: 1rem;
 				height: 1rem;
-				margin-top: #{(-(1rem * 0.5) + (1.25rem * 0.5))}; // -(thumb-height * 0.5) + (track-height * 0.5)
+				margin-top: 0.125rem; // center 1rem thumb in 1.25rem track: (1.25 - 1) / 2
 				border-color: transparent;
-				background-color: $red;
+				background-color: $red-550;
 
 				position: relative;
 				z-index: 1000 !important;
@@ -522,18 +596,34 @@
 			&.current-time {
 				padding-inline: 2px;
 			}
+
+			// Scale thumb on drag (matches Pico's :active behavior)
+			&:active::-webkit-slider-thumb {
+				transform: scale(1.25);
+			}
+			&:active::-moz-range-thumb {
+				transform: scale(1.25);
+			}
 		}
 	}
 
 	div [role='group'] {
 		width: auto;
-
-		background-color: $zinc-450;
+		border-radius: var(--nc-radius);
+		overflow: hidden;
 
 		button {
 			padding-inline: 18px;
 			padding-block: 16px;
-			margin-left: 1px;
+			margin: 0;
+			background-color: $zinc-550;
+			color: white;
+			border: none;
+			border-radius: 0;
+
+			&:hover {
+				background-color: $zinc-600;
+			}
 
 			:global(svg) {
 				vertical-align: -0.23em;
@@ -563,6 +653,18 @@
 			:global(.active) {
 				opacity: 100% !important;
 			}
+		}
+	}
+
+	// Paste button — neutral outline (matching Pico's secondary outline look)
+	.paste-button {
+		color: var(--nc-text);
+		border-color: var(--nc-border);
+
+		&:hover {
+			background-color: var(--nc-surface-2);
+			color: var(--nc-text);
+			border-color: var(--nc-text);
 		}
 	}
 </style>

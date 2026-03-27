@@ -1,5 +1,4 @@
 <script lang="ts">
-	import '../app.scss';
 	import Player from '$lib/player/Player.svelte';
 
 	let { data } = $props();
@@ -22,10 +21,10 @@
 	});
 </script>
 
-<main class="container">
+<main>
 	<pre hidden>{JSON.stringify({ repeatA, repeatB }, null, 4)}</pre>
 
-	<a href="https://youtu.be/{youtubeId}">youtu.be/{youtubeId}</a>
+	<a class="secondary" href="https://youtu.be/{youtubeId}">youtu.be/{youtubeId}</a>
 
 	<Player bind:youtubeId bind:repeatA bind:repeatB></Player>
 
