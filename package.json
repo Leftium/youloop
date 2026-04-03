@@ -16,7 +16,7 @@
 		"@eslint/compat": "^1.2.3",
 		"@iconify-json/fluent": "^1.2.11",
 		"@iconify-json/ic": "^1.2.2",
-		"@leftium/nimble.css": "^0.16.0",
+		"@leftium/nimble.css": "^0.17.0",
 		"@sveltejs/adapter-vercel": "^5.5.0",
 		"@sveltejs/kit": "^2.0.0",
 		"@sveltejs/vite-plugin-svelte": "^4.0.0",
