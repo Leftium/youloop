@@ -114,11 +114,10 @@
 			}
 
 			if (currentTime < repeatA || currentTime > repeatB) {
+				player.currentTime = currentTime = repeatA;
 				if (!loop) {
 					paused = true;
 					player.paused = paused;
-				} else {
-					player.currentTime = currentTime = repeatA;
 				}
 			}
 		});
