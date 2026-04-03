@@ -11,7 +11,9 @@
 
 	<nav>
 		<h1>
-			<a class="brand" href="/" data-sveltekit-reload><span class="title-text">YouLoop</span></a>
+			<a class="brand" href="/" data-sveltekit-reload
+				><img src="/logo.svg" alt="" class="brand-logo" /><span class="title-text">YouLoop</span></a
+			>
 			<small><a class="secondary" href="/about">About</a></small>
 		</h1>
 	</nav>
@@ -25,6 +27,13 @@
 	nav h1 {
 		font-size: 1.75rem;
 		margin: 0;
+	}
+
+	.brand-logo {
+		height: 1em;
+		width: auto;
+		vertical-align: middle;
+		margin-right: 0.25em;
 	}
 
 	.brand {
