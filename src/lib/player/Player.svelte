@@ -59,7 +59,7 @@
 	let duration: number | undefined = $state();
 	let paused = $state(true);
 	let muted = $state(false);
-	let loop = $state(true);
+	let loop = $state(false);
 	let playbackRate = $state(100);
 
 	let youtubeIdResultMessage = $state('');
@@ -368,7 +368,9 @@
 		</div>
 	</div>
 
-	<button class="outline paste-button" onclick={pasteYoutubeId}>Load YouTube URL/ID from clipboard</button>
+	<button class="outline paste-button" onclick={pasteYoutubeId}
+		>Load YouTube URL/ID from clipboard</button
+	>
 	<div>{youtubeIdResultMessage}</div>
 </center>
 
@@ -380,9 +382,9 @@
 	$indigo-300: #b0a3e8;
 	$red-550: #c52f21;
 	// Original youloop used zinc palette for custom player buttons:
-	$zinc-550: #646b79;   // button bg (Pico zinc theme --pico-primary-background)
-	$zinc-600: #5c6370;   // button hover
-	$slate-100: #dfe3eb;  // --pico-range-border-color (track)
+	$zinc-550: #646b79; // button bg (Pico zinc theme --pico-primary-background)
+	$zinc-600: #5c6370; // button hover
+	$slate-100: #dfe3eb; // --pico-range-border-color (track)
 
 	media-controls:global([role='group']) {
 		display: flex;
