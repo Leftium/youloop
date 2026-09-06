@@ -18,18 +18,17 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      - uses: actions/checkout@v5
+      - uses: pnpm/setup@v2
         with:
           version: 11.25.0
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
           cache: pnpm
+          install: false
+          runtime: node@24.14.1
       - run: pnpm install --frozen-lockfile
       - run: pnpm check
       - run: pnpm build
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@v4
         with:
           path: build
 
@@ -41,4 +40,4 @@ jobs:
     needs: build
     steps:
       - id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
