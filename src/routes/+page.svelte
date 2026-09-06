@@ -1,20 +1,30 @@
 <script lang="ts">
 	import Player from '$lib/player/Player.svelte';
+	import { onMount } from 'svelte';
 
-	let { data } = $props();
+	const defaultVideo = 'dt-SqNL4z3w';
 
-	let repeatA = $state(data.repeatA);
-	let repeatB = $state(data.repeatB);
-	let youtubeId = $state(data.youtubeId);
+	let repeatA = $state(31);
+	let repeatB = $state(38);
+	let youtubeId = $state(defaultVideo);
+	let urlLoaded = $state(false);
 
-	// svelte-ignore state_referenced_locally
-	if (!youtubeId) {
-		youtubeId = 'dt-SqNL4z3w';
-		repeatA = 31;
-		repeatB = 38;
-	}
+	onMount(() => {
+		const url = new URL(window.location.href);
+		const video = url.searchParams.get('v');
+
+		if (video) {
+			youtubeId = video;
+			repeatA = Number(url.searchParams.get('a'));
+			repeatB = Number(url.searchParams.get('b'));
+		}
+
+		urlLoaded = true;
+	});
 
 	$effect(() => {
+		if (!urlLoaded) return;
+
 		const a = Math.floor(repeatA);
 		const b = Math.floor(repeatB);
 		history.replaceState(null, '', `/?v=${youtubeId}&a=${a}&b=${b}`);

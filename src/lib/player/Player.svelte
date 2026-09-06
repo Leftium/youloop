@@ -68,6 +68,8 @@
 	let percentB = $derived(`${100 - (duration === undefined ? 0 : (repeatB / duration) * 100)}%`);
 
 	let fullscreen = $state(false);
+	let source = $state<string>();
+	let playerMounted = $state(false);
 
 	export function formatVideoTime(totalSeconds: number | undefined) {
 		if (totalSeconds == undefined) {
@@ -88,6 +90,8 @@
 	}
 
 	onMount(() => {
+		playerMounted = true;
+
 		if (!player) {
 			alert('No Player');
 		}
@@ -125,6 +129,15 @@
 		return function () {
 			unsubscribe();
 		};
+	});
+
+	$effect(() => {
+		if (!playerMounted) return;
+
+		// Vidstack resolves this as a YouTube provider URL in the browser. Leaving it
+		// unset during SSR prevents SvelteKit's prerender crawler from treating it as
+		// an application route, while retaining updates when the video changes.
+		source = `youtube/${youtubeId}`;
 	});
 
 	function togglePaused(e: MouseEvent) {
@@ -241,7 +254,7 @@
 	}
 </script>
 
-<media-player bind:this={player} playsinline crossOrigin src="youtube/{youtubeId}">
+<media-player bind:this={player} playsinline crossOrigin src={source}>
 	<media-provider onclick={togglePaused} role="none"></media-provider>
 
 	<media-controls class="vds-controls">

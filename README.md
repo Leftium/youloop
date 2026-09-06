@@ -1,38 +1,29 @@
-# sv
+# YouLoop
 
-Everything you need to build a Svelte project, powered by [`sv`](https://github.com/sveltejs/cli).
+YouLoop is a browser-based YouTube segment repeater, published at
+[youloop.leftium.com](https://youloop.leftium.com).
 
-## Creating a project
+## Development
 
-If you're seeing this, you've probably already done this step. Congrats!
-
-```bash
-# create a new project in the current directory
-npx sv create
-
-# create a new project in my-app
-npx sv create my-app
-```
-
-## Developing
-
-Once you've created a project and installed dependencies with `npm install` (or `pnpm install` or `yarn`), start a development server:
+Install dependencies and start the Vite development server:
 
 ```bash
-npm run dev
-
-# or start the server and open the app in a new browser tab
-npm run dev -- --open
+pnpm install
+pnpm dev
 ```
 
-## Building
+Use `pnpm check` for Svelte and TypeScript validation, and `pnpm build` to create
+the static production artifact in `build/`.
 
-To create a production version of your app:
+## Deployment
 
-```bash
-npm run build
-```
+Pushes to `main` deploy the static artifact to GitHub Pages through
+[the Pages workflow](.github/workflows/pages.yml). The GitHub repository must
+use GitHub Actions as its Pages source and have `youloop.leftium.com` configured
+as its custom domain. The production site is served from the domain root, so no
+SvelteKit base path is configured.
 
-You can preview the production build with `npm run preview`.
-
-> To deploy your app, you may need to install an [adapter](https://svelte.dev/docs/kit/adapters) for your target environment.
+Set up and verify GitHub Pages before routing `youloop.leftium.com` away from
+Vercel. The application reads YouTube and repeat-range query parameters in the
+browser so shared URLs such as `/?v=dt-SqNL4z3w&a=31&b=38` work from the static
+deployment.
