@@ -22,7 +22,7 @@ jobs:
       - uses: pnpm/setup@v2
         with:
           version: 11.25.0
-          cache: pnpm
+          cache: true
           install: false
           runtime: node@24.14.1
       - run: pnpm install --frozen-lockfile
