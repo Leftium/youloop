@@ -1,3 +1,5 @@
 allowBuilds:
   '@sveltejs/kit': true
   esbuild: true
+minimumReleaseAgeExclude:
+  - '@leftium/nimble.css@0.24.0'

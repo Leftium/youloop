@@ -318,7 +318,7 @@
 
 <center>
 	<div class="controls">
-		<div role="group">
+		<div class="nc-join" role="group">
 			{#key paused}
 				<button onclick={togglePaused}>
 					{#if paused}
@@ -333,12 +333,12 @@
 			<button onclick={makeStepFrame(1)}><IcRoundSkipNext /></button>
 		</div>
 
-		<div class="ab-buttons" role="group">
+		<div class="ab-buttons nc-join" role="group">
 			<button class="a-button" onclick={setRepeatA}>A</button>
 			<button class="b-button" onclick={setRepeatB}>B</button>
 		</div>
 
-		<div role="group">
+		<div class="nc-join" role="group">
 			{#key loop}
 				<button onclick={toggleLoop}>
 					{#if loop}
@@ -350,7 +350,7 @@
 			{/key}
 		</div>
 
-		<div role="group">
+		<div class="nc-join" role="group">
 			{#key muted}
 				<button onclick={toggleMute}>
 					{#if muted}
@@ -362,7 +362,7 @@
 			{/key}
 		</div>
 
-		<div class="speed-buttons" role="group">
+		<div class="speed-buttons nc-join" role="group">
 			<button onclick={makeTogglePlaybackRate()}><IcRoundSpeed /></button>
 
 			<button onclick={makeTogglePlaybackRate(200)}>
@@ -621,7 +621,7 @@
 		}
 	}
 
-	div [role='group'] {
+	div .nc-join {
 		width: auto;
 		border-radius: var(--nc-radius);
 		overflow: hidden;
