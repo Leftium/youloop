@@ -17,6 +17,10 @@
 			youtubeId = video;
 			repeatA = Number(url.searchParams.get('a'));
 			repeatB = Number(url.searchParams.get('b'));
+
+			if (repeatB <= 0) {
+				repeatB = 99999;
+			}
 		}
 
 		urlLoaded = true;
