@@ -27,7 +27,7 @@
 	});
 
 	$effect(() => {
-		if (!urlLoaded) return;
+		if (!urlLoaded || repeatB === 99999) return;
 
 		const a = Math.floor(repeatA);
 		const b = Math.floor(repeatB);
