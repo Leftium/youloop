@@ -1,5 +1,5 @@
 <script lang="ts">
-	import Player from '$lib/player/Player.svelte';
+	import Player from '#lib/player/Player.svelte';
 	import { onMount } from 'svelte';
 
 	const defaultVideo = 'dt-SqNL4z3w';
