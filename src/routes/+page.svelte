@@ -1,5 +1,5 @@
 <script lang="ts">
-	import Player from '$lib/player/Player.svelte';
+	import Player from '#lib/player/Player.svelte';
 	import { onMount } from 'svelte';
 
 	const defaultVideo = 'dt-SqNL4z3w';
@@ -17,13 +17,17 @@
 			youtubeId = video;
 			repeatA = Number(url.searchParams.get('a'));
 			repeatB = Number(url.searchParams.get('b'));
+
+			if (repeatB <= 0) {
+				repeatB = 99999;
+			}
 		}
 
 		urlLoaded = true;
 	});
 
 	$effect(() => {
-		if (!urlLoaded) return;
+		if (!urlLoaded || repeatB === 99999) return;
 
 		const a = Math.floor(repeatA);
 		const b = Math.floor(repeatB);

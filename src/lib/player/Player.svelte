@@ -445,6 +445,7 @@
 		justify-content: center;
 
 		gap: 5px;
+		margin-bottom: 0.25em;
 	}
 
 	.timestamps {
