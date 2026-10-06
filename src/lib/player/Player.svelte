@@ -78,6 +78,10 @@
 	let playerError = $state('');
 	let pauseAfterSeek = false;
 	let initialFramePending = false;
+	let bootstrapMuted = false;
+	let metadataReceived = $state(false);
+	let firstFrameReady = false;
+	let durationTimer: ReturnType<typeof setTimeout> | undefined;
 	let retrySeekTime: number | undefined;
 	let sourceVersion = $state(0);
 	let playerMounted = $state(false);
@@ -98,6 +102,7 @@
 	}
 
 	function pause() {
+		initialFramePending = false;
 		requestedPaused = true;
 		providerStalled = false;
 		retrySeekTime = undefined;
@@ -153,6 +158,7 @@
 		window.addEventListener('message', handleProviderMessage);
 		return () => {
 			disposed = true;
+			clearTimeout(durationTimer);
 			document.removeEventListener('fullscreenchange', syncFullscreen);
 			window.removeEventListener('message', handleProviderMessage);
 		};
@@ -165,27 +171,77 @@
 		player.currentTime = currentTime;
 	}
 
+	function publishDuration() {
+		// YouTube's cued duration can be rounded. Read the post-playback value,
+		// and wait for a quiet interval before showing the first timeline.
+		const nextDuration = player.engine?.getDuration() ?? player.duration;
+		if (!Number.isFinite(nextDuration) || nextDuration <= 0) return;
+		duration = nextDuration;
+		repeatB = Math.min(repeatB, nextDuration);
+		repeatA = Math.max(0, Math.min(repeatA, repeatB));
+	}
+
+	function scheduleDuration() {
+		clearTimeout(durationTimer);
+		if (!firstFrameReady || initialFramePending || bootstrapMuted) return;
+		durationTimer = setTimeout(publishDuration, 250);
+	}
+
+	function restoreBootstrapMute() {
+		if (!bootstrapMuted) return;
+		bootstrapMuted = false;
+		player.muted = muted;
+		scheduleDuration();
+	}
+
+	function handlePause() {
+		paused = true;
+		// pauseVideo() is asynchronous. Keep the bootstrap silent until the
+		// provider confirms it has stopped, including its final audio samples.
+		if (!initialFramePending) restoreBootstrapMute();
+	}
+
+	function handleError() {
+		initialFramePending = false;
+		pause();
+		if (player.paused) restoreBootstrapMute();
+		playerError = player.error?.message ?? 'YouTube playback failed';
+	}
+
+	function handleVolumeChange() {
+		if (!bootstrapMuted) muted = player.muted;
+	}
+
 	function handleMetadata() {
 		if (!Number.isFinite(player.duration) || player.duration <= 0) return;
-		const firstFrame = duration === undefined;
-		duration = player.duration;
-		repeatB = Math.min(repeatB, player.duration);
-		repeatA = Math.max(0, Math.min(repeatA, repeatB));
-		if (firstFrame) {
-			player.muted = muted;
-			player.playbackRate = playbackRate / 100;
-			// YouTube needs playback to render a sought frame. Pause once that frame is ready.
-			initialFramePending = true;
-			seek(Math.max(repeatA, Math.min(1, repeatB)), true);
-			void player.play().catch((error) => {
-				playerError = `First frame unavailable: ${String(error)}`;
-			});
+		if (metadataReceived) {
+			scheduleDuration();
+			return;
 		}
+		metadataReceived = true;
+		initialFramePending = true;
+		bootstrapMuted = true;
+		player.muted = true;
+		player.playbackRate = playbackRate / 100;
+		// YouTube needs playback to render a sought frame. Pause once that frame is ready.
+		seek(Math.max(repeatA, Math.min(1, repeatB)), true);
+		const version = sourceVersion;
+		void player.play().catch((error) => {
+			if (version !== sourceVersion) return;
+			initialFramePending = false;
+			pause();
+			if (player.paused) restoreBootstrapMute();
+			playerError = `First frame unavailable: ${String(error)}`;
+		});
 	}
 
 	function handlePlaying() {
 		providerStalled = false;
 		paused = false;
+		if (!player.seeking) {
+			firstFrameReady = true;
+			if (duration === undefined) scheduleDuration();
+		}
 		if (retrySeekTime !== undefined) {
 			const time = retrySeekTime;
 			retrySeekTime = undefined;
@@ -208,6 +264,10 @@
 		} else if (pauseAfterSeek) {
 			pauseAfterSeek = false;
 			pause();
+		}
+		if (!firstFrameReady && youtubePlayerState() === YOUTUBE_STATE_PLAYING) {
+			firstFrameReady = true;
+			scheduleDuration();
 		}
 		handleTimeUpdate();
 	}
@@ -236,6 +296,7 @@
 		requestedPaused = false;
 		pauseAfterSeek = false;
 		initialFramePending = false;
+		restoreBootstrapMute();
 		try {
 			await player.play();
 		} catch (error) {
@@ -244,7 +305,7 @@
 	}
 
 	function togglePaused() {
-		if (!player || duration === undefined) return;
+		if (!player || !metadataReceived) return;
 		// The adapter can retain paused=false when YouTube returns to unstarted/cued.
 		// Treat those states as a Play request so a stalled startup can be retried.
 		const youtubeState = youtubePlayerState();
@@ -270,7 +331,8 @@
 	}
 
 	function toggleMute() {
-		player.muted = muted = !muted;
+		muted = !muted;
+		player.muted = bootstrapMuted || muted;
 	}
 
 	function toggleLoop() {
@@ -362,6 +424,10 @@
 		}
 
 		// Reset before the keyed media element loads the new source.
+		clearTimeout(durationTimer);
+		metadataReceived = false;
+		firstFrameReady = false;
+		bootstrapMuted = false;
 		duration = undefined;
 		repeatA = 0;
 		repeatB = 99999;
@@ -392,10 +458,10 @@
 				onended={handleEnded}
 				onplay={() => (paused = providerStalled)}
 				onplaying={handlePlaying}
-				onpause={() => (paused = true)}
-				onvolumechange={() => (muted = player.muted)}
+				onpause={handlePause}
+				onvolumechange={handleVolumeChange}
 				onratechange={() => (playbackRate = player.playbackRate * 100)}
-				onerror={() => (playerError = player.error?.message ?? 'YouTube playback failed')}
+				onerror={handleError}
 			></youtube-video>
 		{/key}
 	{/if}
@@ -464,7 +530,7 @@
 </div>
 
 <center>
-	<div class="controls" inert={duration === undefined}>
+	<div class="controls" inert={!metadataReceived}>
 		<div class="nc-join" role="group">
 			{#key paused}
 				<button aria-label={paused ? 'Play' : 'Pause'} onclick={togglePaused}>
