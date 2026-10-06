@@ -31,6 +31,11 @@
 	// https://webapps.stackexchange.com/a/101153/1530
 	const YOUTUBE_ID_REGEX = /[0-9A-Za-z_-]{10}[048AEIMQUYcgkosw]/;
 
+	const YOUTUBE_ORIGINS = ['https://www.youtube-nocookie.com', 'https://www.youtube.com'];
+	const YOUTUBE_STATE_UNSTARTED = -1;
+	const YOUTUBE_STATE_PLAYING = 1;
+	const YOUTUBE_STATE_CUED = 5;
+
 	interface Props {
 		youtubeId: string | null;
 		repeatA: number;
@@ -58,6 +63,8 @@
 	let currentTime = $state(repeatA);
 	let duration: number | undefined = $state();
 	let paused = $state(true);
+	let requestedPaused = true;
+	let providerStalled = false;
 	let muted = $state(false);
 	let loop = $state(false);
 	let playbackRate = $state(100);
@@ -74,6 +81,46 @@
 	let retrySeekTime: number | undefined;
 	let sourceVersion = $state(0);
 	let playerMounted = $state(false);
+
+	function youtubePlayerState() {
+		const engine = player?.engine;
+		return typeof engine?.getPlayerState === 'function' ? engine.getPlayerState() : undefined;
+	}
+
+	function youtubeStateIsStalled(state: unknown) {
+		return state === YOUTUBE_STATE_UNSTARTED || state === YOUTUBE_STATE_CUED;
+	}
+
+	function recoverySeekTarget(time = player.currentTime) {
+		const finiteTime = Number.isFinite(time) ? time : repeatA;
+		const target = Math.max(repeatA, Math.min(repeatB, finiteTime));
+		return target >= repeatB ? repeatA : target;
+	}
+
+	function pause() {
+		requestedPaused = true;
+		providerStalled = false;
+		retrySeekTime = undefined;
+		player.pause();
+	}
+
+	function handleProviderMessage(event: MessageEvent) {
+		if (!player || !YOUTUBE_ORIGINS.includes(event.origin)) return;
+		const iframe = player.shadowRoot?.querySelector('iframe');
+		if (!iframe || event.source !== iframe.contentWindow) return;
+
+		try {
+			const message = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
+			const providerState = message?.info?.playerState;
+			if (!requestedPaused && youtubeStateIsStalled(providerState)) {
+				providerStalled = true;
+				retrySeekTime = recoverySeekTarget();
+				paused = true;
+			}
+		} catch {
+			// Ignore unrelated or malformed provider messages.
+		}
+	}
 
 	export function formatVideoTime(totalSeconds: number | undefined) {
 		if (totalSeconds == undefined) {
@@ -103,15 +150,18 @@
 			fullscreen = document.fullscreenElement === playerContainer;
 		};
 		document.addEventListener('fullscreenchange', syncFullscreen);
+		window.addEventListener('message', handleProviderMessage);
 		return () => {
 			disposed = true;
 			document.removeEventListener('fullscreenchange', syncFullscreen);
+			window.removeEventListener('message', handleProviderMessage);
 		};
 	});
 
 	function seek(time: number, stayPaused = player.paused) {
 		pauseAfterSeek = stayPaused;
 		currentTime = Math.max(repeatA, Math.min(repeatB, time));
+		if (retrySeekTime !== undefined) retrySeekTime = recoverySeekTarget(currentTime);
 		player.currentTime = currentTime;
 	}
 
@@ -134,27 +184,30 @@
 	}
 
 	function handlePlaying() {
+		providerStalled = false;
+		paused = false;
 		if (retrySeekTime !== undefined) {
 			const time = retrySeekTime;
 			retrySeekTime = undefined;
 			seek(time, false);
 			// Reissue after playback starts; a cued-player seek can be ignored while
 			// the adapter still caches its target and suppresses the same assignment.
-			player.engine?.seekTo(time, true);
+			const engine = player.engine;
+			if (typeof engine?.seekTo === 'function') engine.seekTo(time, true);
 		}
 		if (initialFramePending && !player.seeking) {
 			initialFramePending = false;
 			pauseAfterSeek = false;
-			player.pause();
+			pause();
 		}
 	}
 
 	function handleSeeked() {
 		if (initialFramePending) {
-			if (player.engine?.getPlayerState() === 1) handlePlaying();
+			if (youtubePlayerState() === YOUTUBE_STATE_PLAYING) handlePlaying();
 		} else if (pauseAfterSeek) {
 			pauseAfterSeek = false;
-			player.pause();
+			pause();
 		}
 		handleTimeUpdate();
 	}
@@ -167,19 +220,20 @@
 			currentTime > repeatB ||
 			(!player.paused && currentTime >= repeatB)
 		) {
-			if (!loop) player.pause();
+			if (!loop) pause();
 			seek(repeatA, !loop);
 		}
 	}
 
 	// Seeking from YouTube's ended state can resume playback even with loop disabled.
 	function handleEnded() {
-		if (!loop) player.pause();
+		if (!loop) pause();
 		seek(repeatA, !loop);
 		if (loop) void play();
 	}
 
 	async function play() {
+		requestedPaused = false;
 		pauseAfterSeek = false;
 		initialFramePending = false;
 		try {
@@ -193,16 +247,16 @@
 		if (!player || duration === undefined) return;
 		// The adapter can retain paused=false when YouTube returns to unstarted/cued.
 		// Treat those states as a Play request so a stalled startup can be retried.
-		const youtubeState = player.engine?.getPlayerState();
-		if (player.paused || youtubeState === -1 || youtubeState === 5) {
-			if (youtubeState === -1 || youtubeState === 5) {
-				retrySeekTime = Math.max(repeatA, Math.min(repeatB, player.currentTime));
-				if (retrySeekTime >= repeatB) retrySeekTime = repeatA;
+		const youtubeState = youtubePlayerState();
+		if (paused || player.paused || providerStalled || youtubeStateIsStalled(youtubeState)) {
+			if (youtubeStateIsStalled(youtubeState)) {
+				providerStalled = true;
+				retrySeekTime = recoverySeekTarget();
 			}
 			if (player.currentTime < repeatA || player.currentTime >= repeatB) seek(repeatA);
 			void play();
 		} else {
-			player.pause();
+			pause();
 		}
 	}
 
@@ -252,7 +306,7 @@
 
 	function makeStepFrame(numFrames: number) {
 		return function () {
-			player.pause();
+			pause();
 			seek(player.currentTime + numFrames / framerate, true);
 		};
 	}
@@ -313,6 +367,8 @@
 		repeatB = 99999;
 		currentTime = 1;
 		paused = true;
+		requestedPaused = true;
+		providerStalled = false;
 		playbackRate = 100;
 		playerError = '';
 		pauseAfterSeek = false;
@@ -334,7 +390,7 @@
 				ontimeupdate={handleTimeUpdate}
 				onseeked={handleSeeked}
 				onended={handleEnded}
-				onplay={() => (paused = false)}
+				onplay={() => (paused = providerStalled)}
 				onplaying={handlePlaying}
 				onpause={() => (paused = true)}
 				onvolumechange={() => (muted = player.muted)}
