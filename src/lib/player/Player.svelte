@@ -63,6 +63,8 @@
 	let currentTime = $state(repeatA);
 	let duration: number | undefined = $state();
 	let paused = $state(true);
+	let requestedPaused = true;
+	let providerStalled = false;
 	let muted = $state(false);
 	let loop = $state(false);
 	let playbackRate = $state(100);
@@ -96,6 +98,8 @@
 	}
 
 	function pause() {
+		requestedPaused = true;
+		providerStalled = false;
 		retrySeekTime = undefined;
 		player.pause();
 	}
@@ -108,7 +112,8 @@
 		try {
 			const message = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
 			const providerState = message?.info?.playerState;
-			if (!paused && youtubeStateIsStalled(providerState)) {
+			if (!requestedPaused && youtubeStateIsStalled(providerState)) {
+				providerStalled = true;
 				retrySeekTime = recoverySeekTarget();
 				paused = true;
 			}
@@ -179,6 +184,8 @@
 	}
 
 	function handlePlaying() {
+		providerStalled = false;
+		paused = false;
 		if (retrySeekTime !== undefined) {
 			const time = retrySeekTime;
 			retrySeekTime = undefined;
@@ -200,7 +207,7 @@
 			if (youtubePlayerState() === YOUTUBE_STATE_PLAYING) handlePlaying();
 		} else if (pauseAfterSeek) {
 			pauseAfterSeek = false;
-			player.pause();
+			pause();
 		}
 		handleTimeUpdate();
 	}
@@ -226,6 +233,7 @@
 	}
 
 	async function play() {
+		requestedPaused = false;
 		pauseAfterSeek = false;
 		initialFramePending = false;
 		try {
@@ -240,8 +248,11 @@
 		// The adapter can retain paused=false when YouTube returns to unstarted/cued.
 		// Treat those states as a Play request so a stalled startup can be retried.
 		const youtubeState = youtubePlayerState();
-		if (paused || player.paused || youtubeStateIsStalled(youtubeState)) {
-			if (youtubeStateIsStalled(youtubeState)) retrySeekTime = recoverySeekTarget();
+		if (paused || player.paused || providerStalled || youtubeStateIsStalled(youtubeState)) {
+			if (youtubeStateIsStalled(youtubeState)) {
+				providerStalled = true;
+				retrySeekTime = recoverySeekTarget();
+			}
 			if (player.currentTime < repeatA || player.currentTime >= repeatB) seek(repeatA);
 			void play();
 		} else {
@@ -356,6 +367,8 @@
 		repeatB = 99999;
 		currentTime = 1;
 		paused = true;
+		requestedPaused = true;
+		providerStalled = false;
 		playbackRate = 100;
 		playerError = '';
 		pauseAfterSeek = false;
@@ -377,7 +390,7 @@
 				ontimeupdate={handleTimeUpdate}
 				onseeked={handleSeeked}
 				onended={handleEnded}
-				onplay={() => (paused = false)}
+				onplay={() => (paused = providerStalled)}
 				onplaying={handlePlaying}
 				onpause={() => (paused = true)}
 				onvolumechange={() => (muted = player.muted)}
