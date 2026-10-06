@@ -1,7 +1,6 @@
 <script lang="ts">
-	import type { MediaPlayerElement } from 'vidstack/elements';
-	import 'vidstack/bundle';
-	import { onMount, tick } from 'svelte';
+	import type { YouTubeVideoElement } from '@videojs/html/media/youtube-video';
+	import { onMount } from 'svelte';
 
 	import IcRoundPlayArrow from '~icons/ic/round-play-arrow';
 	import IcRoundPause from '~icons/ic/round-pause';
@@ -20,7 +19,8 @@
 	import IcRoundFullscreen from '~icons/ic/round-fullscreen';
 	import IcRoundFullscreenExit from '~icons/ic/round-fullscreen-exit';
 
-	let player: MediaPlayerElement;
+	let player = $state<YouTubeVideoElement>(undefined!);
+	let playerContainer: HTMLDivElement;
 
 	const framerate = 30;
 
@@ -68,7 +68,10 @@
 	let percentB = $derived(`${100 - (duration === undefined ? 0 : (repeatB / duration) * 100)}%`);
 
 	let fullscreen = $state(false);
-	let source = $state<string>();
+	let playerError = $state('');
+	let pauseAfterSeek = false;
+	let initialFramePending = false;
+	let sourceVersion = $state(0);
 	let playerMounted = $state(false);
 
 	export function formatVideoTime(totalSeconds: number | undefined) {
@@ -90,74 +93,109 @@
 	}
 
 	onMount(() => {
-		playerMounted = true;
-
-		if (!player) {
-			alert('No Player');
-		}
-
-		player.addEventListener('error', (event) => {
-			console.log('PLAYER ERROR');
-			console.log(event);
+		let disposed = false;
+		// Register only in the browser; importing the element during SSR needs DOM globals.
+		void import('@videojs/html/media/youtube-video').then(() => {
+			if (!disposed) playerMounted = true;
 		});
-
-		const unsubscribe = player.subscribe((e) => {
-			currentTime = e.currentTime;
-
-			if (e.duration) {
-				if (!duration) {
-					// Start at non-zero value to force a video frame to show
-					// Otherwise weird poster is shown.
-					currentTime = player.currentTime = 1;
-				}
-
-				duration = e.duration - 1;
-				if (repeatB > duration) {
-					repeatB = duration;
-				}
-			}
-
-			if (currentTime < repeatA || currentTime > repeatB) {
-				player.currentTime = currentTime = repeatA;
-				if (!loop) {
-					paused = true;
-					player.paused = paused;
-				}
-			}
-		});
-
-		return function () {
-			unsubscribe();
+		const syncFullscreen = () => {
+			fullscreen = document.fullscreenElement === playerContainer;
+		};
+		document.addEventListener('fullscreenchange', syncFullscreen);
+		return () => {
+			disposed = true;
+			document.removeEventListener('fullscreenchange', syncFullscreen);
 		};
 	});
 
-	$effect(() => {
-		if (!playerMounted) return;
+	function seek(time: number, stayPaused = player.paused) {
+		pauseAfterSeek = stayPaused;
+		currentTime = Math.max(repeatA, Math.min(repeatB, time));
+		player.currentTime = currentTime;
+	}
 
-		// Vidstack resolves this as a YouTube provider URL in the browser. Leaving it
-		// unset during SSR prevents SvelteKit's prerender crawler from treating it as
-		// an application route, while retaining updates when the video changes.
-		source = `youtube/${youtubeId}`;
-	});
-
-	function togglePaused(e: MouseEvent) {
-		player.paused = paused = !paused;
-
-		if (!paused && (player.currentTime < repeatA || player.currentTime > repeatB)) {
-			player.currentTime = currentTime = repeatA;
+	function handleMetadata() {
+		if (!Number.isFinite(player.duration) || player.duration <= 0) return;
+		const firstFrame = duration === undefined;
+		duration = player.duration;
+		repeatB = Math.min(repeatB, player.duration);
+		repeatA = Math.max(0, Math.min(repeatA, repeatB));
+		if (firstFrame) {
+			player.muted = muted;
+			player.playbackRate = playbackRate / 100;
+			// YouTube needs playback to render a sought frame. Pause once that frame is ready.
+			initialFramePending = true;
+			seek(Math.max(repeatA, Math.min(1, repeatB)), true);
+			void player.play().catch((error) => {
+				playerError = `First frame unavailable: ${String(error)}`;
+			});
 		}
 	}
 
-	function toggleFullscreen() {
-		// TODO: Special case "fullscreen" for iOS on iPhone
-		// https://developer.mozilla.org/en-US/docs/Web/API/Fullscreen_API#browser_compatibility
+	function handlePlaying() {
+		if (initialFramePending && !player.seeking) {
+			initialFramePending = false;
+			pauseAfterSeek = false;
+			player.pause();
+		}
+	}
 
-		if (document.fullscreenElement) {
-			document.exitFullscreen();
-			fullscreen = false;
+	function handleSeeked() {
+		if (initialFramePending) {
+			if (player.engine?.getPlayerState() === 1) handlePlaying();
+		} else if (pauseAfterSeek) {
+			pauseAfterSeek = false;
+			player.pause();
+		}
+		handleTimeUpdate();
+	}
+
+	function handleTimeUpdate() {
+		if (duration === undefined || player.seeking) return;
+		currentTime = player.currentTime;
+		if (
+			currentTime < repeatA ||
+			currentTime > repeatB ||
+			(!player.paused && currentTime >= repeatB)
+		) {
+			if (!loop) player.pause();
+			seek(repeatA, !loop);
+		}
+	}
+
+	// Seeking from YouTube's ended state can resume playback even with loop disabled.
+	function handleEnded() {
+		if (!loop) player.pause();
+		seek(repeatA, !loop);
+		if (loop) void play();
+	}
+
+	async function play() {
+		pauseAfterSeek = false;
+		initialFramePending = false;
+		try {
+			await player.play();
+		} catch (error) {
+			playerError = `Playback failed: ${String(error)}`;
+		}
+	}
+
+	function togglePaused() {
+		if (!player || duration === undefined) return;
+		if (player.paused) {
+			if (player.currentTime < repeatA || player.currentTime >= repeatB) seek(repeatA);
+			void play();
 		} else {
-			player.requestFullscreen();
-			fullscreen = true;
+			player.pause();
+		}
+	}
+
+	async function toggleFullscreen() {
+		try {
+			if (document.fullscreenElement) await document.exitFullscreen();
+			else await playerContainer.requestFullscreen();
+		} catch (error) {
+			playerError = `Fullscreen unavailable: ${String(error)}`;
 		}
 	}
 
@@ -171,10 +209,12 @@
 
 	function setRepeatA() {
 		repeatA = currentTime;
+		if (repeatA > repeatB) repeatB = repeatA;
 	}
 
 	function setRepeatB() {
 		repeatB = currentTime;
+		if (repeatB < repeatA) repeatA = repeatB;
 	}
 
 	function makeTogglePlaybackRate(rate?: number) {
@@ -196,37 +236,46 @@
 
 	function makeStepFrame(numFrames: number) {
 		return function () {
-			paused = player.paused = true;
-			player.currentTime += (numFrames * 1) / framerate;
+			player.pause();
+			seek(player.currentTime + numFrames / framerate, true);
 		};
 	}
 
-	function handleInputCurrentTime() {
-		player.currentTime = currentTime;
+	function handleInputCurrentTime(event: Event) {
+		currentTime = Number((event.currentTarget as HTMLInputElement).value);
 		if (currentTime < repeatA) {
 			repeatA = currentTime;
 		}
 		if (currentTime > repeatB) {
 			repeatB = currentTime;
 		}
+		seek(currentTime);
 	}
 
-	function handleInputRepeatA() {
-		player.currentTime = currentTime = repeatA;
+	function handleInputRepeatA(event: Event) {
+		repeatA = Number((event.currentTarget as HTMLInputElement).value);
 		if (repeatA > repeatB) {
 			repeatB = repeatA;
 		}
+		seek(repeatA);
 	}
 
-	function handleInputRepeatB() {
-		player.currentTime = currentTime = repeatB;
+	function handleInputRepeatB(event: Event) {
+		repeatB = Number((event.currentTarget as HTMLInputElement).value);
 		if (repeatB < repeatA) {
 			repeatA = repeatB;
 		}
+		seek(repeatB);
 	}
 
 	async function pasteYoutubeId() {
-		const clipboardText = await navigator.clipboard.readText();
+		let clipboardText: string;
+		try {
+			clipboardText = await navigator.clipboard.readText();
+		} catch (error) {
+			youtubeIdResultMessage = `Clipboard unavailable: ${String(error)}`;
+			return;
+		}
 
 		const matchesUrl = clipboardText.match(YOUTUBE_URL_ID_REGEX);
 		const matchesId = clipboardText.match(YOUTUBE_ID_REGEX);
@@ -242,34 +291,55 @@
 			return;
 		}
 
-		await tick();
-		// Reset and match settings for newly loaded video.
+		// Reset before the keyed media element loads the new source.
 		duration = undefined;
 		repeatA = 0;
 		repeatB = 99999;
 		currentTime = 1;
-		player.currentTime = 1;
 		paused = true;
 		playbackRate = 100;
+		playerError = '';
+		pauseAfterSeek = false;
+		initialFramePending = false;
+		sourceVersion += 1;
 	}
 </script>
 
-<media-player bind:this={player} playsinline crossOrigin src={source}>
-	<media-provider onclick={togglePaused} role="none"></media-provider>
-
-	<media-controls class="vds-controls">
-		<div class="vds-controls-spacer"></div>
-		<media-controls-group class="vds-controls-group">
-			<button onclick={toggleFullscreen}>
-				{#if fullscreen}
-					<IcRoundFullscreenExit />
-				{:else}
-					<IcRoundFullscreen />
-				{/if}
-			</button>
-		</media-controls-group>
-	</media-controls>
-</media-player>
+<div class="player" bind:this={playerContainer}>
+	{#if playerMounted}
+		{#key `${youtubeId}:${sourceVersion}`}
+			<youtube-video
+				bind:this={player}
+				src={`https://www.youtube-nocookie.com/embed/${youtubeId}`}
+				playsinline
+				onloadedmetadata={handleMetadata}
+				ondurationchange={handleMetadata}
+				ontimeupdate={handleTimeUpdate}
+				onseeked={handleSeeked}
+				onended={handleEnded}
+				onplay={() => (paused = false)}
+				onplaying={handlePlaying}
+				onpause={() => (paused = true)}
+				onvolumechange={() => (muted = player.muted)}
+				onratechange={() => (playbackRate = player.playbackRate * 100)}
+				onerror={() => (playerError = player.error?.message ?? 'YouTube playback failed')}
+			></youtube-video>
+		{/key}
+	{/if}
+	<button
+		class="video-toggle"
+		aria-label={paused ? 'Play video' : 'Pause video'}
+		onclick={togglePaused}
+	></button>
+	<button
+		class="fullscreen"
+		aria-label={fullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
+		onclick={toggleFullscreen}
+	>
+		{#if fullscreen}<IcRoundFullscreenExit />{:else}<IcRoundFullscreen />{/if}
+	</button>
+</div>
+{#if playerError}<p role="alert">{playerError}</p>{/if}
 
 <div class="timestamps">
 	<div>{formatVideoTime(currentTime)} / {formatVideoTime(duration)}</div>
@@ -286,6 +356,7 @@
 	{#if duration}
 		<input
 			type="range"
+			aria-label="Current time"
 			class="current-time"
 			min="0"
 			step="0.1"
@@ -296,6 +367,7 @@
 
 		<input
 			type="range"
+			aria-label="Repeat start"
 			class="repeat-a"
 			min="0"
 			step="0.1"
@@ -306,6 +378,7 @@
 
 		<input
 			type="range"
+			aria-label="Repeat end"
 			class="repeat-b"
 			min="0"
 			step="0.1"
@@ -317,10 +390,10 @@
 </div>
 
 <center>
-	<div class="controls">
+	<div class="controls" inert={duration === undefined}>
 		<div class="nc-join" role="group">
 			{#key paused}
-				<button onclick={togglePaused}>
+				<button aria-label={paused ? 'Play' : 'Pause'} onclick={togglePaused}>
 					{#if paused}
 						<IcRoundPlayArrow />
 					{:else}
@@ -329,8 +402,10 @@
 				</button>
 			{/key}
 
-			<button onclick={makeStepFrame(-1)}><IcRoundSkipPrevious /></button>
-			<button onclick={makeStepFrame(1)}><IcRoundSkipNext /></button>
+			<button aria-label="Previous frame" onclick={makeStepFrame(-1)}
+				><IcRoundSkipPrevious /></button
+			>
+			<button aria-label="Next frame" onclick={makeStepFrame(1)}><IcRoundSkipNext /></button>
 		</div>
 
 		<div class="ab-buttons nc-join" role="group">
@@ -340,7 +415,7 @@
 
 		<div class="nc-join" role="group">
 			{#key loop}
-				<button onclick={toggleLoop}>
+				<button aria-label="Loop" aria-pressed={loop} onclick={toggleLoop}>
 					{#if loop}
 						<FluentArrowRepeat />
 					{:else}
@@ -352,7 +427,7 @@
 
 		<div class="nc-join" role="group">
 			{#key muted}
-				<button onclick={toggleMute}>
+				<button aria-label="Mute" aria-pressed={muted} onclick={toggleMute}>
 					{#if muted}
 						<IcRoundVolumeOff />
 					{:else}
@@ -398,46 +473,50 @@
 	$zinc-600: #5c6370; // button hover
 	$slate-100: #dfe3eb; // --pico-range-border-color (track)
 
-	media-controls:global([role='group']) {
-		display: flex;
-		position: absolute;
-
-		media-controls-group.vds-controls-group {
-			display: flex;
-			flex-direction: row-reverse;
-			flex-grow: 0;
-
-			button {
-				padding: 4px;
-				border: none;
-				background-color: transparent;
-			}
-		}
-	}
-
-	/* Fix extra height on iOS: https://github.com/vidstack/player/issues/1445 */
-	media-player:global([data-media-player]) {
+	.player {
+		position: relative;
+		width: 100%;
+		aspect-ratio: 16 / 9;
+		background: black;
 		contain: layout;
 	}
 
-	/*
-	media-provider {
-		overflow: hidden;
+	.player:fullscreen {
 		width: 100%;
-		// Keep it the right aspect-ratio
-		aspect-ratio: 16/9;
-		// No clicking/hover effects
-		pointer-events: none;
+		height: 100%;
+		aspect-ratio: auto;
 	}
 
-	media-provider :global(iframe) {
-		// Extend it beyond the viewport...
-		width: 300%;
+	youtube-video {
+		display: block;
+		width: 100%;
 		height: 100%;
-		// ...and bring it back again
-		margin-left: -100%;
+		min-width: 0;
+		min-height: 0;
 	}
-    */
+
+	.video-toggle {
+		position: absolute;
+		inset: 0;
+		width: 100%;
+		height: 100%;
+		padding: 0;
+		margin: 0;
+		border: 0;
+		border-radius: 0;
+		background: transparent;
+	}
+
+	.fullscreen {
+		position: absolute;
+		right: 0;
+		bottom: 0;
+		padding: 4px;
+		margin: 0;
+		border: 0;
+		background: transparent;
+		color: white;
+	}
 
 	.controls {
 		display: flex;

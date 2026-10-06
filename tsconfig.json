@@ -3,7 +3,7 @@
 	"compilerOptions": {
 		"sourceMap": true,
 		"strict": true,
-		"types": ["$app/types", "vidstack/svelte"]
+		"types": ["$app/types"]
 	},
 	"include": ["src", "vite.config.ts"]
 }
