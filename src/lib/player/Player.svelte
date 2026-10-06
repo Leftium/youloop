@@ -326,6 +326,7 @@
 			></youtube-video>
 		{/key}
 	{/if}
+
 	<button
 		class="video-toggle"
 		aria-label={paused ? 'Play video' : 'Pause video'}
@@ -479,6 +480,7 @@
 		aspect-ratio: 16 / 9;
 		background: black;
 		contain: layout;
+		overflow: hidden;
 	}
 
 	.player:fullscreen {
@@ -493,6 +495,17 @@
 		height: 100%;
 		min-width: 0;
 		min-height: 0;
+	}
+
+	// Hide edge chrome and bottom captions, and reduce the paused-state gradient.
+	// Keep the iframe centered: offsets expose letterboxing; 20x caused fullscreen artifacts.
+	youtube-video::part(iframe) {
+		position: absolute;
+		top: 50%;
+		left: 0;
+		width: 100%;
+		height: 1000%;
+		transform: translateY(-50%);
 	}
 
 	.video-toggle {
