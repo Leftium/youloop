@@ -71,6 +71,7 @@
 	let playerError = $state('');
 	let pauseAfterSeek = false;
 	let initialFramePending = false;
+	let retrySeekTime: number | undefined;
 	let sourceVersion = $state(0);
 	let playerMounted = $state(false);
 
@@ -133,6 +134,14 @@
 	}
 
 	function handlePlaying() {
+		if (retrySeekTime !== undefined) {
+			const time = retrySeekTime;
+			retrySeekTime = undefined;
+			seek(time, false);
+			// Reissue after playback starts; a cued-player seek can be ignored while
+			// the adapter still caches its target and suppresses the same assignment.
+			player.engine?.seekTo(time, true);
+		}
 		if (initialFramePending && !player.seeking) {
 			initialFramePending = false;
 			pauseAfterSeek = false;
@@ -182,7 +191,14 @@
 
 	function togglePaused() {
 		if (!player || duration === undefined) return;
-		if (player.paused) {
+		// The adapter can retain paused=false when YouTube returns to unstarted/cued.
+		// Treat those states as a Play request so a stalled startup can be retried.
+		const youtubeState = player.engine?.getPlayerState();
+		if (player.paused || youtubeState === -1 || youtubeState === 5) {
+			if (youtubeState === -1 || youtubeState === 5) {
+				retrySeekTime = Math.max(repeatA, Math.min(repeatB, player.currentTime));
+				if (retrySeekTime >= repeatB) retrySeekTime = repeatA;
+			}
 			if (player.currentTime < repeatA || player.currentTime >= repeatB) seek(repeatA);
 			void play();
 		} else {
@@ -301,6 +317,7 @@
 		playerError = '';
 		pauseAfterSeek = false;
 		initialFramePending = false;
+		retrySeekTime = undefined;
 		sourceVersion += 1;
 	}
 </script>
