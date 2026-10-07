@@ -16,7 +16,7 @@ export async function run() {
 	const settle = () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
 	try {
 		for (const orientation of ['Landscape', 'Portrait', 'Landscape', 'Portrait']) {
-			buttons.find((button) => button.textContent?.trim() === orientation)!.click();
+			buttons.find((button) => button.getAttribute('aria-label') === orientation)!.click();
 			for (const width of [1100, 320, 800, 240, 1100]) {
 				container.style.width = `${width}px`;
 				await settle();
@@ -26,7 +26,10 @@ export async function run() {
 				if (
 					Math.abs(bounds.width / bounds.height - ratio) > 0.002 ||
 					bounds.width > outer.width + 1 ||
-					Math.abs(bounds.height - outer.height) > 1 ||
+					bounds.height > outer.height + 1 ||
+					Math.abs(outer.width / outer.height - 16 / 9) > 0.002 ||
+					Math.abs(bounds.left + bounds.width / 2 - outer.left - outer.width / 2) > 1 ||
+					Math.abs(bounds.top + bounds.height / 2 - outer.top - outer.height / 2) > 1 ||
 					getComputedStyle(canvas).contain !== 'size layout' ||
 					canvas.querySelector('youtube-video') !== media
 				) {
