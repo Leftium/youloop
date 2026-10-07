@@ -590,23 +590,6 @@
 			{/key}
 		</div>
 
-		<div class="nc-join" role="group" aria-label="Media orientation">
-			<button
-				aria-label="Landscape"
-				aria-pressed={orientation === 'landscape'}
-				onclick={() => (orientation = 'landscape')}
-			>
-				<span class:active={orientation === 'landscape'}><IcRoundCropLandscape /></span>
-			</button>
-			<button
-				aria-label="Portrait"
-				aria-pressed={orientation === 'portrait'}
-				onclick={() => (orientation = 'portrait')}
-			>
-				<span class:active={orientation === 'portrait'}><IcRoundCropPortrait /></span>
-			</button>
-		</div>
-
 		<div class="speed-buttons nc-join" role="group">
 			<button onclick={makeTogglePlaybackRate()}><IcRoundSpeed /></button>
 
@@ -621,6 +604,23 @@
 			</button>
 			<button onclick={makeTogglePlaybackRate(25)}>
 				<span class:active={playbackRate === 25}>&frac14;</span>
+			</button>
+		</div>
+
+		<div class="nc-join" role="group" aria-label="Media orientation">
+			<button
+				aria-label="Landscape"
+				aria-pressed={orientation === 'landscape'}
+				onclick={() => (orientation = 'landscape')}
+			>
+				<span class:active={orientation === 'landscape'}><IcRoundCropLandscape /></span>
+			</button>
+			<button
+				aria-label="Portrait"
+				aria-pressed={orientation === 'portrait'}
+				onclick={() => (orientation = 'portrait')}
+			>
+				<span class:active={orientation === 'portrait'}><IcRoundCropPortrait /></span>
 			</button>
 		</div>
 	</div>
