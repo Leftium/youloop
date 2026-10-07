@@ -132,11 +132,31 @@ export async function run() {
 		thumbnail = { width: 120, height: 90 };
 		fallback.setSource('placeholder');
 		await settle();
-		assert(state!.orientation === 'landscape', 'Missing-frame placeholder ignored');
+		assert(
+			state!.orientation === 'landscape' && !fallbackCache.has('placeholder'),
+			'Missing-frame placeholder is not cached'
+		);
 		thumbnail = null;
 		fallback.setSource('missing');
 		await settle();
-		assert(state!.orientation === 'landscape', 'Missing original-aspect image fallback');
+		assert(
+			state!.orientation === 'landscape' && !fallbackCache.has('missing'),
+			'Transient image failure is not cached'
+		);
+		thumbnail = { width: 1080, height: 1920 };
+		fallback.setSource('missing', null, true);
+		await settle();
+		assert(
+			state!.orientation === 'portrait' && fallbackCache.get('missing') === 'portrait',
+			'Retry after image failure detects and caches portrait'
+		);
+		thumbnail = { width: 1920, height: 1080 };
+		fallback.setSource('landscape-frame');
+		await settle();
+		assert(
+			state!.orientation === 'landscape' && fallbackCache.get('landscape-frame') === 'landscape',
+			'Original-aspect frame confirms cacheable landscape'
+		);
 		fallback.dispose();
 		const frames: Array<(dimensions: { width: number; height: number } | null) => void> = [];
 		const delayedFrame = createOrientationController(

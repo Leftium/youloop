@@ -60,7 +60,8 @@ export function createOrientationController(
 				throw new Error('Invalid oEmbed dimensions');
 			}
 			orientation = height > width ? 'portrait' : 'landscape';
-			successful = true;
+			// Landscape embed dimensions are inconclusive until the original frame confirms them.
+			successful = orientation === 'portrait';
 		} catch {
 			// Direct browser requests can fail; manual controls remain available.
 		}
