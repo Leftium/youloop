@@ -9,7 +9,7 @@ export async function run() {
 	const existing = document.createElement('iframe');
 	root.append(existing);
 	document.body.append(host);
-	const action = excludeYouTubeProviderFocus(host)!;
+	const cleanup = excludeYouTubeProviderFocus(host)!;
 	const settle = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
 	function check(condition: boolean, name: string) {
 		if (!condition) throw new Error(name);
@@ -35,7 +35,7 @@ export async function run() {
 		existing.replaceWith(replacement);
 		await settle();
 		check(replacement.tabIndex === -1, 'replacement iframe excluded');
-		action.destroy();
+		cleanup();
 		replacement.tabIndex = 0;
 		await settle();
 		check(replacement.tabIndex === 0, 'observer disconnected on teardown');
@@ -45,13 +45,13 @@ export async function run() {
 			const late = document.createElement('iframe');
 			root.append(late);
 			await settle();
-			check(late.tabIndex === -1, 'empty root and recreated action supported');
+			check(late.tabIndex === -1, 'empty root and recreated attachment supported');
 		} finally {
-			recreated.destroy();
+			recreated();
 		}
 		return results;
 	} finally {
-		action.destroy();
+		cleanup();
 		host.remove();
 	}
 }
