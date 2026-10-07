@@ -32,9 +32,10 @@ deployment.
 
 The player uses `@videojs/html` and `@videojs/youtube-video` 10.0.1 with explicit
 `youtube-nocookie.com` sources and YouLoop's existing controls. The iframe stays
-at its normal width with YouTube controls disabled. A centered 10x vertical
-overscan (`height: 1000%`) clips 4.5 player-heights at each edge through
-`youtube-video::part(iframe)`.
+at its normal width with YouTube controls disabled. A centered fixed-height
+overscan (`height: 16000px`) clips the excess height equally at each edge through
+`youtube-video::part(iframe)`. Keeping the iframe height fixed avoids changing
+that oversized height whenever the visible player height changes.
 Fullscreen targets the YouLoop container so its click and exit buttons remain
 available. Frame stepping requests 1/30-second seeks; YouTube determines the
 actual rendered frame.
@@ -64,9 +65,9 @@ Smaller fixed crops still exposed caption fragments in actual fullscreen.
 Comparisons then covered 5x, 10x, and 20x iframe heights. The white-screen video
 `QggJzZdIYPI` made the paused-state gradient easier to see: 20x reduced it
 further, but the maintainer observed video artifacts in actual fullscreen.
-Retain centered 10x as the preferred compromise. Shifting the iframe upward
+Centered 10x was selected after those comparisons. Shifting the iframe upward
 also moved the picture and exposed a black band at the bottom, so no offset is
-retained. Temporary comparison controls have been removed.
+retained. The original temporary comparison controls were removed.
 
 The central play/pause indicator and some paused-state shading remain. The
 shading also persists briefly after playback starts. Cropping hides the tested
@@ -74,12 +75,21 @@ bottom captions rather than changing their enabled state. Other caption
 positions, viewer-selected font sizes, and video aspect ratios may behave
 differently; this is not a guarantee that every YouTube overlay is hidden.
 
-Fullscreen uses the same centered 10x crop, with no separate override. The
-maintainer manually verified fullscreen operation and selected 10x after the
-fullscreen comparisons. T3 automation could not enter native fullscreen;
-its geometry simulations are separate from the maintainer's manual checks.
+Fullscreen now uses the same centered `16000px` crop, with no separate override.
+The maintainer manually verified fullscreen operation with the earlier 10x
+crop; fixed-height fullscreen still needs a manual check. T3 automation could
+not enter native fullscreen; geometry checks are separate from manual checks.
 Pointer clicks still reach YouLoop; pure hover/movement was not isolated by
 the available automation.
+
+### Fixed-height overscan
+
+[Issue #13](https://github.com/Leftium/youloop/issues/13) tracks native resize
+jitter with proportional overscan. The maintainer first observed the jitter
+in YouLoop at 10x and chose to adopt `16000px`, the candidate tested in Vee Next,
+without a separate YouLoop A/B experiment. Other crop options can be revisited
+if problems appear. Native resize smoothness, fixed-height fullscreen, Chrome's
+gray-line artifact, and Safari have not been verified with this YouLoop change.
 
 ### Verification status
 
