@@ -1,5 +1,5 @@
 // YouLoop owns the visible controls; keep cropped provider UI out of Tab navigation.
-export function excludeYouTubeProviderFocus(host: HTMLElement) {
+export function excludeYouTubeProviderFocus(host: HTMLElement): void | (() => void) {
 	const root = host.shadowRoot;
 	if (!root) return;
 	const exclude = () => {
@@ -16,5 +16,5 @@ export function excludeYouTubeProviderFocus(host: HTMLElement) {
 		attributes: true,
 		attributeFilter: ['tabindex']
 	});
-	return { destroy: () => observer.disconnect() };
+	return () => observer.disconnect();
 }

@@ -449,7 +449,7 @@
 	{#if playerMounted}
 		{#key `${youtubeId}:${sourceVersion}`}
 			<youtube-video
-				use:excludeYouTubeProviderFocus
+				{@attach excludeYouTubeProviderFocus}
 				bind:this={player}
 				src={`https://www.youtube-nocookie.com/embed/${youtubeId}`}
 				playsinline
