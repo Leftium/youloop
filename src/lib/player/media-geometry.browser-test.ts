@@ -5,6 +5,8 @@ export async function run() {
 	const container = document.querySelector<HTMLDivElement>('.player')!;
 	const canvas = container.querySelector<HTMLDivElement>('.media-canvas')!;
 	const media = canvas.querySelector('youtube-video');
+	const iframe = media?.shadowRoot?.querySelector('iframe');
+	if (!iframe) throw new Error('Wait for the YouTube iframe to mount');
 	const buttons = Array.from(
 		document.querySelectorAll<HTMLButtonElement>('[aria-label="Media orientation"] button')
 	);
@@ -34,6 +36,17 @@ export async function run() {
 					canvas.querySelector('youtube-video') !== media
 				) {
 					throw new Error(`${orientation} at ${width}px: media geometry or identity changed`);
+				}
+				const frame = iframe.getBoundingClientRect();
+				if (
+					Math.abs(frame.height - 16000) > 1 ||
+					Math.abs(frame.width - bounds.width) > 1 ||
+					Math.abs(frame.top + frame.height / 2 - bounds.top - bounds.height / 2) > 1 ||
+					Math.abs(frame.left - bounds.left) > 1 ||
+					iframe.tabIndex !== -1 ||
+					media?.shadowRoot?.querySelector('iframe') !== iframe
+				) {
+					throw new Error(`${orientation} at ${width}px: iframe crop, focus or identity changed`);
 				}
 				results.push(`${orientation} at ${width}px`);
 			}

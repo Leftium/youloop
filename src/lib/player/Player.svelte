@@ -698,13 +698,14 @@
 	}
 
 	// Hide edge chrome and bottom captions, and reduce the paused-state gradient.
-	// Keep the iframe centered: offsets expose letterboxing; 20x caused fullscreen artifacts.
+	// A fixed height avoids resizing the oversized iframe whenever the player height changes.
+	// Keep it centered: offsets expose letterboxing. See issue #13 for crop tradeoffs.
 	youtube-video::part(iframe) {
 		position: absolute;
 		top: 50%;
 		left: 0;
 		width: 100%;
-		height: 1000%;
+		height: 16000px;
 		transform: translateY(-50%);
 	}
 
