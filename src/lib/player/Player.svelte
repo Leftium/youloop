@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { YouTubeVideoElement } from '@videojs/html/media/youtube-video';
 	import { onMount } from 'svelte';
+	import { excludeYouTubeProviderFocus } from './youtube-provider-focus';
 
 	import IcRoundPlayArrow from '~icons/ic/round-play-arrow';
 	import IcRoundPause from '~icons/ic/round-pause';
@@ -448,6 +449,7 @@
 	{#if playerMounted}
 		{#key `${youtubeId}:${sourceVersion}`}
 			<youtube-video
+				use:excludeYouTubeProviderFocus
 				bind:this={player}
 				src={`https://www.youtube-nocookie.com/embed/${youtubeId}`}
 				playsinline
