@@ -44,13 +44,17 @@
 		repeatA: number;
 		repeatB: number;
 		orientation?: 'landscape' | 'portrait';
+		onorientationchange?: (orientation: 'landscape' | 'portrait') => void;
+		onsourcechange?: (videoId: string) => void;
 	}
 
 	let {
 		youtubeId = $bindable('dt-SqNL4z3w'),
 		repeatA = $bindable(25),
 		repeatB = $bindable(38),
-		orientation = $bindable('landscape')
+		orientation = $bindable('landscape'),
+		onorientationchange,
+		onsourcechange
 	}: Props = $props();
 
 	if (youtubeId === null) {
@@ -430,6 +434,7 @@
 
 		// Reset before the keyed media element loads the new source.
 		orientation = 'landscape';
+		onsourcechange?.(youtubeId);
 		clearTimeout(durationTimer);
 		metadataReceived = false;
 		firstFrameReady = false;
@@ -611,14 +616,20 @@
 			<button
 				aria-label="Landscape"
 				aria-pressed={orientation === 'landscape'}
-				onclick={() => (orientation = 'landscape')}
+				onclick={() => {
+					orientation = 'landscape';
+					onorientationchange?.('landscape');
+				}}
 			>
 				<span class:active={orientation === 'landscape'}><IcRoundCropLandscape /></span>
 			</button>
 			<button
 				aria-label="Portrait"
 				aria-pressed={orientation === 'portrait'}
-				onclick={() => (orientation = 'portrait')}
+				onclick={() => {
+					orientation = 'portrait';
+					onorientationchange?.('portrait');
+				}}
 			>
 				<span class:active={orientation === 'portrait'}><IcRoundCropPortrait /></span>
 			</button>

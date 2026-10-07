@@ -1,19 +1,26 @@
 <script lang="ts">
 	import Player from '#lib/player/Player.svelte';
-	import { onMount } from 'svelte';
+	import { onMount, untrack } from 'svelte';
+	import {
+		createOrientationController,
+		parseOrientation,
+		type Orientation
+	} from '#lib/player/youtube-orientation.ts';
 
 	const defaultVideo = 'dt-SqNL4z3w';
 
 	let repeatA = $state(31);
 	let repeatB = $state(38);
 	let youtubeId = $state(defaultVideo);
-	let orientation = $state<'landscape' | 'portrait'>('landscape');
+	let orientation = $state<Orientation>('landscape');
+	let orientationOverride = $state<Orientation | null>(null);
+	let orientationController: ReturnType<typeof createOrientationController>;
 	let urlLoaded = $state(false);
 
 	onMount(() => {
 		const url = new URL(window.location.href);
 		const video = url.searchParams.get('v');
-		orientation = url.searchParams.get('orientation') === 'portrait' ? 'portrait' : 'landscape';
+		const override = parseOrientation(url.searchParams.get('orientation'));
 
 		if (video) {
 			youtubeId = video;
@@ -25,7 +32,19 @@
 			}
 		}
 
+		orientationController = createOrientationController((value, override) => {
+			orientation = value;
+			orientationOverride = override;
+		});
+		orientationController.setSource(youtubeId, override);
 		urlLoaded = true;
+		return () => orientationController.dispose();
+	});
+
+	$effect(() => {
+		if (!urlLoaded) return;
+		const videoId = youtubeId;
+		untrack(() => orientationController.setSource(videoId));
 	});
 
 	$effect(() => {
@@ -38,7 +57,7 @@
 		url.searchParams.set('a', String(a));
 		if (repeatB !== 99999) url.searchParams.set('b', String(b));
 		else url.searchParams.delete('b');
-		if (orientation === 'portrait') url.searchParams.set('orientation', orientation);
+		if (orientationOverride) url.searchParams.set('orientation', orientationOverride);
 		else url.searchParams.delete('orientation');
 		history.replaceState(null, '', url);
 	});
@@ -49,7 +68,14 @@
 
 	<a class="secondary" href="https://youtu.be/{youtubeId}">youtu.be/{youtubeId}</a>
 
-	<Player bind:youtubeId bind:repeatA bind:repeatB bind:orientation></Player>
+	<Player
+		bind:youtubeId
+		bind:repeatA
+		bind:repeatB
+		{orientation}
+		onorientationchange={(value) => orientationController.choose(value)}
+		onsourcechange={(videoId) => orientationController.setSource(videoId, null, true)}
+	></Player>
 
 	<hr />
 </main>
