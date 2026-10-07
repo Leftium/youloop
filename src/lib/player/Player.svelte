@@ -19,6 +19,8 @@
 
 	import IcRoundFullscreen from '~icons/ic/round-fullscreen';
 	import IcRoundFullscreenExit from '~icons/ic/round-fullscreen-exit';
+	import IcRoundCropLandscape from '~icons/ic/round-crop-landscape';
+	import IcRoundCropPortrait from '~icons/ic/round-crop-portrait';
 
 	let player = $state<YouTubeVideoElement>(undefined!);
 	let playerContainer: HTMLDivElement;
@@ -41,12 +43,14 @@
 		youtubeId: string | null;
 		repeatA: number;
 		repeatB: number;
+		orientation?: 'landscape' | 'portrait';
 	}
 
 	let {
 		youtubeId = $bindable('dt-SqNL4z3w'),
 		repeatA = $bindable(25),
-		repeatB = $bindable(38)
+		repeatB = $bindable(38),
+		orientation = $bindable('landscape')
 	}: Props = $props();
 
 	if (youtubeId === null) {
@@ -425,6 +429,7 @@
 		}
 
 		// Reset before the keyed media element loads the new source.
+		orientation = 'landscape';
 		clearTimeout(durationTimer);
 		metadataReceived = false;
 		firstFrameReady = false;
@@ -445,28 +450,34 @@
 	}
 </script>
 
-<div class="player" bind:this={playerContainer}>
-	{#if playerMounted}
-		{#key `${youtubeId}:${sourceVersion}`}
-			<youtube-video
-				{@attach excludeYouTubeProviderFocus}
-				bind:this={player}
-				src={`https://www.youtube-nocookie.com/embed/${youtubeId}`}
-				playsinline
-				onloadedmetadata={handleMetadata}
-				ondurationchange={handleMetadata}
-				ontimeupdate={handleTimeUpdate}
-				onseeked={handleSeeked}
-				onended={handleEnded}
-				onplay={() => (paused = providerStalled)}
-				onplaying={handlePlaying}
-				onpause={handlePause}
-				onvolumechange={handleVolumeChange}
-				onratechange={() => (playbackRate = player.playbackRate * 100)}
-				onerror={handleError}
-			></youtube-video>
-		{/key}
-	{/if}
+<div
+	class="player"
+	style:--media-ratio={orientation === 'portrait' ? 9 / 16 : 16 / 9}
+	bind:this={playerContainer}
+>
+	<div class="media-canvas">
+		{#if playerMounted}
+			{#key `${youtubeId}:${sourceVersion}`}
+				<youtube-video
+					{@attach excludeYouTubeProviderFocus}
+					bind:this={player}
+					src={`https://www.youtube-nocookie.com/embed/${youtubeId}`}
+					playsinline
+					onloadedmetadata={handleMetadata}
+					ondurationchange={handleMetadata}
+					ontimeupdate={handleTimeUpdate}
+					onseeked={handleSeeked}
+					onended={handleEnded}
+					onplay={() => (paused = providerStalled)}
+					onplaying={handlePlaying}
+					onpause={handlePause}
+					onvolumechange={handleVolumeChange}
+					onratechange={() => (playbackRate = player.playbackRate * 100)}
+					onerror={handleError}
+				></youtube-video>
+			{/key}
+		{/if}
+	</div>
 
 	<button
 		class="video-toggle"
@@ -595,6 +606,23 @@
 				<span class:active={playbackRate === 25}>&frac14;</span>
 			</button>
 		</div>
+
+		<div class="nc-join" role="group" aria-label="Media orientation">
+			<button
+				aria-label="Landscape"
+				aria-pressed={orientation === 'landscape'}
+				onclick={() => (orientation = 'landscape')}
+			>
+				<span class:active={orientation === 'landscape'}><IcRoundCropLandscape /></span>
+			</button>
+			<button
+				aria-label="Portrait"
+				aria-pressed={orientation === 'portrait'}
+				onclick={() => (orientation = 'portrait')}
+			>
+				<span class:active={orientation === 'portrait'}><IcRoundCropPortrait /></span>
+			</button>
+		</div>
 	</div>
 
 	<button class="outline paste-button" onclick={pasteYoutubeId}
@@ -617,11 +645,25 @@
 
 	.player {
 		position: relative;
+		display: flex;
+		align-items: center;
+		justify-content: center;
 		width: 100%;
 		aspect-ratio: 16 / 9;
+		contain: size layout;
 		background: black;
-		contain: layout;
 		overflow: hidden;
+	}
+
+	.media-canvas {
+		position: absolute;
+		// Fit the selected media ratio inside the fixed 16:9 page footprint.
+		width: calc(100% * var(--media-ratio) * 9 / 16);
+		aspect-ratio: var(--media-ratio);
+		// Explicit geometry prevents provider intrinsic sizes from feeding back into layout.
+		contain: size layout;
+		overflow: hidden;
+		flex-shrink: 0;
 	}
 
 	.player:fullscreen {
@@ -630,7 +672,13 @@
 		aspect-ratio: auto;
 	}
 
+	.player:fullscreen .media-canvas {
+		width: min(100%, calc(100vh * var(--media-ratio)));
+	}
+
 	youtube-video {
+		position: absolute;
+		inset: 0;
 		display: block;
 		width: 100%;
 		height: 100%;
@@ -876,6 +924,14 @@
 			:global(svg) {
 				vertical-align: -0.23em;
 			}
+
+			span {
+				opacity: 40%;
+			}
+
+			:global(.active) {
+				opacity: 100% !important;
+			}
 		}
 
 		&.ab-buttons button {
@@ -894,12 +950,7 @@
 			button:not(:first-child) {
 				span {
 					font-weight: 900;
-					opacity: 40%;
 				}
-			}
-
-			:global(.active) {
-				opacity: 100% !important;
 			}
 		}
 	}
