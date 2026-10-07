@@ -1,4 +1,5 @@
 allowBuilds:
+  '@parcel/watcher@2.6.0': true
   '@sveltejs/kit': true
   esbuild: true
 minimumReleaseAgeExclude:
