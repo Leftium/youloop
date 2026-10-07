@@ -41,12 +41,14 @@
 		youtubeId: string | null;
 		repeatA: number;
 		repeatB: number;
+		orientation?: 'landscape' | 'portrait';
 	}
 
 	let {
 		youtubeId = $bindable('dt-SqNL4z3w'),
 		repeatA = $bindable(25),
-		repeatB = $bindable(38)
+		repeatB = $bindable(38),
+		orientation = $bindable('landscape')
 	}: Props = $props();
 
 	if (youtubeId === null) {
@@ -445,28 +447,35 @@
 	}
 </script>
 
-<div class="player" bind:this={playerContainer}>
-	{#if playerMounted}
-		{#key `${youtubeId}:${sourceVersion}`}
-			<youtube-video
-				{@attach excludeYouTubeProviderFocus}
-				bind:this={player}
-				src={`https://www.youtube-nocookie.com/embed/${youtubeId}`}
-				playsinline
-				onloadedmetadata={handleMetadata}
-				ondurationchange={handleMetadata}
-				ontimeupdate={handleTimeUpdate}
-				onseeked={handleSeeked}
-				onended={handleEnded}
-				onplay={() => (paused = providerStalled)}
-				onplaying={handlePlaying}
-				onpause={handlePause}
-				onvolumechange={handleVolumeChange}
-				onratechange={() => (playbackRate = player.playbackRate * 100)}
-				onerror={handleError}
-			></youtube-video>
-		{/key}
-	{/if}
+<div
+	class="player"
+	class:portrait={orientation === 'portrait'}
+	style:--media-ratio={orientation === 'portrait' ? 9 / 16 : 16 / 9}
+	bind:this={playerContainer}
+>
+	<div class="media-canvas">
+		{#if playerMounted}
+			{#key `${youtubeId}:${sourceVersion}`}
+				<youtube-video
+					{@attach excludeYouTubeProviderFocus}
+					bind:this={player}
+					src={`https://www.youtube-nocookie.com/embed/${youtubeId}`}
+					playsinline
+					onloadedmetadata={handleMetadata}
+					ondurationchange={handleMetadata}
+					ontimeupdate={handleTimeUpdate}
+					onseeked={handleSeeked}
+					onended={handleEnded}
+					onplay={() => (paused = providerStalled)}
+					onplaying={handlePlaying}
+					onpause={handlePause}
+					onvolumechange={handleVolumeChange}
+					onratechange={() => (playbackRate = player.playbackRate * 100)}
+					onerror={handleError}
+				></youtube-video>
+			{/key}
+		{/if}
+	</div>
 
 	<button
 		class="video-toggle"
@@ -482,6 +491,15 @@
 	</button>
 </div>
 {#if playerError}<p role="alert">{playerError}</p>{/if}
+
+<div class="orientation nc-join" role="group" aria-label="Media orientation">
+	<button aria-pressed={orientation === 'landscape'} onclick={() => (orientation = 'landscape')}
+		>Landscape</button
+	>
+	<button aria-pressed={orientation === 'portrait'} onclick={() => (orientation = 'portrait')}
+		>Portrait</button
+	>
+</div>
 
 <div class="timestamps">
 	<div>{formatVideoTime(currentTime)} / {formatVideoTime(duration)}</div>
@@ -617,20 +635,40 @@
 
 	.player {
 		position: relative;
+		display: flex;
+		align-items: center;
+		justify-content: center;
 		width: 100%;
-		aspect-ratio: 16 / 9;
 		background: black;
-		contain: layout;
 		overflow: hidden;
+	}
+
+	.media-canvas {
+		position: relative;
+		width: 100%;
+		aspect-ratio: var(--media-ratio);
+		// Explicit geometry prevents provider intrinsic sizes from feeding back into layout.
+		contain: size layout;
+		overflow: hidden;
+		flex-shrink: 0;
+	}
+
+	.portrait .media-canvas {
+		width: min(100%, calc(75svh * var(--media-ratio)));
 	}
 
 	.player:fullscreen {
 		width: 100%;
 		height: 100%;
-		aspect-ratio: auto;
+	}
+
+	.player:fullscreen .media-canvas {
+		width: min(100%, calc(100vh * var(--media-ratio)));
 	}
 
 	youtube-video {
+		position: absolute;
+		inset: 0;
 		display: block;
 		width: 100%;
 		height: 100%;
@@ -679,6 +717,17 @@
 
 		gap: 5px;
 		margin-bottom: 0.25em;
+	}
+
+	.orientation {
+		display: flex;
+		justify-content: center;
+		margin-block: 0.5rem;
+	}
+
+	.orientation button[aria-pressed='true'] {
+		background: $zinc-600;
+		color: white;
 	}
 
 	.timestamps {

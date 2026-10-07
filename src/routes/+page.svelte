@@ -7,11 +7,13 @@
 	let repeatA = $state(31);
 	let repeatB = $state(38);
 	let youtubeId = $state(defaultVideo);
+	let orientation = $state<'landscape' | 'portrait'>('landscape');
 	let urlLoaded = $state(false);
 
 	onMount(() => {
 		const url = new URL(window.location.href);
 		const video = url.searchParams.get('v');
+		orientation = url.searchParams.get('orientation') === 'portrait' ? 'portrait' : 'landscape';
 
 		if (video) {
 			youtubeId = video;
@@ -27,11 +29,18 @@
 	});
 
 	$effect(() => {
-		if (!urlLoaded || repeatB === 99999) return;
+		if (!urlLoaded) return;
 
 		const a = Math.floor(repeatA);
 		const b = Math.floor(repeatB);
-		history.replaceState(null, '', `/?v=${youtubeId}&a=${a}&b=${b}`);
+		const url = new URL(window.location.href);
+		url.searchParams.set('v', youtubeId);
+		url.searchParams.set('a', String(a));
+		if (repeatB !== 99999) url.searchParams.set('b', String(b));
+		else url.searchParams.delete('b');
+		if (orientation === 'portrait') url.searchParams.set('orientation', orientation);
+		else url.searchParams.delete('orientation');
+		history.replaceState(null, '', url);
 	});
 </script>
 
@@ -40,7 +49,7 @@
 
 	<a class="secondary" href="https://youtu.be/{youtubeId}">youtu.be/{youtubeId}</a>
 
-	<Player bind:youtubeId bind:repeatA bind:repeatB></Player>
+	<Player bind:youtubeId bind:repeatA bind:repeatB bind:orientation></Player>
 
 	<hr />
 </main>
