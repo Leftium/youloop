@@ -756,14 +756,14 @@
 	// Hide edge chrome and bottom captions, and reduce the paused-state gradient.
 	// A fixed height avoids resizing the oversized iframe whenever the player height changes.
 	// The video frame's width depends on its real canvas dimensions and source aspect.
-	// Keep the iframe's overscan height fixed, and center both contain/cover framing.
+	// The share prototype can override this geometry in place for its Safari comparison.
 	youtube-video::part(iframe) {
 		position: absolute;
-		top: 50%;
-		left: 50%;
-		width: var(--video-width);
-		height: 16000px;
-		transform: translate(-50%, -50%);
+		top: var(--youtube-iframe-position, 50%);
+		left: var(--youtube-iframe-position, 50%);
+		width: var(--youtube-iframe-width, var(--video-width));
+		height: var(--youtube-iframe-height, 16000px);
+		transform: var(--youtube-iframe-transform, translate(-50%, -50%));
 	}
 
 	.video-toggle {
