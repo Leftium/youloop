@@ -16,7 +16,7 @@
 	let sourceOrientation = $state<Orientation>('landscape');
 	let sourceAspectRatio = $state(16 / 9);
 	let fillFrame = $derived(orientation !== sourceOrientation);
-	let viewportHeight = $state<'100dvh' | '100svh'>('100dvh');
+	let viewportHeight = $state<'100dvh' | '100svh' | '100lvh'>('100dvh');
 	let iframeHeight = $state<'16000px' | '4000px' | '100%'>('16000px');
 
 	onMount(() => {
@@ -68,6 +68,7 @@
 			<select id="viewport-height" bind:value={viewportHeight}>
 				<option value="100dvh">100dvh - dynamic (current)</option>
 				<option value="100svh">100svh - stable</option>
+				<option value="100lvh">100lvh - stable maximum</option>
 			</select>
 			<label for="iframe-height">Iframe</label>
 			<select id="iframe-height" bind:value={iframeHeight}>
