@@ -7,8 +7,7 @@
 		type Orientation
 	} from '#lib/player/youtube-orientation.ts';
 
-	// The old editor continues to own the main route. This page only tests viewport
-	// sizing and native document scrolling (particularly Safari's collapsing toolbar).
+	// The editor keeps the main route; this watch view shares its playback state machine.
 	let youtubeId = $state('dt-SqNL4z3w');
 	let repeatA = $state(31);
 	let repeatB = $state(38);
@@ -16,7 +15,14 @@
 	let sourceOrientation = $state<Orientation>('landscape');
 	let sourceAspectRatio = $state(16 / 9);
 	let fillFrame = $derived(orientation !== sourceOrientation);
+	let theater = $state(false);
 	let runway: HTMLDivElement;
+
+	function enterTheater() {
+		theater = true;
+		// This advances the native document, but Safari owns browser-chrome collapse.
+		window.scrollBy({ top: Math.max(80, window.innerHeight / 3), behavior: 'smooth' });
+	}
 	let runwayHeight = $state<number>();
 
 	onMount(() => {
@@ -56,11 +62,27 @@
 				extending = false;
 			});
 		}
-		window.addEventListener('scroll', extendRunway, { passive: true });
+		let lastScroll = window.scrollY;
+		let travel = 0;
+		function handleScroll() {
+			const next = Math.max(0, window.scrollY);
+			const delta = next - lastScroll;
+			lastScroll = next;
+			if (!document.fullscreenElement && delta !== 0) {
+				// Direction and accumulated travel survive runway extension and arbitrary offsets.
+				travel = Math.sign(delta) === Math.sign(travel) ? travel + delta : delta;
+				if (Math.abs(travel) >= 32) {
+					theater = travel > 0;
+					travel = 0;
+				}
+			}
+			extendRunway();
+		}
+		window.addEventListener('scroll', handleScroll, { passive: true });
 		window.addEventListener('resize', extendRunway);
 		extendRunway();
 		return () => {
-			window.removeEventListener('scroll', extendRunway);
+			window.removeEventListener('scroll', handleScroll);
 			window.removeEventListener('resize', extendRunway);
 			controller.dispose();
 		};
@@ -72,10 +94,12 @@
 	<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 </svelte:head>
 
-<div class="share-prototype bleed-full">
+<div class="share-prototype bleed-full" data-mode={theater ? 'theater' : 'default'}>
 	<div class="stage">
 		<Player
 			minimal
+			{theater}
+			ontheater={enterTheater}
 			bind:youtubeId
 			bind:repeatA
 			bind:repeatB

@@ -42,6 +42,7 @@
 		"#lib/*": "./src/lib/*"
 	},
 	"dependencies": {
+		"@videojs/core": "10.0.1",
 		"@videojs/html": "10.0.1",
 		"@videojs/youtube-video": "10.0.1"
 	}

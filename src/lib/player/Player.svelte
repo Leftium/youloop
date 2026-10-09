@@ -1,4 +1,5 @@
 <script lang="ts">
+	import type { WatchControlsPlayer } from './watch-controls';
 	import type { YouTubeVideoElement } from '@videojs/html/media/youtube-video';
 	import { onMount } from 'svelte';
 	import { excludeYouTubeProviderFocus } from './youtube-provider-focus';
@@ -25,6 +26,13 @@
 
 	let player = $state<YouTubeVideoElement>(undefined!);
 	let playerContainer: HTMLDivElement;
+	let mediaCanvas: HTMLDivElement;
+	let videoSurface = $state<HTMLDivElement>(undefined!);
+	let controlsPlayer = $state<WatchControlsPlayer>();
+	let controlsModule = $state<typeof import('./watch-controls')>();
+	let nativeFullscreen = $state(false);
+	let videoTitle = $state('');
+	let visibleBounds = $state({ left: 0, top: 0, width: 0, height: 0 });
 
 	const framerate = 30;
 
@@ -48,6 +56,8 @@
 		fillFrame?: boolean;
 		sourceAspectRatio?: number;
 		minimal?: boolean;
+		theater?: boolean;
+		ontheater?: () => void;
 		onfillchange?: (fill: boolean) => void;
 		onorientationchange?: (orientation: 'landscape' | 'portrait') => void;
 		onsourcechange?: (videoId: string) => void;
@@ -61,6 +71,8 @@
 		fillFrame = false,
 		sourceAspectRatio = 16 / 9,
 		minimal = false,
+		theater = false,
+		ontheater,
 		onfillchange,
 		onorientationchange,
 		onsourcechange
@@ -174,6 +186,16 @@
 		void import('@videojs/html/media/youtube-video').then(() => {
 			if (!disposed) playerMounted = true;
 		});
+		if (minimal) {
+			void import('./watch-controls').then((module) => {
+				if (!disposed) controlsModule = module;
+			});
+		}
+		nativeFullscreen = !!(
+			document.fullscreenEnabled &&
+			typeof playerContainer.requestFullscreen === 'function' &&
+			typeof document.exitFullscreen === 'function'
+		);
 		const syncFullscreen = () => {
 			fullscreen = document.fullscreenElement === playerContainer;
 		};
@@ -186,6 +208,95 @@
 			window.removeEventListener('message', handleProviderMessage);
 		};
 	});
+
+	$effect(() => {
+		if (!minimal || !player || !controlsPlayer || !controlsModule) return;
+		return controlsModule.attachWatchControls(
+			controlsPlayer,
+			player,
+			playerContainer,
+			videoSurface
+		);
+	});
+
+	$effect(() => {
+		if (!minimal || !controlsPlayer) return;
+		const root = controlsPlayer;
+		const store = root.store;
+		let release: (() => void) | undefined;
+		const focusIn = (event: FocusEvent) => {
+			// Lock only keyboard focus; a pointer click must still be able to dismiss chrome.
+			if ((event.target as Element).matches(':focus-visible')) {
+				release?.();
+				release = store.requestControlsLock();
+			}
+		};
+		const focusOut = () => {
+			release?.();
+			release = undefined;
+		};
+		root.addEventListener('focusin', focusIn);
+		root.addEventListener('focusout', focusOut);
+		return () => {
+			focusOut();
+			root.removeEventListener('focusin', focusIn);
+			root.removeEventListener('focusout', focusOut);
+		};
+	});
+
+	onMount(() => {
+		if (!minimal) return;
+		let frame = 0;
+		function measureVisibleVideo() {
+			frame = 0;
+			const canvas = mediaCanvas.getBoundingClientRect();
+			const outer = playerContainer.getBoundingClientRect();
+			const viewport = window.visualViewport;
+			const left = Math.max(canvas.left, viewport?.offsetLeft ?? 0);
+			const top = Math.max(canvas.top, viewport?.offsetTop ?? 0);
+			const right = Math.min(
+				canvas.right,
+				(viewport?.offsetLeft ?? 0) + (viewport?.width ?? window.innerWidth)
+			);
+			const bottom = Math.min(
+				canvas.bottom,
+				(viewport?.offsetTop ?? 0) + (viewport?.height ?? window.innerHeight)
+			);
+			visibleBounds = {
+				left: left - outer.left,
+				top: top - outer.top,
+				width: Math.max(0, right - left),
+				height: Math.max(0, bottom - top)
+			};
+		}
+		const schedule = () => {
+			if (!frame) frame = requestAnimationFrame(measureVisibleVideo);
+		};
+		const observer = new ResizeObserver(schedule);
+		observer.observe(mediaCanvas);
+		observer.observe(playerContainer);
+		window.addEventListener('resize', schedule);
+		window.addEventListener('scroll', schedule, { passive: true });
+		window.visualViewport?.addEventListener('resize', schedule);
+		window.visualViewport?.addEventListener('scroll', schedule);
+		measureVisibleVideo();
+		return () => {
+			cancelAnimationFrame(frame);
+			observer.disconnect();
+			window.removeEventListener('resize', schedule);
+			window.removeEventListener('scroll', schedule);
+			window.visualViewport?.removeEventListener('resize', schedule);
+			window.visualViewport?.removeEventListener('scroll', schedule);
+		};
+	});
+
+	function readVideoTitle() {
+		if (!minimal) return;
+		const engine = player?.engine as
+			{ getVideoData?: () => { title?: string } | undefined; videoTitle?: string } | undefined;
+		const title = engine?.getVideoData?.()?.title || engine?.videoTitle;
+		if (typeof title === 'string') videoTitle = title;
+	}
 
 	function seek(time: number, stayPaused = player.paused) {
 		pauseAfterSeek = stayPaused;
@@ -236,6 +347,7 @@
 	}
 
 	function handleMetadata() {
+		readVideoTitle();
 		if (!Number.isFinite(player.duration) || player.duration <= 0) return;
 		if (metadataReceived) {
 			scheduleDuration();
@@ -259,6 +371,7 @@
 	}
 
 	function handlePlaying() {
+		readVideoTitle();
 		providerStalled = false;
 		paused = false;
 		if (!player.seeking) {
@@ -296,6 +409,7 @@
 	}
 
 	function handleTimeUpdate() {
+		if (!videoTitle) readVideoTitle();
 		if (duration === undefined || player.seeking) return;
 		currentTime = player.currentTime;
 		if (
@@ -462,6 +576,7 @@
 		providerStalled = false;
 		playbackRate = 100;
 		playerError = '';
+		videoTitle = '';
 		pauseAfterSeek = false;
 		initialFramePending = false;
 		retrySeekTime = undefined;
@@ -477,7 +592,12 @@
 	style:--video-source-ratio={sourceAspectRatio}
 	bind:this={playerContainer}
 >
-	<div class="media-canvas" bind:clientWidth={canvasWidth} bind:clientHeight={canvasHeight}>
+	<div
+		class="media-canvas"
+		bind:this={mediaCanvas}
+		bind:clientWidth={canvasWidth}
+		bind:clientHeight={canvasHeight}
+	>
 		{#if playerMounted}
 			{#key `${youtubeId}:${sourceVersion}`}
 				<youtube-video
@@ -501,11 +621,70 @@
 		{/if}
 	</div>
 
-	<button
-		class="video-toggle"
-		aria-label={paused ? 'Play video' : 'Pause video'}
-		onclick={togglePaused}
-	></button>
+	{#if minimal}
+		<div class="video-surface" aria-hidden="true" bind:this={videoSurface}></div>
+		{#if controlsModule}
+			<youloop-controls-player bind:this={controlsPlayer} onplaybackrequest={togglePaused}>
+				<div
+					class="watch-overlay"
+					class:theater
+					style:left={`${visibleBounds.left}px`}
+					style:top={`${visibleBounds.top}px`}
+					style:width={`${visibleBounds.width}px`}
+					style:height={`${visibleBounds.height}px`}
+				>
+					{#if paused && videoTitle && !theater}<h1 class="video-title">{videoTitle}</h1>{/if}
+					<media-controls class="watch-controls" class:paused inert={theater}>
+						<youloop-play-button
+							disabled={!metadataReceived}
+							label={paused ? 'Play video' : 'Pause video'}
+						>
+							{#if paused}<IcRoundPlayArrow />{:else}<IcRoundPause />{/if}
+						</youloop-play-button>
+						<button
+							aria-label={muted ? 'Unmute video' : 'Mute video'}
+							disabled={!metadataReceived}
+							onclick={toggleMute}
+						>
+							{#if muted}<IcRoundVolumeOff />{:else}<IcRoundVolumeUp />{/if}
+						</button>
+						<button aria-label="Theater mode" disabled={fullscreen} onclick={ontheater}
+							><IcRoundCropLandscape /></button
+						>
+						{#if nativeFullscreen}
+							<button
+								aria-label={fullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
+								onclick={toggleFullscreen}
+							>
+								{#if fullscreen}<IcRoundFullscreenExit />{:else}<IcRoundFullscreen />{/if}
+							</button>
+						{/if}
+					</media-controls>
+					{#if !theater}
+						<div
+							class="watch-timeline"
+							role="progressbar"
+							aria-label="Video progress"
+							aria-valuemin="0"
+							aria-valuemax={duration ?? 0}
+							aria-valuenow={duration ? Math.min(duration, currentTime) : 0}
+							aria-valuetext={`${formatVideoTime(currentTime)} / ${formatVideoTime(duration)}`}
+						>
+							<div
+								style:width={`${duration ? Math.max(0, Math.min(100, (currentTime / duration) * 100)) : 0}%`}
+							></div>
+						</div>
+					{/if}
+				</div>
+			</youloop-controls-player>
+		{/if}
+	{:else}
+		<button
+			class="video-toggle"
+			aria-label={paused ? 'Play video' : 'Pause video'}
+			onclick={togglePaused}
+		></button>
+	{/if}
 	{#if !minimal}
 		<button
 			class="fullscreen"
@@ -764,6 +943,103 @@
 		width: var(--video-width);
 		height: 16000px;
 		transform: translate(-50%, -50%);
+	}
+
+	youloop-controls-player {
+		display: contents;
+	}
+	.video-surface {
+		position: absolute;
+		inset: 0;
+	}
+	.watch-overlay {
+		position: absolute;
+		pointer-events: none;
+	}
+	.video-title {
+		position: absolute;
+		top: max(12px, env(safe-area-inset-top));
+		left: max(12px, env(safe-area-inset-left));
+		right: 12px;
+		margin: 0;
+		padding: 8px 12px;
+		font-size: clamp(1rem, 3vw, 1.4rem);
+		line-height: 1.3;
+		color: white;
+		background: rgb(0 0 0 / 45%);
+		border-radius: 8px;
+	}
+	.watch-controls {
+		position: absolute;
+		bottom: max(14px, env(safe-area-inset-bottom));
+		left: max(12px, env(safe-area-inset-left));
+		right: max(12px, env(safe-area-inset-right));
+		display: flex;
+		flex-wrap: wrap;
+		gap: 8px;
+		opacity: 0;
+		transition: opacity 180ms;
+		pointer-events: none;
+	}
+	.watch-controls:global([data-visible]),
+	.watch-controls.paused,
+	.watch-controls:has(:focus-visible) {
+		opacity: 1;
+	}
+	.watch-controls button,
+	youloop-play-button {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		width: 44px;
+		height: 44px;
+		margin: 0;
+		padding: 10px;
+		border: 0;
+		border-radius: 10px;
+		color: white;
+		background: rgb(90 90 90 / 65%);
+		cursor: pointer;
+		pointer-events: auto;
+	}
+	.watch-controls:not(:global([data-visible])):not(.paused):not(:has(:focus-visible)) button,
+	.watch-controls:not(:global([data-visible])):not(.paused):not(:has(:focus-visible))
+		youloop-play-button {
+		pointer-events: none;
+	}
+	.watch-controls button:focus-visible,
+	youloop-play-button:focus-visible {
+		outline: 2px solid white;
+		outline-offset: 3px;
+	}
+	.watch-controls button:hover,
+	youloop-play-button:hover {
+		background: rgb(120 120 120 / 80%);
+	}
+	.watch-controls button:disabled,
+	youloop-play-button[disabled] {
+		opacity: 0.5;
+		cursor: default;
+	}
+	.watch-overlay.theater .watch-controls {
+		visibility: hidden;
+	}
+	.watch-timeline {
+		position: absolute;
+		left: 0;
+		right: 0;
+		bottom: 0;
+		height: 3px;
+		background: rgb(255 255 255 / 65%);
+	}
+	.watch-timeline div {
+		height: 100%;
+		background: #f33;
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.watch-controls {
+			transition: none;
+		}
 	}
 
 	.video-toggle {

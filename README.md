@@ -21,8 +21,78 @@ and source orientation to settle before running the geometry regression:
 
 ```js
 await (await import('/src/lib/player/youtube-orientation.browser-test.ts')).run();
+await (await import('/src/lib/player/youtube-provider-focus.browser-test.ts')).run();
 await (await import('/src/lib/player/media-geometry.browser-test.ts')).run();
 ```
+
+Run the geometry regression on `/`, where the orientation and Fill controls are
+available. To exercise the watch controls, open
+`/s?v=dt-SqNL4z3w&a=0&b=120`, wait for the paused first frame, and run:
+
+```js
+await (await import('/src/lib/player/watch-controls.browser-test.ts')).run();
+```
+
+If the browser blocks scripted playback, click Play then Pause once before
+running the watch regression.
+
+Keep the browser page visible during these regressions: native scroll events,
+ResizeObserver callbacks, animation frames, and transitions may be deferred in a
+hidden preview. The watch regression uses real YouTube playback and synthetic
+mouse/touch gestures. It temporarily disables the controls' fade transition so
+assertions check visibility state rather than animation timing. Hidden automation
+can use `{ notifyScroll: true, skipViewportSimulation: true }`; that explicitly
+dispatches scroll notifications and omits the viewport-resize simulation. It
+does not verify native touch scrolling or Safari chrome.
+
+## Watch view
+
+`/s` starts in Default with an explicit inline Play/Pause button, Mute/Unmute,
+Theater, and a fullscreen button when the native container fullscreen API is
+available. The original `/` editor and sharing defaults remain available.
+
+In Default, the provider's actual title appears while paused, when available.
+Our controls stay visible while paused and fade after Video.js's two-second
+inactivity delay during playback. Mouse movement and keyboard focus reveal them;
+keyboard focus keeps them reachable. A mouse or touch tap on bare video space
+toggles controls while playing without changing playback. Taps while paused keep
+the playback control available. Only the inline playback button requests
+play/pause. YouTube may still draw its central Play affordance, but its iframe
+remains noninteractive with native provider controls disabled.
+
+`watch-controls.ts` uses the installed Video.js 10.0.1 playback and controls
+features, tap recognizer, controls element, and play-button semantics. The
+play-button activation delegates to YouLoop's existing recovery/A-B state
+machine. A background-only gesture surface owns pointer-up before the ancestor
+activity handler, which would otherwise mark mouse taps active and undo a
+dismissal. The media element and crop are not replaced when changing modes.
+
+The persistent three-pixel Default timeline follows the intersection of the
+media canvas and `visualViewport`. Viewport changes reposition only the chrome;
+they do not resize the `100lvh` stage or the centered `16000px` iframe crop.
+Downward document-scroll travel selects Theater; upward travel selects Default,
+including after the empty runway grows. Theater hides our title, controls, and
+timeline. Fullscreen is independent of those modes. Safari owns toolbar collapse;
+the Theater button only advances the native document scroll.
+
+### Required physical verification
+
+Before merging, verify on a physical iPhone with Safari:
+
+- Compare tapping Theater with a manual downward swipe from expanded browser
+  chrome. Record whether each collapses the toolbar; they may differ.
+- Check the timeline above expanded and collapsed chrome, in portrait and
+  landscape, during playback and rotation. Watch for reframing, jitter, or black
+  flashes, and check that up-scrolling returns to Default after runway growth.
+- Check background taps before and after auto-hide, paused and playing;
+  Play/Pause and mute must act independently. Verify usable hit targets and
+  safe-area placement on short landscape screens.
+- Exercise native fullscreen where the browser offers it, then exit and confirm
+  the prior logical mode and uninterrupted playback state.
+
+Also check desktop fullscreen/hover/keyboard navigation and a physical Android
+browser when available. Chromium viewport presets and injected touch events do
+not establish physical-device behavior.
 
 ## Deployment
 
