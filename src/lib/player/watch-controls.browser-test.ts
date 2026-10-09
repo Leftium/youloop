@@ -129,8 +129,8 @@ export async function run(
 		);
 		check(
 			getComputedStyle(document.querySelector('.timeline-fill')!).backgroundColor ===
-				'rgb(0, 221, 255)',
-			'A:B fill is cyan'
+				'rgb(168, 85, 247)',
+			'A:B played selection is purple'
 		);
 		for (const type of ['pointerdown', 'pointerup'])
 			timeControl.dispatchEvent(
@@ -160,9 +160,15 @@ export async function run(
 		);
 		check(!document.querySelector('.timeline-tail'), 'VIDEO has no decorative tails');
 		check(
-			selection.getBoundingClientRect().height === 1 &&
+			getComputedStyle(selection).backgroundColor === 'rgb(51, 153, 255)' &&
+				getComputedStyle(selection.querySelector('.timeline-overlap')!).backgroundColor ===
+					'rgb(168, 85, 247)',
+			'Full-video selection is blue with purple elapsed overlap'
+		);
+		check(
+			selection.getBoundingClientRect().height === 3 &&
 				document.querySelector('.timeline-fill')!.getBoundingClientRect().height === 3,
-			'Cyan selection leaves red absolute progress visible within A:B'
+			'Blue selection and purple overlap use the complete three-pixel track'
 		);
 		check(
 			Number(timeline().getAttribute('aria-valuemax')) > 60,

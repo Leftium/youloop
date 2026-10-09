@@ -731,7 +731,12 @@
 										class="timeline-selection"
 										style:left={`${range.selectionStart * 100}%`}
 										style:width={`${range.selectionWidth * 100}%`}
-									></div>
+									>
+										<div
+											class="timeline-overlap"
+											style:width={`${range.clipProgress * 100}%`}
+										></div>
+									</div>
 								{/if}
 								<div
 									class="timeline-fill"
@@ -1022,6 +1027,10 @@
 		inset: 0;
 	}
 	.watch-overlay {
+		--timeline-progress: #f33;
+		--timeline-selection: #39f;
+		--timeline-overlap: #a855f7;
+		--timeline-remaining: #aaa;
 		container-type: inline-size;
 		position: absolute;
 		pointer-events: none;
@@ -1096,7 +1105,7 @@
 		gap: 0.3em;
 	}
 	.watch-time .time-label {
-		color: #0df;
+		color: var(--timeline-selection);
 	}
 	.watch-controls .watch-time:disabled {
 		opacity: 1;
@@ -1161,30 +1170,42 @@
 		position: relative;
 		flex: 1;
 		height: 100%;
-		background: rgb(255 255 255 / 65%);
+		background: var(--timeline-remaining);
 	}
 	.timeline-fill {
 		position: absolute;
 		left: 0;
 		top: 0;
 		height: 100%;
-		background: #f33;
+		background: var(--timeline-progress);
 	}
 	.timeline-selection {
 		position: absolute;
-		bottom: 0;
-		/* Preserve cyan context without covering the red absolute progress above it. */
-		height: 1px;
-		background: #0df;
+		top: 0;
+		height: 100%;
+		background: var(--timeline-selection);
 		z-index: 1;
 	}
+	.timeline-overlap {
+		height: 100%;
+		background: var(--timeline-overlap);
+	}
+	.watch-timeline.clip .timeline-track {
+		background: var(--timeline-selection);
+	}
 	.watch-timeline.clip .timeline-fill {
-		background: #0df;
+		background: var(--timeline-overlap);
 	}
 	.timeline-tail {
 		flex: 0 0 6%;
 		height: 100%;
-		background: repeating-linear-gradient(to right, #b85b5b 0 4px, transparent 4px 7px);
+		background: repeating-linear-gradient(to right, var(--tail-color) 0 4px, transparent 4px 7px);
+	}
+	.timeline-tail.left {
+		--tail-color: var(--timeline-progress);
+	}
+	.timeline-tail.right {
+		--tail-color: var(--timeline-remaining);
 	}
 	@media (prefers-reduced-motion: reduce) {
 		.watch-controls {

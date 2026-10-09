@@ -91,12 +91,13 @@ title, controls, and timeline. Fullscreen is independent of those modes. Safari 
 the Theater button only advances the native document scroll.
 
 The time button at the left of the control row switches between VIDEO and A:B
-without seeking or changing playback or the share URL. The cyan `A:B` label
+without seeking or changing playback or the share URL. The blue `A:B` label
 follows the duration in clip mode; full-video mode has no visible mode label.
-VIDEO shows absolute time and red full-video progress, with the cyan selection at its true proportional
-position. A:B shows elapsed clip time and cyan clip progress. Fixed six-percent,
-muted-red dashed tails indicate excluded video before A or after B; they are
-inert. Full-video selections have no highlight, tails, or available toggle.
+VIDEO shows absolute time and red full-video progress, with the blue selection at its true proportional
+position. The elapsed part of A:B is purple where progress overlaps selection.
+A:B shows elapsed clip time with purple progress over the blue clip track. Fixed
+six-percent dashed tails indicate excluded video: red before A, gray after B.
+The tails are inert. Full-video selections have no highlight, tails, or available toggle.
 
 After the actual duration settles, a restricted clip shorter than 25% of the
 video starts in A:B; other selections start in VIDEO. The automatic decision is

@@ -119,7 +119,14 @@ export async function runView() {
 			!!selection &&
 				Math.abs(parseFloat(selection.style.left) - range.selectionStart * 100) < 0.000001 &&
 				Math.abs(parseFloat(selection.style.width) - range.selectionWidth * 100) < 0.000001,
-			'Rendered cyan selection preserves exact proportional boundaries'
+			'Rendered blue selection preserves exact proportional boundaries'
+		);
+		const overlap = selection!.querySelector<HTMLElement>('.timeline-overlap')!;
+		const absoluteTime = Number(timeline().getAttribute('aria-valuenow'));
+		const expectedOverlap = Math.max(0, Math.min(1, (absoluteTime - range.start) / range.length));
+		check(
+			Math.abs(parseFloat(overlap.style.width) / 100 - expectedOverlap) < 0.000001,
+			'Purple overlap covers only elapsed A:B portion'
 		);
 		button.click();
 		await settle();
@@ -134,6 +141,11 @@ export async function runView() {
 			'Rendered tails follow actual start/end exclusions'
 		);
 		for (const tail of document.querySelectorAll<HTMLElement>('.timeline-tail')) {
+			const color = tail.classList.contains('left') ? 'rgb(255, 51, 51)' : 'rgb(170, 170, 170)';
+			check(
+				getComputedStyle(tail).backgroundImage.includes(color),
+				'Left tail uses progress red; right tail uses remaining gray'
+			);
 			check(
 				Math.abs(
 					tail.getBoundingClientRect().width / timeline().getBoundingClientRect().width - 0.06
