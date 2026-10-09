@@ -105,7 +105,7 @@ detected portrait/landscape orientation (9:16 or 16:9). Cropping follows canvas
 resizes without resetting playback. The centered iframe retains its fixed
 `16000px` height, avoiding the proportional-overscan resize loop.
 
-Users can experiment with removing black bars encoded *inside* a video by
+Users can experiment with removing black bars encoded _inside_ a video by
 changing framing and, when the canvas itself becomes responsive, adjusting its
 aspect ratio through the window/device layout. Today the player retains a
 fixed outer 16:9 footprint and an inner 16:9 or 9:16 canvas; simple window
