@@ -39,7 +39,7 @@
 	<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 </svelte:head>
 
-<div class="share-prototype">
+<div class="share-prototype bleed-full">
 	<div class="stage">
 		<Player
 			minimal
