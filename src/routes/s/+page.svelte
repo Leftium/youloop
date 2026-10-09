@@ -1,7 +1,11 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import Player from '#lib/player/Player.svelte';
-	import { createOrientationController, parseOrientation, type Orientation } from '#lib/player/youtube-orientation';
+	import {
+		createOrientationController,
+		parseOrientation,
+		type Orientation
+	} from '#lib/player/youtube-orientation';
 
 	// The old editor continues to own the main route. This page only tests viewport
 	// sizing and native document scrolling (particularly Safari's collapsing toolbar).
@@ -26,7 +30,8 @@
 			orientation = frame;
 			if (source) {
 				sourceOrientation = source.orientation;
-				sourceAspectRatio = source.aspectRatio ?? (source.orientation === 'portrait' ? 9 / 16 : 16 / 9);
+				sourceAspectRatio =
+					source.aspectRatio ?? (source.orientation === 'portrait' ? 9 / 16 : 16 / 9);
 			}
 		});
 		controller.setSource(youtubeId, parseOrientation(params.get('orientation')));
