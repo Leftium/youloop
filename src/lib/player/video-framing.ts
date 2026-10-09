@@ -18,7 +18,5 @@ export function calculateFrameVideoWidth(
 		return null;
 	}
 	const widthToMatchHeight = frameHeight * sourceAspectRatio;
-	return fill
-		? Math.max(frameWidth, widthToMatchHeight)
-		: Math.min(frameWidth, widthToMatchHeight);
+	return fill ? Math.max(frameWidth, widthToMatchHeight) : Math.min(frameWidth, widthToMatchHeight);
 }

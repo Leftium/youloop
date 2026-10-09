@@ -41,7 +41,9 @@ export async function run() {
 
 	try {
 		for (const orientation of ['Landscape', 'Portrait', 'Landscape', 'Portrait']) {
-			const button = buttons.find((candidate) => candidate.getAttribute('aria-label') === orientation)!;
+			const button = buttons.find(
+				(candidate) => candidate.getAttribute('aria-label') === orientation
+			)!;
 			button.click();
 			await settle();
 			const sourceOrientation = sourceRatio() < 1 ? 'Portrait' : 'Landscape';
