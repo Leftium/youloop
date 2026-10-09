@@ -5,9 +5,11 @@ import { sveltekit } from '@sveltejs/kit/vite';
 import Icons from 'unplugin-icons/vite';
 
 import { defineConfig } from 'vite';
+import { watchBisectServer } from './scripts/watch-bisect-server.mjs';
 
 export default defineConfig({
 	plugins: [
+		watchBisectServer(),
 		sveltekit({
 			extensions: ['.svelte', '.svx'],
 			preprocess: [vitePreprocess(), mdsvex()],

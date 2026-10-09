@@ -16,6 +16,7 @@
 	let sourceAspectRatio = $state(16 / 9);
 	let fillFrame = $derived(orientation !== sourceOrientation);
 	let theater = $state(false);
+	let diagnostic = $state<'timeline' | 'controls' | 'overlay' | undefined>();
 	let runway: HTMLDivElement;
 
 	function enterTheater() {
@@ -27,6 +28,9 @@
 
 	onMount(() => {
 		const params = new URLSearchParams(window.location.search);
+		const isolate = params.get('isolate');
+		if (isolate === 'timeline' || isolate === 'controls' || isolate === 'overlay')
+			diagnostic = isolate;
 		youtubeId = params.get('v') || youtubeId;
 		if (params.has('v')) {
 			const a = Number(params.get('a'));
@@ -97,6 +101,7 @@
 	<div class="stage">
 		<Player
 			minimal
+			{diagnostic}
 			{theater}
 			ontheater={enterTheater}
 			bind:youtubeId

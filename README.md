@@ -107,6 +107,66 @@ made once per source. Manual choice survives metadata/time and range updates
 until another source loads; nothing is stored. Unknown or degenerate ranges
 fall back to a finite VIDEO track.
 
+### Physical iPhone bisection and overlay isolation
+
+The owner confirms deployed `/s` at `af18e43` does not pan horizontally,
+while the PR candidate `c3af539` still does. Keep the same video, phone
+orientation, zoom, and toolbar state when comparing revisions. Classify panning
+and picture/timeline alignment separately; automated geometry is not the device
+oracle. The owner tested the same-server baseline `af18e43`, midpoint
+`b9c2402`, and current `isolate=overlay`: none panned horizontally. All showed
+a landscape video-centering concern, with the provider play icon apparently
+off-center; a literal one-sided gap has not yet been confirmed. The normal current view still needs a
+same-server good/bad result before those tests identify a bisection interval.
+Do not label the width issue as introduced by this PR from those observations.
+
+With dependencies installed, prepare the baseline and first midpoint:
+
+```bash
+node scripts/prepare-watch-bisect.mjs
+pnpm dev --host 0.0.0.0
+```
+
+On the same dev-server hostname used by the iPhone, open:
+
+- `/__bisect/af18e43/s?v=dt-SqNL4z3w&a=0&b=15` (deployed baseline).
+- `/__bisect/b9c2402/s?v=dt-SqNL4z3w&a=0&b=15` (first midpoint).
+- `/s?v=dt-SqNL4z3w&a=0&b=15` (current candidate).
+
+First confirm the historical baseline is good and current is bad on this same
+server. If `b9c2402` is bad, test `a75f98c`; if it is good, test `96bbc3d`.
+Continue halving the remaining first-parent range until adjacent commits have
+physical good/bad results. Record observations rather than inferring results
+from commit titles. Build another selected revision with
+`node scripts/prepare-watch-bisect.mjs <commit>`; its URL uses the first seven
+SHA characters. The sequence is `af18e43`, `b92cf51`, `a75f98c`, `b9c2402`,
+`ef7d41f`, `96bbc3d`, `467728f`, `c3af539`.
+
+Snapshots are built from `git archive` without switching or modifying the
+worktree. They reuse installed dependencies. Resolved package versions match across
+this range; the PR adds the already-transitive Video.js core 10.0.1 as a direct
+dependency. Only a URL base prefix and full-SHA meta tag are injected. Snapshot
+prerendering ignores historical root-relative link errors so the URL prefix does
+not require changing application markup. Check that the watch page hydrates and
+plays before accepting a device result. `revision.json` and the
+`youloop-bisect-head` meta identify the tested SHA. Ignored `.watch-bisect`
+artifacts are served only by Vite dev middleware and are excluded from the
+production build.
+
+To isolate the current watch chrome, append one query parameter and reload:
+
+- `&isolate=timeline`: remove only the timeline DOM.
+- `&isolate=controls`: remove the title and inline control row, keep the timeline.
+- `&isolate=overlay`: remove the whole overlay, retain the provider, tap playback,
+  keyboard Play/Pause and native vertical scrolling. Video.js stays attached,
+  allowing layout/chrome effects to be tested separately from interaction code.
+
+These are opt-in diagnostics, not fixes. No clipping or touch cancellation is
+introduced. Without `isolate`, watch behavior is unchanged; the editor ignores
+it. Recheck black-background swipes, reload and rotation on each variant, and
+report panning independently from alignment. Remove the parameter to restore
+the normal watch view. Keep the PR Draft until the device bisection is complete.
+
 ### Required physical verification
 
 The whole-page horizontal-panning issue reported on physical iPhone Safari is

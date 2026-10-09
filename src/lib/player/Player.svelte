@@ -57,6 +57,7 @@
 		fillFrame?: boolean;
 		sourceAspectRatio?: number;
 		minimal?: boolean;
+		diagnostic?: 'timeline' | 'controls' | 'overlay';
 		theater?: boolean;
 		ontheater?: () => void;
 		onfillchange?: (fill: boolean) => void;
@@ -72,6 +73,7 @@
 		fillFrame = false,
 		sourceAspectRatio = 16 / 9,
 		minimal = false,
+		diagnostic,
 		theater = false,
 		ontheater,
 		onfillchange,
@@ -662,94 +664,98 @@
 		></button>
 		{#if controlsModule}
 			<youloop-controls-player bind:this={controlsPlayer}>
-				<div
-					class="watch-overlay"
-					class:theater
-					style:left={`${visibleBounds.left}px`}
-					style:top={`${visibleBounds.top}px`}
-					style:width={`${visibleBounds.width}px`}
-					style:height={`${visibleBounds.height}px`}
-				>
-					{#if paused && videoTitle && !theater}<h1 class="video-title">{videoTitle}</h1>{/if}
-					<media-controls class="watch-controls" class:paused inert={theater}>
-						<button
-							class="watch-time"
-							class:clip={clipTimeline}
-							disabled={!range.restricted}
-							aria-label={range.restricted
-								? `${clipTimeline ? 'A:B' : 'VIDEO'} progress, switch to ${clipTimeline ? 'full-video' : 'A:B'} progress`
-								: 'VIDEO progress, full video selected'}
-							onclick={toggleTimeline}
-						>
-							<span class="time-value"
-								><span>{range.valid ? formatVideoTime(timelineTime) : '?:??'}</span><span
-									>/ {range.valid ? formatVideoTime(timelineDuration) : '?:??'}</span
-								></span
-							>
-							{#if clipTimeline}<span class="time-label">A:B</span>{/if}
-						</button>
-						<div class="watch-actions">
-							<button
-								aria-label={muted ? 'Unmute video' : 'Mute video'}
-								disabled={!metadataReceived}
-								onclick={toggleMute}
-							>
-								{#if muted}<IcRoundVolumeOff />{:else}<IcRoundVolumeUp />{/if}
-							</button>
-							<button aria-label="Theater mode" disabled={fullscreen} onclick={ontheater}
-								><IcRoundCropLandscape /></button
-							>
-							{#if nativeFullscreen}
+				{#if diagnostic !== 'overlay'}
+					<div
+						class="watch-overlay"
+						class:theater
+						style:left={`${visibleBounds.left}px`}
+						style:top={`${visibleBounds.top}px`}
+						style:width={`${visibleBounds.width}px`}
+						style:height={`${visibleBounds.height}px`}
+					>
+						{#if diagnostic !== 'controls'}
+							{#if paused && videoTitle && !theater}<h1 class="video-title">{videoTitle}</h1>{/if}
+							<media-controls class="watch-controls" class:paused inert={theater}>
 								<button
-									aria-label={fullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
-									onclick={toggleFullscreen}
+									class="watch-time"
+									class:clip={clipTimeline}
+									disabled={!range.restricted}
+									aria-label={range.restricted
+										? `${clipTimeline ? 'A:B' : 'VIDEO'} progress, switch to ${clipTimeline ? 'full-video' : 'A:B'} progress`
+										: 'VIDEO progress, full video selected'}
+									onclick={toggleTimeline}
 								>
-									{#if fullscreen}<IcRoundFullscreenExit />{:else}<IcRoundFullscreen />{/if}
-								</button>
-							{/if}
-						</div>
-					</media-controls>
-					{#if !theater}
-						<div
-							class="watch-timeline"
-							class:clip={clipTimeline}
-							data-mode={clipTimeline ? 'clip' : 'video'}
-							role="progressbar"
-							aria-label={clipTimeline ? 'A:B progress' : 'Video progress'}
-							aria-valuemin="0"
-							aria-valuemax={timelineDuration}
-							aria-valuenow={timelineTime}
-							aria-valuetext={`${range.valid ? formatVideoTime(timelineTime) : '?:??'} / ${range.valid ? formatVideoTime(timelineDuration) : '?:??'}`}
-						>
-							{#if clipTimeline && range.leftTail}<div
-									class="timeline-tail left"
-									aria-hidden="true"
-								></div>{/if}
-							<div class="timeline-track">
-								{#if !clipTimeline && range.restricted}
-									<div
-										class="timeline-selection"
-										style:left={`${range.selectionStart * 100}%`}
-										style:width={`${range.selectionWidth * 100}%`}
+									<span class="time-value"
+										><span>{range.valid ? formatVideoTime(timelineTime) : '?:??'}</span><span
+											>/ {range.valid ? formatVideoTime(timelineDuration) : '?:??'}</span
+										></span
 									>
+									{#if clipTimeline}<span class="time-label">A:B</span>{/if}
+								</button>
+								<div class="watch-actions">
+									<button
+										aria-label={muted ? 'Unmute video' : 'Mute video'}
+										disabled={!metadataReceived}
+										onclick={toggleMute}
+									>
+										{#if muted}<IcRoundVolumeOff />{:else}<IcRoundVolumeUp />{/if}
+									</button>
+									<button aria-label="Theater mode" disabled={fullscreen} onclick={ontheater}
+										><IcRoundCropLandscape /></button
+									>
+									{#if nativeFullscreen}
+										<button
+											aria-label={fullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
+											onclick={toggleFullscreen}
+										>
+											{#if fullscreen}<IcRoundFullscreenExit />{:else}<IcRoundFullscreen />{/if}
+										</button>
+									{/if}
+								</div>
+							</media-controls>
+						{/if}
+						{#if !theater && diagnostic !== 'timeline'}
+							<div
+								class="watch-timeline"
+								class:clip={clipTimeline}
+								data-mode={clipTimeline ? 'clip' : 'video'}
+								role="progressbar"
+								aria-label={clipTimeline ? 'A:B progress' : 'Video progress'}
+								aria-valuemin="0"
+								aria-valuemax={timelineDuration}
+								aria-valuenow={timelineTime}
+								aria-valuetext={`${range.valid ? formatVideoTime(timelineTime) : '?:??'} / ${range.valid ? formatVideoTime(timelineDuration) : '?:??'}`}
+							>
+								{#if clipTimeline && range.leftTail}<div
+										class="timeline-tail left"
+										aria-hidden="true"
+									></div>{/if}
+								<div class="timeline-track">
+									{#if !clipTimeline && range.restricted}
 										<div
-											class="timeline-overlap"
-											style:width={`${range.clipProgress * 100}%`}
-										></div>
-									</div>
-								{/if}
-								<div
-									class="timeline-fill"
-									style:width={`${(clipTimeline ? range.clipProgress : range.videoProgress) * 100}%`}
-								></div>
+											class="timeline-selection"
+											style:left={`${range.selectionStart * 100}%`}
+											style:width={`${range.selectionWidth * 100}%`}
+										>
+											<div
+												class="timeline-overlap"
+												style:width={`${range.clipProgress * 100}%`}
+											></div>
+										</div>
+									{/if}
+									<div
+										class="timeline-fill"
+										style:width={`${(clipTimeline ? range.clipProgress : range.videoProgress) * 100}%`}
+									></div>
+								</div>
+								{#if clipTimeline && range.rightTail}<div
+										class="timeline-tail right"
+										aria-hidden="true"
+									></div>{/if}
 							</div>
-							{#if clipTimeline && range.rightTail}<div
-									class="timeline-tail right"
-									aria-hidden="true"
-								></div>{/if}
-						</div>
-					{/if}
-				</div>
+						{/if}
+					</div>
+				{/if}
 			</youloop-controls-player>
 		{/if}
 	{:else}
