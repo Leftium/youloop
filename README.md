@@ -82,6 +82,21 @@ not enter native fullscreen; geometry checks are separate from manual checks.
 Pointer clicks still reach YouLoop; pure hover/movement was not isolated by
 the available automation.
 
+### Optional crop-to-fill framing
+
+Landscape/Portrait chooses the shape of the visible video canvas. The separate
+**Fill** toggle optionally zooms the YouTube image inside that canvas, cropping
+its center rather than keeping letterboxing when source and selected frame
+orientations differ. **Fit** (the complete video, without extra zoom) remains
+the default and is preserved by older URLs.
+
+Fill uses a centered `256/81` (~3.16x) horizontal enlargement, targeting the
+common 16:9 vs. 9:16 mismatch. It is a manual framing choice, not a guarantee
+of perfect fill for every YouTube source or unusual aspect ratio. It may hide
+important content around the edges. `fit=cover` makes the choice shareable;
+removing the parameter returns to Fit. Changing the video through the clipboard
+restores Fit. The centered `16000px` iframe height remains unchanged.
+
 ### Fixed-height overscan
 
 [Issue #13](https://github.com/Leftium/youloop/issues/13) tracks native resize
