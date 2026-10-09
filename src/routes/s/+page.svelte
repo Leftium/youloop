@@ -35,7 +35,32 @@
 			}
 		});
 		controller.setSource(youtubeId, parseOrientation(params.get('orientation')));
-		return () => controller.dispose();
+
+		let previousScrollY = window.scrollY;
+		function recycleScroll() {
+			const scrollY = window.scrollY;
+			const movingDown = scrollY > previousScrollY;
+			previousScrollY = scrollY;
+			if (!movingDown) return;
+
+			const root = document.scrollingElement;
+			const viewportHeight = window.innerHeight;
+			if (!root || viewportHeight <= 0) return;
+			const maxScrollY = root.scrollHeight - root.clientHeight;
+			const recycleAt = maxScrollY - 7 * viewportHeight;
+			// Keep the landing below the trigger even if rotation leaves less scroll room.
+			const resetTo = Math.min(4 * viewportHeight, recycleAt - viewportHeight);
+			if (scrollY < recycleAt || resetTo <= 0) return;
+
+			// The jump's scroll event must not count as new downward progress.
+			previousScrollY = resetTo;
+			window.scrollTo({ top: resetTo, behavior: 'instant' });
+		}
+		window.addEventListener('scroll', recycleScroll, { passive: true });
+		return () => {
+			window.removeEventListener('scroll', recycleScroll);
+			controller.dispose();
+		};
 	});
 </script>
 
@@ -91,7 +116,7 @@
 		overflow: hidden;
 	}
 	.scroll-runway {
-		/* Temporary scroll room for Safari toolbar testing; no UI lives below. */
+		/* Bounded scroll room is recycled before its end; no UI lives below. */
 		height: 2000svh;
 		pointer-events: none;
 	}
