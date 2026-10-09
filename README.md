@@ -107,114 +107,41 @@ made once per source. Manual choice survives metadata/time and range updates
 until another source loads; nothing is stored. Unknown or degenerate ranges
 fall back to a finite VIDEO track.
 
-### Physical iPhone bisection and overlay isolation
+### Physical iPhone viewport correction
 
-The owner confirms deployed `/s` at `af18e43` does not pan horizontally.
-Earlier PR testing reported panning, but the same-server physical iPhone tests
-now pass for historical `af18e43`, midpoint `b9c2402`, current `isolate=overlay`,
-and the normal current view (QR test 4). Tests 5/6 were not run because test 4
-passed. These results do not establish a bad commit or show that removing the
-overlay fixes panning. Reproduce the earlier failing URL, source, phone
-orientation and browser context before continuing bisection.
+Physical tests localized landscape picture clipping to the watch route introduced
+in `af18e43` (PR #18). The original `/` player was unclipped at both `700561c`
+and `af18e43`, while `/s` at `af18e43` clipped the left edge. On that same
+watch page, removing only `viewport-fit=cover` eliminated the clipping; the owner
+confirmed this with a landscape screenshot. Removing the iframe translation
+had not fixed it. DOM canvas/frame centers could agree even while the visible
+provider picture was clipped, so headless geometry tests alone missed this.
 
-Keep video parameters, phone orientation, zoom and toolbar state consistent.
-Classify panning and picture/timeline alignment separately; automated geometry
-is not the device oracle. The first three device tests also showed a landscape
-centering concern: the provider play icon appeared off-center. A literal
-one-sided gap has not been confirmed, and the same visual concern appears in
-the historical baseline. Obtain a screenshot including Safari chrome and
-compare picture, provider frame, canvas and viewport bounds before attributing
-that concern to a PR commit.
+The shared layout now declares one `width=device-width, initial-scale=1`
+viewport for both routes. It preserves the editor's viewport, native zoom,
+`100lvh` watch stage, explicit canvas centering, 16000px iframe crop and existing
+visible-viewport intersection. No touch cancellation or horizontal clipping is
+added. The viewport regression guards this exact declaration. Temporary
+isolation switches, geometry logging and historical-build middleware have been
+removed; locally generated investigation artifacts remain ignored.
 
-With dependencies installed, prepare the baseline and first midpoint:
-
-```bash
-node scripts/prepare-watch-bisect.mjs
-pnpm dev --host 0.0.0.0
-```
-
-On the same dev-server hostname used by the iPhone, open:
-
-- `/__bisect/af18e43/s?v=dt-SqNL4z3w&a=0&b=15` (deployed baseline).
-- `/__bisect/b9c2402/s?v=dt-SqNL4z3w&a=0&b=15` (first midpoint).
-- `/s?v=dt-SqNL4z3w&a=0&b=15` (current candidate).
-
-First confirm the historical baseline is good and current is bad on this same
-server. If `b9c2402` is bad, test `a75f98c`; if it is good, test `96bbc3d`.
-Continue halving the remaining first-parent range until adjacent commits have
-physical good/bad results. Record observations rather than inferring results
-from commit titles. Build another selected revision with
-`node scripts/prepare-watch-bisect.mjs <commit>`; its URL uses the first seven
-SHA characters. The sequence is `af18e43`, `b92cf51`, `a75f98c`, `b9c2402`,
-`ef7d41f`, `96bbc3d`, `467728f`, `c3af539`.
-
-Snapshots are built from `git archive` without switching or modifying the
-worktree. They reuse installed dependencies. Resolved package versions match across
-this range; the PR adds the already-transitive Video.js core 10.0.1 as a direct
-dependency. Only a URL base prefix and full-SHA meta tag are injected. Snapshot
-prerendering ignores historical root-relative link errors so the URL prefix does
-not require changing application markup. Check that the watch page hydrates and
-plays before accepting a device result. `revision.json` and the
-`youloop-bisect-head` meta identify the tested SHA. Ignored `.watch-bisect`
-artifacts are served only by Vite dev middleware and are excluded from the
-production build.
-
-To isolate the current watch chrome, append one query parameter and reload:
-
-- `&isolate=timeline`: remove only the timeline DOM.
-- `&isolate=controls`: remove the title and inline control row, keep the timeline.
-- `&isolate=frame-transform`: keep the 16000px iframe and its center/crop, but
-  position it using calculated top/left offsets instead of a CSS translation.
-- `&isolate=overlay`: remove the whole overlay, retain the provider, tap playback,
-  keyboard Play/Pause and native vertical scrolling. Video.js stays attached,
-  allowing layout/chrome effects to be tested separately from interaction code.
-
-For on-device geometry capture, append `&probe=geometry` on the Vite dev
-server. This explicitly records the URL, user agent, DPR, safe-area insets,
-document/visual-viewport bounds, canvas/overlay/iframe rectangles and source
-framing locally in ignored `.watch-bisect/device-geometry.jsonl`. Captures follow
-initial rendering, canvas resize, viewport changes and scrolling. It adds no
-visible layer and reads no cross-origin YouTube pixels. The probe is omitted
-from production builds. Compare normal `probe=geometry` with
-`probe=geometry&isolate=frame-transform` in landscape; report whether the picture
-still clips on the left. These captures distinguish DOM geometry from painted
-provider content.
-
-The latest normal-view iPhone retest stayed free of horizontal panning through
-rotation, play/pause, time-mode switching and Default/Theater travel. Its
-landscape screenshot shows a centered timeline/provider play icon but a picture
-clipped farther left: approximately x=218..2218 for the timeline versus
-x=368..2218 for the visible picture in a 2436px-wide screenshot. This is evidence
-of differing visible bounds, not confirmation of a safe-area or transform bug.
-Normal-vs-offset-frame physical comparison remains pending.
-
-These are opt-in diagnostics, not fixes. No clipping or touch cancellation is
-introduced. Without `isolate`, watch behavior is unchanged; the editor ignores
-it. Recheck black-background swipes, reload and rotation on each variant, and
-report panning independently from alignment. Remove the parameter to restore
-the normal watch view. Keep the PR Draft until the device bisection is complete.
+The latest normal-view iPhone tests did not reproduce horizontal panning,
+including rotation, playback, timeline switching and Default/Theater travel.
+Its original cause is not established, so describe this as a passing retest
+rather than attributing a separate panning fix to the viewport change. Earlier
+Android Firefox/Chrome tests also did not reproduce panning.
 
 ### Required physical verification
 
-The whole-page horizontal-panning issue reported on physical iPhone Safari is
-**not yet confirmed resolved**. Desktop Chromium and mobile headless WebKit did
-not reproduce it before the correction. The owner also reports no reproduction
-on Android Firefox or Chrome at the prior head; compare them again with the
-candidate changes. The watch route now uses a plain,
-viewport-wide body instead of Nimble's editor grid, with no bleed utility or
-body-child gutters. One route-aware viewport meta preserves `viewport-fit=cover`
-for `/s` and the original editor's viewport settings. These are candidate
-corrections; neither blocked gestures nor document clipping masks overflow.
-
-The owner confirmed that `467728f` still fails alignment on physical iPhone
-Safari: a portrait source shrinks from the left after loading with the phone
-held landscape. Landscape-source timeline width/alignment also remains wrong;
-horizontal panning at that exact head has not been established. The next
-candidate explicitly anchors the watch canvas center with `left/top:50%` and
-translation, removing reliance on absolute flex static positioning during
-source detection. Its dimensions, provider crop, and editor positioning remain
-unchanged. Delayed detection stayed centered even before this change in headless
-WebKit, so this is a candidate stabilization, not a confirmed device diagnosis.
+The owner also confirmed the restored current implementation with full controls
+in landscape: picture/timeline aligned, no left clipping and no sideways
+dragging. This verifies the tested landscape source and device configuration.
+Before merging, extend the physical iPhone Safari check to: landscape and portrait
+sources in both phone orientations, reload and source detection, browser chrome
+expanded/collapsed, picture/timeline alignment, and independent horizontal swipe
+attempts. Record the final tested SHA. The complete device matrix, accessibility
+and available fullscreen still require verification; headless WebKit does not
+replace those checks.
 
 The source-geometry regression mounts the actual watch Player and orientation
 controller, delays landscape-to-portrait detection until after first paint, and

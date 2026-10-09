@@ -99,6 +99,11 @@ export async function run() {
 			'One viewport declaration controls the document'
 		);
 		check(
+			document.querySelector<HTMLMetaElement>('meta[name="viewport"]')?.content ===
+				'width=device-width, initial-scale=1',
+			'Standard viewport avoids the physical iPhone cover clipping regression'
+		);
+		check(
 			page.getBoundingClientRect().left === 0 &&
 				page.getBoundingClientRect().width === document.scrollingElement!.clientWidth,
 			'Watch root occupies layout viewport without gutters'
