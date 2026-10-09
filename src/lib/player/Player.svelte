@@ -515,8 +515,11 @@
 			{#if fullscreen}<IcRoundFullscreenExit />{:else}<IcRoundFullscreen />{/if}
 		</button>
 	{/if}
+	{#if minimal && playerError}
+		<p class="player-error" role="alert">{playerError}</p>
+	{/if}
 </div>
-{#if playerError}<p role="alert">{playerError}</p>{/if}
+{#if !minimal && playerError}<p role="alert">{playerError}</p>{/if}
 
 {#if !minimal}
 	<div class="timestamps">
@@ -707,6 +710,16 @@
 		width: min(100%, calc(100cqh * var(--media-ratio)));
 		height: min(100%, calc(100cqw / var(--media-ratio)));
 		aspect-ratio: var(--media-ratio);
+	}
+
+	.player-error {
+		position: absolute;
+		inset: auto 0 0;
+		margin: 0;
+		padding: 1rem;
+		color: white;
+		background: rgb(0 0 0 / 80%);
+		pointer-events: none;
 	}
 
 	.media-canvas {

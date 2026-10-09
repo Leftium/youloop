@@ -5,7 +5,7 @@
 		createOrientationController,
 		parseOrientation,
 		type Orientation
-	} from '#lib/player/youtube-orientation';
+	} from '#lib/player/youtube-orientation.ts';
 
 	// The old editor continues to own the main route. This page only tests viewport
 	// sizing and native document scrolling (particularly Safari's collapsing toolbar).
