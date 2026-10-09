@@ -21,8 +21,221 @@ and source orientation to settle before running the geometry regression:
 
 ```js
 await (await import('/src/lib/player/youtube-orientation.browser-test.ts')).run();
+await (await import('/src/lib/player/youtube-provider-focus.browser-test.ts')).run();
 await (await import('/src/lib/player/media-geometry.browser-test.ts')).run();
 ```
+
+Run the geometry regression on `/`, where the orientation and Fill controls are
+available. To exercise the watch controls, open
+`/s?v=dt-SqNL4z3w&a=0&b=15`, wait for the paused first frame, and run:
+
+```js
+await (await import('/src/lib/player/watch-controls.browser-test.ts')).run();
+(await import('/src/lib/player/watch-timeline.browser-test.ts')).run();
+await (await import('/src/lib/player/watch-viewport.browser-test.ts')).run();
+await (await import('/src/lib/player/watch-source-geometry.browser-test.ts')).run();
+```
+
+For rendered timeline boundary checks, load a fresh `/s` URL with the desired
+`a` and `b`, wait for the duration to settle, and run
+`await (await import('/src/lib/player/watch-timeline.browser-test.ts')).runView()`.
+Cover `a=31&b=38`, `a=50&b=99999`, `a=0&b=99999`, and a very short
+`a=31&b=31.05` selection. The pure timeline regression covers the exact 25%
+threshold and manual-choice reset independently of provider timing.
+
+If the browser blocks scripted playback, tap the video to Play then Pause once before
+running the watch regression.
+
+Keep the browser page visible during these regressions: native scroll events,
+ResizeObserver callbacks, animation frames, and transitions may be deferred in a
+hidden preview. The watch regression uses real YouTube playback and synthetic
+mouse/touch gestures. It temporarily disables the controls' fade transition so
+assertions check visibility state rather than animation timing. Hidden automation
+can use `{ notifyScroll: true, skipViewportSimulation: true }`; that explicitly
+dispatches scroll notifications and omits the viewport-resize simulation. It
+does not verify native touch scrolling or Safari chrome.
+
+## Watch view
+
+`/s` starts in Default with Mute/Unmute, Theater, and a fullscreen button when
+native container fullscreen is available. Tap or click bare video space to
+Play/Pause in Default or Theater, including over YouTube's center indicator.
+YouTube draws that feedback; YouLoop handles the tap through its existing
+playback/recovery state machine. The iframe remains noninteractive and there is
+no competing lower-left or duplicate center playback icon.
+
+A transparent, named Play/Pause button gives keyboard and assistive users the
+same action in both modes. Tab to the player and press Space or Enter; its focus
+outline remains visible in Theater. Pointer taps use Video.js's tap recognizer,
+with additional travel, cancellation, and wheel guards. Swipes and drags scroll
+without toggling playback. Other controls perform only their own actions.
+
+In Default, the actual provider title appears while paused when available. It
+cannot select text or intercept taps. Our small controls stay visible while
+paused.
+Playback starts a short 180ms fade immediately; mouse hover/movement and
+keyboard focus reveal the controls again. Video.js's two-second inactivity delay
+then hides revealed controls during playback. Vertical scrolling is the main
+way to show/hide the cluster by switching Default/Theater; surface taps request
+playback rather than toggling control visibility.
+
+`watch-controls.ts` reuses installed Video.js 10.0.1 playback/controls features,
+the tap recognizer, and controls element. It attaches to the existing media
+without replacing YouLoop's A/B state machine or remounting the iframe.
+
+The persistent three-pixel Default timeline follows the intersection of the
+media canvas and `visualViewport`. Viewport changes reposition only the chrome;
+they do not resize the `100lvh` stage or the centered `16000px` iframe crop.
+Downward document-scroll travel selects Theater; upward travel selects Default,
+including after the empty runway grows. Returning from Theater explicitly reveals
+faded controls, which may then fade again after inactivity. Theater hides our
+title, controls, and timeline. Fullscreen is independent of those modes. Safari owns toolbar collapse;
+the Theater button only advances the native document scroll.
+
+The time button at the left of the control row switches between VIDEO and A:B
+without seeking or changing playback or the share URL. The blue `A:B` label
+follows the duration in clip mode; full-video mode has no visible mode label.
+VIDEO shows absolute time and red full-video progress, with the blue selection at its true proportional
+position. The elapsed part of A:B is purple where progress overlaps selection.
+A:B shows elapsed clip time with purple progress over the blue clip track. Fixed
+six-percent dashed tails indicate excluded video: red before A, gray after B.
+The tails are inert. Full-video selections have no highlight, tails, or available toggle.
+
+After the actual duration settles, a restricted clip shorter than 25% of the
+video starts in A:B; other selections start in VIDEO. The automatic decision is
+made once per source. Manual choice survives metadata/time and range updates
+until another source loads; nothing is stored. Unknown or degenerate ranges
+fall back to a finite VIDEO track.
+
+### Physical iPhone viewport correction
+
+Physical tests localized landscape picture clipping to the watch route introduced
+in `af18e43` (PR #18). The original `/` player was unclipped at both `700561c`
+and `af18e43`, while `/s` at `af18e43` clipped the left edge. On that same
+watch page, removing only `viewport-fit=cover` eliminated the clipping; the owner
+confirmed this with a landscape screenshot. Removing the iframe translation
+had not fixed it. DOM canvas/frame centers could agree even while the visible
+provider picture was clipped, so headless geometry tests alone missed this.
+
+The shared layout now declares one `width=device-width, initial-scale=1`
+viewport for both routes. It preserves the editor's viewport, native zoom,
+`100lvh` watch stage, explicit canvas centering, 16000px iframe crop and existing
+visible-viewport intersection. No touch cancellation or horizontal clipping is
+added. The viewport regression guards this exact declaration. Temporary
+isolation switches, geometry logging and historical-build middleware have been
+removed; locally generated investigation artifacts remain ignored.
+
+The latest normal-view iPhone tests did not reproduce horizontal panning,
+including rotation, playback, timeline switching and Default/Theater travel.
+Its original cause is not established, so describe this as a passing retest
+rather than attributing a separate panning fix to the viewport change. Earlier
+Android Firefox/Chrome tests also did not reproduce panning.
+
+### Required physical verification
+
+The owner also confirmed the restored current implementation with full controls
+in landscape: picture/timeline aligned, no left clipping and no sideways
+dragging. This verifies the tested landscape source and device configuration.
+Before merging, extend the physical iPhone Safari check to: landscape and portrait
+sources in both phone orientations, reload and source detection, browser chrome
+expanded/collapsed, picture/timeline alignment, and independent horizontal swipe
+attempts. Record the final tested SHA. The complete device matrix, accessibility
+and available fullscreen still require verification; headless WebKit does not
+replace those checks.
+
+The source-geometry regression mounts the actual watch Player and orientation
+controller, delays landscape-to-portrait detection until after first paint, and
+checks both-axis centering, provider iframe bounds/identity, visible overlay and
+3px timeline geometry, and document overflow. Run it at both phone viewport
+orientations. It measures the iframe, not YouTube's cross-origin internal video
+pixels; compare the visible picture separately on device.
+
+For the blocking Safari recheck, use the new PR head and record the iOS/Safari
+version, URL, orientation, browser toolbar state, and zoom scale. Swipe left and
+right over the black background as well as the video, before/after rotating,
+after vertical Default/Theater travel, and after reloading in each orientation.
+At initial scale 1, the document must have no horizontal scroll range or lateral
+movement. Check that title, controls and timeline overlay the same centered
+canvas, rather than a shifted sliver. Repeat with expanded/collapsed toolbars.
+Use both landscape-format and portrait-format source videos in both phone
+orientations. Reload directly in landscape and record initial paint, pending
+orientation detection, and settled geometry; repeat after rotation. Compare the
+actual picture with the canvas and provider frame rather than assuming which
+width is right. Keep the panning and alignment outcomes separate.
+A deliberate pinch zoom is a separate case; do not disable it to obtain a pass.
+
+Capture geometry in Safari's remote Web Inspector before and after each case:
+
+```js
+function watchGeometry() {
+	const root = document.scrollingElement;
+	const viewport = window.visualViewport;
+	const media = document.querySelector('youtube-video');
+	return {
+		scrollX,
+		scrollY,
+		innerWidth,
+		innerHeight,
+		root: {
+			scrollWidth: root.scrollWidth,
+			clientWidth: root.clientWidth,
+			scrollLeft: root.scrollLeft
+		},
+		viewport: {
+			width: viewport.width,
+			height: viewport.height,
+			offsetTop: viewport.offsetTop,
+			offsetLeft: viewport.offsetLeft,
+			pageLeft: viewport.pageLeft,
+			scale: viewport.scale
+		},
+		bounds: Object.fromEntries(
+			[
+				'.share-prototype',
+				'.stage',
+				'.player',
+				'.media-canvas',
+				'.watch-overlay',
+				'.watch-timeline',
+				'youtube-video'
+			].map((s) => [s, document.querySelector(s)?.getBoundingClientRect().toJSON()])
+		),
+		iframe: media.shadowRoot?.querySelector('iframe')?.getBoundingClientRect().toJSON()
+	};
+}
+console.log(JSON.stringify(watchGeometry()));
+```
+
+On the Vite preview, the same measurements are available from
+`(await import('/src/lib/player/watch-viewport.browser-test.ts')).snapshot()`.
+The checked regression attempts horizontal document scrolling and verifies
+visible-canvas intersection, media identity, native vertical scrolling and zero
+horizontal overflow. Run it again after viewport rotation and reload. Injected
+visual-viewport offsets and desktop device presets do not reproduce Safari's
+physical browser chrome or establish the device fix.
+
+Before merging, verify on a physical iPhone with Safari:
+
+- Compare tapping Theater with a manual downward swipe from expanded browser
+  chrome. Record whether each collapses the toolbar; they may differ.
+- Check the timeline above expanded and collapsed chrome, in portrait and
+  landscape, during playback and rotation. Watch for reframing, jitter, or black
+  flashes, and check that up-scrolling returns to Default after runway growth.
+- Check background taps before and after auto-hide, paused and playing;
+  each tap must toggle playback in Default and Theater, including over the
+  center indicator. Swipes, drags, wheel activity, and mute must not toggle
+  playback. Check keyboard/assistive activation in Theater and title selection. Verify usable hit targets and
+  safe-area placement on short landscape screens.
+- Switch the time display by touch and keyboard. Check both progress scales,
+  time labels, tails, and narrow-screen layout; switching must preserve playback
+  and the video frame. After controls fade in Theater, scroll up and confirm
+  they visibly reappear without a mouse movement.
+- Exercise native fullscreen where the browser offers it, then exit and confirm
+  the prior logical mode and uninterrupted playback state.
+
+Also check desktop fullscreen/hover/keyboard navigation and a physical Android
+browser when available. Chromium viewport presets and injected touch events do
+not establish physical-device behavior.
 
 ## Deployment
 

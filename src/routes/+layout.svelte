@@ -7,6 +7,11 @@
 	let { children }: { data: LayoutData; children: Snippet } = $props();
 </script>
 
+<svelte:head>
+	<!-- viewport-fit=cover clipped the centered YouTube iframe on physical iPhone Safari. -->
+	<meta name="viewport" content="width=device-width, initial-scale=1" />
+</svelte:head>
+
 {#if page.route.id === '/s'}
 	{@render children()}
 {:else}
