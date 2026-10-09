@@ -163,9 +163,30 @@ To isolate the current watch chrome, append one query parameter and reload:
 
 - `&isolate=timeline`: remove only the timeline DOM.
 - `&isolate=controls`: remove the title and inline control row, keep the timeline.
+- `&isolate=frame-transform`: keep the 16000px iframe and its center/crop, but
+  position it using calculated top/left offsets instead of a CSS translation.
 - `&isolate=overlay`: remove the whole overlay, retain the provider, tap playback,
   keyboard Play/Pause and native vertical scrolling. Video.js stays attached,
   allowing layout/chrome effects to be tested separately from interaction code.
+
+For on-device geometry capture, append `&probe=geometry` on the Vite dev
+server. This explicitly records the URL, user agent, DPR, safe-area insets,
+document/visual-viewport bounds, canvas/overlay/iframe rectangles and source
+framing locally in ignored `.watch-bisect/device-geometry.jsonl`. Captures follow
+initial rendering, canvas resize, viewport changes and scrolling. It adds no
+visible layer and reads no cross-origin YouTube pixels. The probe is omitted
+from production builds. Compare normal `probe=geometry` with
+`probe=geometry&isolate=frame-transform` in landscape; report whether the picture
+still clips on the left. These captures distinguish DOM geometry from painted
+provider content.
+
+The latest normal-view iPhone retest stayed free of horizontal panning through
+rotation, play/pause, time-mode switching and Default/Theater travel. Its
+landscape screenshot shows a centered timeline/provider play icon but a picture
+clipped farther left: approximately x=218..2218 for the timeline versus
+x=368..2218 for the visible picture in a 2436px-wide screenshot. This is evidence
+of differing visible bounds, not confirmation of a safe-area or transform bug.
+Normal-vs-offset-frame physical comparison remains pending.
 
 These are opt-in diagnostics, not fixes. No clipping or touch cancellation is
 introduced. Without `isolate`, watch behavior is unchanged; the editor ignores

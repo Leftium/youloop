@@ -16,7 +16,7 @@
 	let sourceAspectRatio = $state(16 / 9);
 	let fillFrame = $derived(orientation !== sourceOrientation);
 	let theater = $state(false);
-	let diagnostic = $state<'timeline' | 'controls' | 'overlay' | undefined>();
+	let diagnostic = $state<'timeline' | 'controls' | 'overlay' | 'frame-transform' | undefined>();
 	let runway: HTMLDivElement;
 
 	function enterTheater() {
@@ -29,7 +29,12 @@
 	onMount(() => {
 		const params = new URLSearchParams(window.location.search);
 		const isolate = params.get('isolate');
-		if (isolate === 'timeline' || isolate === 'controls' || isolate === 'overlay')
+		if (
+			isolate === 'timeline' ||
+			isolate === 'controls' ||
+			isolate === 'overlay' ||
+			isolate === 'frame-transform'
+		)
 			diagnostic = isolate;
 		youtubeId = params.get('v') || youtubeId;
 		if (params.has('v')) {
@@ -47,6 +52,13 @@
 			}
 		});
 		controller.setSource(youtubeId, parseOrientation(params.get('orientation')));
+		let stopProbe: (() => void) | undefined;
+		let disposed = false;
+		if (import.meta.env.DEV && params.get('probe') === 'geometry') {
+			void import('#lib/player/watch-geometry-probe.ts').then(({ startGeometryProbe }) => {
+				if (!disposed) stopProbe = startGeometryProbe();
+			});
+		}
 
 		// Freeze the initial CSS height in pixels so rotation never shrinks the runway.
 		runwayHeight = runway.getBoundingClientRect().height;
@@ -88,6 +100,8 @@
 		return () => {
 			window.removeEventListener('scroll', handleScroll);
 			window.removeEventListener('resize', extendRunway);
+			disposed = true;
+			stopProbe?.();
 			controller.dispose();
 		};
 	});

@@ -57,7 +57,7 @@
 		fillFrame?: boolean;
 		sourceAspectRatio?: number;
 		minimal?: boolean;
-		diagnostic?: 'timeline' | 'controls' | 'overlay';
+		diagnostic?: 'timeline' | 'controls' | 'overlay' | 'frame-transform';
 		theater?: boolean;
 		ontheater?: () => void;
 		onfillchange?: (fill: boolean) => void;
@@ -618,6 +618,7 @@
 <div
 	class="player"
 	class:minimal
+	class:frame-without-transform={minimal && diagnostic === 'frame-transform'}
 	style:--media-ratio={orientation === 'portrait' ? 9 / 16 : 16 / 9}
 	style:--video-width={frameVideoWidth === null ? '100%' : `${frameVideoWidth}px`}
 	style:--video-source-ratio={sourceAspectRatio}
@@ -1028,6 +1029,15 @@
 		width: var(--video-width);
 		height: 16000px;
 		transform: translate(-50%, -50%);
+	}
+
+	// Diagnostic comparison: identical center/crop with no translated provider layer.
+	.player.frame-without-transform youtube-video::part(iframe) {
+		top: calc(50% - 8000px);
+		left: calc((100% - var(--video-width)) / 2);
+		right: auto;
+		bottom: auto;
+		transform: none;
 	}
 
 	youloop-controls-player {

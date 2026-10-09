@@ -1,4 +1,4 @@
-import { readFile, stat } from 'node:fs/promises';
+import { readFile, stat, mkdir, appendFile } from 'node:fs/promises';
 import { resolve, extname } from 'node:path';
 
 /** Serve ignored historical builds only in Vite dev, on the same host as the phone preview. */
@@ -20,6 +20,31 @@ export function watchBisectServer() {
 		configureServer(server) {
 			server.middlewares.use(async (request, response, next) => {
 				const pathname = new URL(request.url ?? '/', 'http://localhost').pathname;
+				if (pathname === '/__watch-geometry' && request.method === 'POST') {
+					try {
+						let body = '';
+						for await (const chunk of request) {
+							body += chunk;
+							if (body.length > 65536) {
+								response.statusCode = 413;
+								response.end();
+								return;
+							}
+						}
+						const report = JSON.parse(body);
+						await mkdir(directory, { recursive: true });
+						await appendFile(
+							resolve(directory, 'device-geometry.jsonl'),
+							JSON.stringify({ receivedAt: new Date().toISOString(), report }) + '\n'
+						);
+						response.statusCode = 204;
+						response.end();
+					} catch {
+						response.statusCode = 400;
+						response.end();
+					}
+					return;
+				}
 				if (!pathname.startsWith('/__bisect/')) return next();
 				const file = resolve(directory, '.' + pathname.slice('/__bisect'.length));
 				if (!file.startsWith(directory + '/')) {
