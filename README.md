@@ -109,16 +109,22 @@ fall back to a finite VIDEO track.
 
 ### Physical iPhone bisection and overlay isolation
 
-The owner confirms deployed `/s` at `af18e43` does not pan horizontally,
-while the PR candidate `c3af539` still does. Keep the same video, phone
-orientation, zoom, and toolbar state when comparing revisions. Classify panning
-and picture/timeline alignment separately; automated geometry is not the device
-oracle. The owner tested the same-server baseline `af18e43`, midpoint
-`b9c2402`, and current `isolate=overlay`: none panned horizontally. All showed
-a landscape video-centering concern, with the provider play icon apparently
-off-center; a literal one-sided gap has not yet been confirmed. The normal current view still needs a
-same-server good/bad result before those tests identify a bisection interval.
-Do not label the width issue as introduced by this PR from those observations.
+The owner confirms deployed `/s` at `af18e43` does not pan horizontally.
+Earlier PR testing reported panning, but the same-server physical iPhone tests
+now pass for historical `af18e43`, midpoint `b9c2402`, current `isolate=overlay`,
+and the normal current view (QR test 4). Tests 5/6 were not run because test 4
+passed. These results do not establish a bad commit or show that removing the
+overlay fixes panning. Reproduce the earlier failing URL, source, phone
+orientation and browser context before continuing bisection.
+
+Keep video parameters, phone orientation, zoom and toolbar state consistent.
+Classify panning and picture/timeline alignment separately; automated geometry
+is not the device oracle. The first three device tests also showed a landscape
+centering concern: the provider play icon appeared off-center. A literal
+one-sided gap has not been confirmed, and the same visual concern appears in
+the historical baseline. Obtain a screenshot including Safari chrome and
+compare picture, provider frame, canvas and viewport bounds before attributing
+that concern to a PR commit.
 
 With dependencies installed, prepare the baseline and first midpoint:
 
