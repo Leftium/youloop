@@ -1,23 +1,29 @@
 <script lang="ts">
 	import '../app.scss';
+	import { page } from '$app/state';
 	import type { Snippet } from 'svelte';
 	import type { LayoutData } from './$types';
 
 	let { children }: { data: LayoutData; children: Snippet } = $props();
 </script>
 
-<main>
+{#if page.route.id === '/s'}
 	{@render children()}
+{:else}
+	<main>
+		{@render children()}
 
-	<nav>
-		<h1>
-			<a class="brand" href="/" data-sveltekit-reload
-				><img src="/logo.svg" alt="" class="brand-logo" /><span class="title-text">YouLoop</span></a
-			>
-			<small><a class="secondary" href="/about">About</a></small>
-		</h1>
-	</nav>
-</main>
+		<nav>
+			<h1>
+				<a class="brand" href="/" data-sveltekit-reload
+					><img src="/logo.svg" alt="" class="brand-logo" /><span class="title-text">YouLoop</span
+					></a
+				>
+				<small><a class="secondary" href="/about">About</a></small>
+			</h1>
+		</nav>
+	</main>
+{/if}
 
 <style>
 	:global(:root) {

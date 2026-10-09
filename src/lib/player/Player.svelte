@@ -47,6 +47,7 @@
 		orientation?: 'landscape' | 'portrait';
 		fillFrame?: boolean;
 		sourceAspectRatio?: number;
+		minimal?: boolean;
 		onfillchange?: (fill: boolean) => void;
 		onorientationchange?: (orientation: 'landscape' | 'portrait') => void;
 		onsourcechange?: (videoId: string) => void;
@@ -59,6 +60,7 @@
 		orientation = $bindable('landscape'),
 		fillFrame = false,
 		sourceAspectRatio = 16 / 9,
+		minimal = false,
 		onfillchange,
 		onorientationchange,
 		onsourcechange
@@ -469,6 +471,7 @@
 
 <div
 	class="player"
+	class:minimal
 	style:--media-ratio={orientation === 'portrait' ? 9 / 16 : 16 / 9}
 	style:--video-width={frameVideoWidth === null ? '100%' : `${frameVideoWidth}px`}
 	style:--video-source-ratio={sourceAspectRatio}
@@ -503,168 +506,175 @@
 		aria-label={paused ? 'Play video' : 'Pause video'}
 		onclick={togglePaused}
 	></button>
-	<button
-		class="fullscreen"
-		aria-label={fullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
-		onclick={toggleFullscreen}
-	>
-		{#if fullscreen}<IcRoundFullscreenExit />{:else}<IcRoundFullscreen />{/if}
-	</button>
-</div>
-{#if playerError}<p role="alert">{playerError}</p>{/if}
-
-<div class="timestamps">
-	<div>{formatVideoTime(currentTime)} / {formatVideoTime(duration)}</div>
-	<div>{formatVideoTime(repeatA)}A - {formatVideoTime(repeatB)}B</div>
-</div>
-
-<div class="wrap-sliders">
-	<input type="range" />
-
-	<div class="wrap-connector">
-		<div class="connector" style:left={percentA} style:right={percentB}></div>
-	</div>
-
-	{#if duration}
-		<input
-			type="range"
-			aria-label="Current time"
-			class="current-time"
-			min="0"
-			step="0.1"
-			oninput={handleInputCurrentTime}
-			bind:value={currentTime}
-			max={duration}
-		/>
-
-		<input
-			type="range"
-			aria-label="Repeat start"
-			class="repeat-a"
-			min="0"
-			step="0.1"
-			oninput={handleInputRepeatA}
-			bind:value={repeatA}
-			max={duration}
-		/>
-
-		<input
-			type="range"
-			aria-label="Repeat end"
-			class="repeat-b"
-			min="0"
-			step="0.1"
-			oninput={handleInputRepeatB}
-			bind:value={repeatB}
-			max={duration}
-		/>
+	{#if !minimal}
+		<button
+			class="fullscreen"
+			aria-label={fullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
+			onclick={toggleFullscreen}
+		>
+			{#if fullscreen}<IcRoundFullscreenExit />{:else}<IcRoundFullscreen />{/if}
+		</button>
+	{/if}
+	{#if minimal && playerError}
+		<p class="player-error" role="alert">{playerError}</p>
 	{/if}
 </div>
+{#if !minimal && playerError}<p role="alert">{playerError}</p>{/if}
 
-<center>
-	<div class="controls" inert={!metadataReceived}>
-		<div class="nc-join" role="group">
-			{#key paused}
-				<button aria-label={paused ? 'Play' : 'Pause'} onclick={togglePaused}>
-					{#if paused}
-						<IcRoundPlayArrow />
-					{:else}
-						<IcRoundPause />
-					{/if}
-				</button>
-			{/key}
-
-			<button aria-label="Previous frame" onclick={makeStepFrame(-1)}
-				><IcRoundSkipPrevious /></button
-			>
-			<button aria-label="Next frame" onclick={makeStepFrame(1)}><IcRoundSkipNext /></button>
-		</div>
-
-		<div class="ab-buttons nc-join" role="group">
-			<button class="a-button" onclick={setRepeatA}>A</button>
-			<button class="b-button" onclick={setRepeatB}>B</button>
-		</div>
-
-		<div class="nc-join" role="group">
-			{#key loop}
-				<button aria-label="Loop" aria-pressed={loop} onclick={toggleLoop}>
-					{#if loop}
-						<FluentArrowRepeat />
-					{:else}
-						<FluentArrowRepeatOff />
-					{/if}
-				</button>
-			{/key}
-		</div>
-
-		<div class="nc-join" role="group">
-			{#key muted}
-				<button aria-label="Mute" aria-pressed={muted} onclick={toggleMute}>
-					{#if muted}
-						<IcRoundVolumeOff />
-					{:else}
-						<IcRoundVolumeUp />
-					{/if}
-				</button>
-			{/key}
-		</div>
-
-		<div class="speed-buttons nc-join" role="group">
-			<button onclick={makeTogglePlaybackRate()}><IcRoundSpeed /></button>
-
-			<button onclick={makeTogglePlaybackRate(200)}>
-				<span class:active={playbackRate === 200}>2</span>
-			</button>
-			<button onclick={makeTogglePlaybackRate(100)}>
-				<span class:active={playbackRate === 100}>1</span>
-			</button>
-			<button onclick={makeTogglePlaybackRate(50)}>
-				<span class:active={playbackRate === 50}>&frac12;</span>
-			</button>
-			<button onclick={makeTogglePlaybackRate(25)}>
-				<span class:active={playbackRate === 25}>&frac14;</span>
-			</button>
-		</div>
-
-		<div class="nc-join" role="group" aria-label="Media orientation">
-			<button
-				aria-label="Landscape"
-				aria-pressed={orientation === 'landscape'}
-				onclick={() => {
-					orientation = 'landscape';
-					onorientationchange?.('landscape');
-				}}
-			>
-				<span class:active={orientation === 'landscape'}><IcRoundCropLandscape /></span>
-			</button>
-			<button
-				aria-label="Portrait"
-				aria-pressed={orientation === 'portrait'}
-				onclick={() => {
-					orientation = 'portrait';
-					onorientationchange?.('portrait');
-				}}
-			>
-				<span class:active={orientation === 'portrait'}><IcRoundCropPortrait /></span>
-			</button>
-		</div>
-		<div class="nc-join" role="group" aria-label="Video framing">
-			<button
-				aria-label="Crop to fill"
-				aria-pressed={fillFrame}
-				title="Zoom into the center to fill the frame (crops edges)"
-				onclick={() => onfillchange?.(!fillFrame)}
-			>
-				<span class:active={fillFrame}>Fill</span>
-			</button>
-		</div>
+{#if !minimal}
+	<div class="timestamps">
+		<div>{formatVideoTime(currentTime)} / {formatVideoTime(duration)}</div>
+		<div>{formatVideoTime(repeatA)}A - {formatVideoTime(repeatB)}B</div>
 	</div>
 
-	<button class="outline paste-button" onclick={pasteYoutubeId}
-		>Load YouTube URL/ID from clipboard</button
-	>
-	<div>{youtubeIdResultMessage}</div>
-</center>
+	<div class="wrap-sliders">
+		<input type="range" />
+
+		<div class="wrap-connector">
+			<div class="connector" style:left={percentA} style:right={percentB}></div>
+		</div>
+
+		{#if duration}
+			<input
+				type="range"
+				aria-label="Current time"
+				class="current-time"
+				min="0"
+				step="0.1"
+				oninput={handleInputCurrentTime}
+				bind:value={currentTime}
+				max={duration}
+			/>
+
+			<input
+				type="range"
+				aria-label="Repeat start"
+				class="repeat-a"
+				min="0"
+				step="0.1"
+				oninput={handleInputRepeatA}
+				bind:value={repeatA}
+				max={duration}
+			/>
+
+			<input
+				type="range"
+				aria-label="Repeat end"
+				class="repeat-b"
+				min="0"
+				step="0.1"
+				oninput={handleInputRepeatB}
+				bind:value={repeatB}
+				max={duration}
+			/>
+		{/if}
+	</div>
+
+	<center>
+		<div class="controls" inert={!metadataReceived}>
+			<div class="nc-join" role="group">
+				{#key paused}
+					<button aria-label={paused ? 'Play' : 'Pause'} onclick={togglePaused}>
+						{#if paused}
+							<IcRoundPlayArrow />
+						{:else}
+							<IcRoundPause />
+						{/if}
+					</button>
+				{/key}
+
+				<button aria-label="Previous frame" onclick={makeStepFrame(-1)}
+					><IcRoundSkipPrevious /></button
+				>
+				<button aria-label="Next frame" onclick={makeStepFrame(1)}><IcRoundSkipNext /></button>
+			</div>
+
+			<div class="ab-buttons nc-join" role="group">
+				<button class="a-button" onclick={setRepeatA}>A</button>
+				<button class="b-button" onclick={setRepeatB}>B</button>
+			</div>
+
+			<div class="nc-join" role="group">
+				{#key loop}
+					<button aria-label="Loop" aria-pressed={loop} onclick={toggleLoop}>
+						{#if loop}
+							<FluentArrowRepeat />
+						{:else}
+							<FluentArrowRepeatOff />
+						{/if}
+					</button>
+				{/key}
+			</div>
+
+			<div class="nc-join" role="group">
+				{#key muted}
+					<button aria-label="Mute" aria-pressed={muted} onclick={toggleMute}>
+						{#if muted}
+							<IcRoundVolumeOff />
+						{:else}
+							<IcRoundVolumeUp />
+						{/if}
+					</button>
+				{/key}
+			</div>
+
+			<div class="speed-buttons nc-join" role="group">
+				<button onclick={makeTogglePlaybackRate()}><IcRoundSpeed /></button>
+
+				<button onclick={makeTogglePlaybackRate(200)}>
+					<span class:active={playbackRate === 200}>2</span>
+				</button>
+				<button onclick={makeTogglePlaybackRate(100)}>
+					<span class:active={playbackRate === 100}>1</span>
+				</button>
+				<button onclick={makeTogglePlaybackRate(50)}>
+					<span class:active={playbackRate === 50}>&frac12;</span>
+				</button>
+				<button onclick={makeTogglePlaybackRate(25)}>
+					<span class:active={playbackRate === 25}>&frac14;</span>
+				</button>
+			</div>
+
+			<div class="nc-join" role="group" aria-label="Media orientation">
+				<button
+					aria-label="Landscape"
+					aria-pressed={orientation === 'landscape'}
+					onclick={() => {
+						orientation = 'landscape';
+						onorientationchange?.('landscape');
+					}}
+				>
+					<span class:active={orientation === 'landscape'}><IcRoundCropLandscape /></span>
+				</button>
+				<button
+					aria-label="Portrait"
+					aria-pressed={orientation === 'portrait'}
+					onclick={() => {
+						orientation = 'portrait';
+						onorientationchange?.('portrait');
+					}}
+				>
+					<span class:active={orientation === 'portrait'}><IcRoundCropPortrait /></span>
+				</button>
+			</div>
+			<div class="nc-join" role="group" aria-label="Video framing">
+				<button
+					aria-label="Crop to fill"
+					aria-pressed={fillFrame}
+					title="Zoom into the center to fill the frame (crops edges)"
+					onclick={() => onfillchange?.(!fillFrame)}
+				>
+					<span class:active={fillFrame}>Fill</span>
+				</button>
+			</div>
+		</div>
+
+		<button class="outline paste-button" onclick={pasteYoutubeId}
+			>Load YouTube URL/ID from clipboard</button
+		>
+		<div>{youtubeIdResultMessage}</div>
+	</center>
+{/if}
 
 <style lang="scss">
 	// Pico color values (hardcoded from @picocss/pico v2.0.6 scss/colors/_index.scss)
@@ -688,6 +698,28 @@
 		contain: size layout;
 		background: black;
 		overflow: hidden;
+	}
+
+	.player.minimal {
+		height: 100%;
+		aspect-ratio: auto;
+		container-type: size;
+	}
+
+	.player.minimal .media-canvas {
+		width: min(100%, calc(100cqh * var(--media-ratio)));
+		height: min(100%, calc(100cqw / var(--media-ratio)));
+		aspect-ratio: var(--media-ratio);
+	}
+
+	.player-error {
+		position: absolute;
+		inset: auto 0 0;
+		margin: 0;
+		padding: 1rem;
+		color: white;
+		background: rgb(0 0 0 / 80%);
+		pointer-events: none;
 	}
 
 	.media-canvas {
