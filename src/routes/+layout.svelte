@@ -1,11 +1,15 @@
 <script lang="ts">
 	import '../app.scss';
+	import { page } from '$app/state';
 	import type { Snippet } from 'svelte';
 	import type { LayoutData } from './$types';
 
 	let { children }: { data: LayoutData; children: Snippet } = $props();
 </script>
 
+{#if page.url.pathname.startsWith('/s/')}
+	{@render children()}
+{:else}
 <main>
 	{@render children()}
 
@@ -18,6 +22,8 @@
 		</h1>
 	</nav>
 </main>
+
+{/if}
 
 <style>
 	:global(:root) {

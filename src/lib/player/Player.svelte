@@ -47,6 +47,7 @@
 		orientation?: 'landscape' | 'portrait';
 		fillFrame?: boolean;
 		sourceAspectRatio?: number;
+		minimal?: boolean;
 		onfillchange?: (fill: boolean) => void;
 		onorientationchange?: (orientation: 'landscape' | 'portrait') => void;
 		onsourcechange?: (videoId: string) => void;
@@ -59,6 +60,7 @@
 		orientation = $bindable('landscape'),
 		fillFrame = false,
 		sourceAspectRatio = 16 / 9,
+		minimal = false,
 		onfillchange,
 		onorientationchange,
 		onsourcechange
@@ -469,6 +471,7 @@
 
 <div
 	class="player"
+	class:minimal
 	style:--media-ratio={orientation === 'portrait' ? 9 / 16 : 16 / 9}
 	style:--video-width={frameVideoWidth === null ? '100%' : `${frameVideoWidth}px`}
 	style:--video-source-ratio={sourceAspectRatio}
@@ -503,6 +506,7 @@
 		aria-label={paused ? 'Play video' : 'Pause video'}
 		onclick={togglePaused}
 	></button>
+	{#if !minimal}
 	<button
 		class="fullscreen"
 		aria-label={fullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
@@ -510,9 +514,11 @@
 	>
 		{#if fullscreen}<IcRoundFullscreenExit />{:else}<IcRoundFullscreen />{/if}
 	</button>
+	{/if}
 </div>
 {#if playerError}<p role="alert">{playerError}</p>{/if}
 
+{#if !minimal}
 <div class="timestamps">
 	<div>{formatVideoTime(currentTime)} / {formatVideoTime(duration)}</div>
 	<div>{formatVideoTime(repeatA)}A - {formatVideoTime(repeatB)}B</div>
@@ -665,6 +671,7 @@
 	>
 	<div>{youtubeIdResultMessage}</div>
 </center>
+{/if}
 
 <style lang="scss">
 	// Pico color values (hardcoded from @picocss/pico v2.0.6 scss/colors/_index.scss)
@@ -688,6 +695,18 @@
 		contain: size layout;
 		background: black;
 		overflow: hidden;
+	}
+
+	.player.minimal {
+		height: 100%;
+		aspect-ratio: auto;
+		container-type: size;
+	}
+
+	.player.minimal .media-canvas {
+		width: min(100%, calc(100cqh * var(--media-ratio)));
+		height: min(100%, calc(100cqw / var(--media-ratio)));
+		aspect-ratio: var(--media-ratio);
 	}
 
 	.media-canvas {
