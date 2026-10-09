@@ -166,8 +166,10 @@ export async function runView() {
 	const rect = button.getBoundingClientRect();
 	const actions = document.querySelector<HTMLElement>('.watch-actions')!.getBoundingClientRect();
 	check(
-		rect.right <= actions.left && rect.bottom < timeline().getBoundingClientRect().top,
-		'Rendered time target stays left of actions and above track'
+		rect.right <= actions.left &&
+			(document.querySelector<HTMLElement>('media-controls')!.dataset.placement === 'below' ||
+				rect.bottom < timeline().getBoundingClientRect().top),
+		'Rendered time target stays left of actions without crossing track'
 	);
 	check(
 		button.scrollWidth <= button.clientWidth && button.scrollHeight <= button.clientHeight,

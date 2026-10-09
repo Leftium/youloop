@@ -193,9 +193,10 @@ export async function run(
 		const actions = controls.querySelector<HTMLElement>('.watch-actions')!.getBoundingClientRect();
 		check(
 			timeControl.getBoundingClientRect().right <= actions.left &&
-				row.bottom < timeline().getBoundingClientRect().top &&
+				(controls.dataset.placement === 'below' ||
+					row.bottom < timeline().getBoundingClientRect().top) &&
 				actions.right === row.right,
-			'Time is left and actions right in the same row above the timeline'
+			'Time is left and actions right without crossing the timeline'
 		);
 
 		for (const theater of [false, true]) {

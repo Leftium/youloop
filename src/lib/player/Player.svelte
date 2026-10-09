@@ -4,6 +4,7 @@
 	import { onMount } from 'svelte';
 	import { excludeYouTubeProviderFocus } from './youtube-provider-focus';
 	import { calculateFrameVideoWidth } from './video-framing';
+	import { placeWatchControls, placeWatchTitle } from './watch-controls-placement';
 	import { createTimelineMode, timelineRange, type TimelineMode } from './watch-timeline';
 
 	import IcRoundPlayArrow from '~icons/ic/round-play-arrow';
@@ -33,6 +34,12 @@
 	let controlsModule = $state<typeof import('./watch-controls')>();
 	let nativeFullscreen = $state(false);
 	let videoTitle = $state('');
+	let watchTitle = $state<HTMLHeadingElement>();
+	let titlePlacement = $state({ left: 0, top: 0, width: 0, maxHeight: 0, mode: 'video' });
+	let controlsRegion = $state<HTMLDivElement>();
+	let watchControls = $state<HTMLElement>();
+	let controlsBounds = $state({ left: 0, top: 0, width: 0, height: 0 });
+	let controlsPlacement = $state({ left: 0, top: 0, width: 0, height: 44, mode: 'video' });
 	let visibleBounds = $state({ left: 0, top: 0, width: 0, height: 0 });
 
 	const framerate = 30;
@@ -58,6 +65,7 @@
 		sourceAspectRatio?: number;
 		minimal?: boolean;
 		theater?: boolean;
+		controlPageVisible?: boolean;
 		ontheater?: () => void;
 		onfillchange?: (fill: boolean) => void;
 		onorientationchange?: (orientation: 'landscape' | 'portrait') => void;
@@ -73,6 +81,7 @@
 		sourceAspectRatio = 16 / 9,
 		minimal = false,
 		theater = false,
+		controlPageVisible = false,
 		ontheater,
 		onfillchange,
 		onorientationchange,
@@ -269,8 +278,11 @@
 		};
 	});
 
-	onMount(() => {
-		if (!minimal) return;
+	$effect(() => {
+		if (!minimal || !controlsRegion || !watchControls) return;
+		const region = controlsRegion;
+		const controls = watchControls;
+		const title = watchTitle;
 		let frame = 0;
 		function measureVisibleVideo() {
 			frame = 0;
@@ -293,6 +305,59 @@
 				width: Math.max(0, right - left),
 				height: Math.max(0, bottom - top)
 			};
+			const regionLeft = Math.max(outer.left, viewport?.offsetLeft ?? 0);
+			const regionTop = Math.max(outer.top, viewport?.offsetTop ?? 0);
+			controlsBounds = {
+				left: regionLeft - outer.left,
+				top: regionTop - outer.top,
+				width: Math.max(
+					0,
+					Math.min(
+						outer.right,
+						(viewport?.offsetLeft ?? 0) + (viewport?.width ?? window.innerWidth)
+					) - regionLeft
+				),
+				height: Math.max(
+					0,
+					Math.min(
+						outer.bottom,
+						(viewport?.offsetTop ?? 0) + (viewport?.height ?? window.innerHeight)
+					) - regionTop
+				)
+			};
+			const padding = getComputedStyle(region);
+			const time = controls.querySelector('.watch-time')!.getBoundingClientRect();
+			const actions = controls.querySelector('.watch-actions')!.getBoundingClientRect();
+			const safe = {
+				left: parseFloat(padding.paddingLeft),
+				top: parseFloat(padding.paddingTop),
+				right: controlsBounds.width - parseFloat(padding.paddingRight),
+				bottom: controlsBounds.height - parseFloat(padding.paddingBottom)
+			};
+			const video = {
+				left: left - regionLeft,
+				top: top - regionTop,
+				right: right - regionLeft,
+				bottom: bottom - regionTop
+			};
+			controlsPlacement = placeWatchControls(safe, video, {
+				time: time.width,
+				actions: actions.width,
+				height: Math.max(time.height, actions.height)
+			});
+			if (title) {
+				// Measure each candidate at its own width. Reusing the currently rendered
+				// height can alternate forever between a one-line fallback and a wrapped gutter.
+				const previousWidth = title.style.width;
+				const previousMaxHeight = title.style.maxHeight;
+				title.style.maxHeight = 'none';
+				titlePlacement = placeWatchTitle(safe, video, controlsPlacement, (width) => {
+					title.style.width = `${width}px`;
+					return title.scrollHeight;
+				});
+				title.style.width = previousWidth;
+				title.style.maxHeight = previousMaxHeight;
+			}
 		}
 		const schedule = () => {
 			if (!frame) frame = requestAnimationFrame(measureVisibleVideo);
@@ -300,11 +365,15 @@
 		const observer = new ResizeObserver(schedule);
 		observer.observe(mediaCanvas);
 		observer.observe(playerContainer);
+		observer.observe(region);
+		if (title) observer.observe(title);
+		observer.observe(controls.querySelector('.watch-time')!);
+		observer.observe(controls.querySelector('.watch-actions')!);
 		window.addEventListener('resize', schedule);
 		window.addEventListener('scroll', schedule, { passive: true });
 		window.visualViewport?.addEventListener('resize', schedule);
 		window.visualViewport?.addEventListener('scroll', schedule);
-		measureVisibleVideo();
+		schedule();
 		return () => {
 			cancelAnimationFrame(frame);
 			observer.disconnect();
@@ -670,45 +739,6 @@
 					style:width={`${visibleBounds.width}px`}
 					style:height={`${visibleBounds.height}px`}
 				>
-					{#if paused && videoTitle && !theater}<h1 class="video-title">{videoTitle}</h1>{/if}
-					<media-controls class="watch-controls" class:paused inert={theater}>
-						<button
-							class="watch-time"
-							class:clip={clipTimeline}
-							disabled={!range.restricted}
-							aria-label={range.restricted
-								? `${clipTimeline ? 'A:B' : 'VIDEO'} progress, switch to ${clipTimeline ? 'full-video' : 'A:B'} progress`
-								: 'VIDEO progress, full video selected'}
-							onclick={toggleTimeline}
-						>
-							<span class="time-value"
-								><span>{range.valid ? formatVideoTime(timelineTime) : '?:??'}</span><span
-									>/ {range.valid ? formatVideoTime(timelineDuration) : '?:??'}</span
-								></span
-							>
-							{#if clipTimeline}<span class="time-label">A:B</span>{/if}
-						</button>
-						<div class="watch-actions">
-							<button
-								aria-label={muted ? 'Unmute video' : 'Mute video'}
-								disabled={!metadataReceived}
-								onclick={toggleMute}
-							>
-								{#if muted}<IcRoundVolumeOff />{:else}<IcRoundVolumeUp />{/if}
-							</button>
-							<button aria-label="Theater mode" disabled={fullscreen} onclick={ontheater}
-								><IcRoundCropLandscape /></button
-							>
-							{#if nativeFullscreen}
-								<button
-									aria-label={fullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
-									onclick={toggleFullscreen}
-								>
-									{#if fullscreen}<IcRoundFullscreenExit />{:else}<IcRoundFullscreen />{/if}
-								</button>
-							{/if}
-						</div>
-					</media-controls>
 					{#if !theater}
 						<div
 							class="watch-timeline"
@@ -749,6 +779,77 @@
 								></div>{/if}
 						</div>
 					{/if}
+				</div>
+				<div
+					class="watch-controls-region"
+					bind:this={controlsRegion}
+					style:left={`${controlsBounds.left}px`}
+					style:top={`${controlsBounds.top}px`}
+					style:width={`${controlsBounds.width}px`}
+					style:height={`${controlsBounds.height}px`}
+				>
+					{#if paused && videoTitle && !theater && !controlPageVisible}
+						<h1
+							class="video-title"
+							bind:this={watchTitle}
+							data-placement={titlePlacement.mode}
+							style:left={`${titlePlacement.left}px`}
+							style:top={`${titlePlacement.top}px`}
+							style:width={`${titlePlacement.width}px`}
+							style:max-height={`${titlePlacement.maxHeight}px`}
+						>
+							{videoTitle}
+						</h1>
+					{/if}
+					<media-controls
+						class="watch-controls"
+						class:paused
+						class:suppressed={theater || controlPageVisible}
+						inert={theater || controlPageVisible}
+						bind:this={watchControls}
+						data-placement={controlsPlacement.mode}
+						style:left={`${controlsPlacement.left}px`}
+						style:top={`${controlsPlacement.top}px`}
+						style:width={`${controlsPlacement.width}px`}
+						style:height={`${controlsPlacement.height}px`}
+					>
+						<button
+							class="watch-time"
+							class:clip={clipTimeline}
+							disabled={!range.restricted}
+							aria-label={range.restricted
+								? `${clipTimeline ? 'A:B' : 'VIDEO'} progress, switch to ${clipTimeline ? 'full-video' : 'A:B'} progress`
+								: 'VIDEO progress, full video selected'}
+							onclick={toggleTimeline}
+						>
+							<span class="time-value"
+								><span>{range.valid ? formatVideoTime(timelineTime) : '?:??'}</span><span
+									>/ {range.valid ? formatVideoTime(timelineDuration) : '?:??'}</span
+								></span
+							>
+							{#if clipTimeline}<span class="time-label">A:B</span>{/if}
+						</button>
+						<div class="watch-actions">
+							<button
+								aria-label={muted ? 'Unmute video' : 'Mute video'}
+								disabled={!metadataReceived}
+								onclick={toggleMute}
+							>
+								{#if muted}<IcRoundVolumeOff />{:else}<IcRoundVolumeUp />{/if}
+							</button>
+							<button aria-label="Theater mode" disabled={fullscreen} onclick={ontheater}
+								><IcRoundCropLandscape /></button
+							>
+							{#if nativeFullscreen}
+								<button
+									aria-label={fullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
+									onclick={toggleFullscreen}
+								>
+									{#if fullscreen}<IcRoundFullscreenExit />{:else}<IcRoundFullscreen />{/if}
+								</button>
+							{/if}
+						</div>
+					</media-controls>
 				</div>
 			</youloop-controls-player>
 		{/if}
@@ -1036,7 +1137,6 @@
 		--timeline-selection: #39f;
 		--timeline-overlap: #a855f7;
 		--timeline-remaining: #aaa;
-		container-type: inline-size;
 		position: absolute;
 		pointer-events: none;
 	}
@@ -1044,9 +1144,9 @@
 		user-select: none;
 		pointer-events: none;
 		position: absolute;
-		top: max(12px, env(safe-area-inset-top));
-		left: max(12px, env(safe-area-inset-left));
-		right: 12px;
+		box-sizing: border-box;
+		overflow: hidden;
+		overflow-wrap: anywhere;
 		margin: 0;
 		padding: 8px 12px;
 		font-size: clamp(1rem, 3vw, 1.4rem);
@@ -1055,11 +1155,20 @@
 		background: rgb(0 0 0 / 45%);
 		border-radius: 8px;
 	}
+	.video-title[data-placement='above'],
+	.video-title[data-placement='below'] {
+		text-align: center;
+	}
+	.watch-controls-region {
+		position: absolute;
+		container-type: inline-size;
+		box-sizing: border-box;
+		padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right))
+			max(14px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
+		pointer-events: none;
+	}
 	.watch-controls {
 		position: absolute;
-		bottom: max(14px, env(safe-area-inset-bottom));
-		left: max(12px, env(safe-area-inset-left));
-		right: max(12px, env(safe-area-inset-right));
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
@@ -1078,6 +1187,8 @@
 		align-items: center;
 		justify-content: center;
 		width: 44px;
+		min-width: 44px;
+		flex-shrink: 0;
 		height: 44px;
 		margin: 0;
 		padding: 10px;
@@ -1098,7 +1209,7 @@
 	}
 	.watch-controls .watch-time {
 		width: auto;
-		min-width: 0;
+		min-width: 44px;
 		padding: 6px 8px;
 		gap: 6px;
 		font-size: clamp(0.7rem, 2.5vw, 0.9rem);
@@ -1110,7 +1221,7 @@
 		gap: 0.3em;
 	}
 	.watch-time .time-label {
-		color: var(--timeline-selection);
+		color: #39f;
 	}
 	.watch-controls .watch-time:disabled {
 		opacity: 1;
@@ -1118,8 +1229,6 @@
 	}
 	@container (max-width: 360px) {
 		.watch-controls {
-			left: max(6px, env(safe-area-inset-left));
-			right: max(6px, env(safe-area-inset-right));
 			gap: 4px;
 		}
 		.watch-actions {
@@ -1159,7 +1268,7 @@
 		opacity: 0.5;
 		cursor: default;
 	}
-	.watch-overlay.theater .watch-controls {
+	.watch-controls.suppressed {
 		visibility: hidden;
 	}
 	.watch-timeline {
