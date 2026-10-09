@@ -91,10 +91,9 @@
 
 <svelte:head>
 	<title>YouLoop - Watch</title>
-	<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 </svelte:head>
 
-<div class="share-prototype bleed-full" data-mode={theater ? 'theater' : 'default'}>
+<div class="share-prototype" data-mode={theater ? 'theater' : 'default'}>
 	<div class="stage">
 		<Player
 			minimal
@@ -121,6 +120,7 @@
 	:global(html:has(.share-prototype)) {
 		margin: 0;
 		padding: 0;
+		scrollbar-gutter: auto;
 		/* Hide the scroll indicator, not the actual document scroll. */
 		scrollbar-width: none;
 	}
@@ -128,13 +128,20 @@
 		display: none;
 	}
 	:global(body:has(.share-prototype)) {
+		/* The immersive document has one viewport-wide column, not the editor's body grid. */
+		display: block;
 		margin: 0;
 		padding: 0;
+		width: 100%;
 		max-width: none;
 		background: #000;
 	}
 	.share-prototype {
+		/* Override Nimble's body-child gutters without a grid-spanning bleed utility. */
+		margin: 0;
+		padding: 0;
 		width: 100%;
+		min-width: 0;
 		background: #000;
 	}
 	.stage {

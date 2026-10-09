@@ -32,6 +32,7 @@ available. To exercise the watch controls, open
 ```js
 await (await import('/src/lib/player/watch-controls.browser-test.ts')).run();
 (await import('/src/lib/player/watch-timeline.browser-test.ts')).run();
+await (await import('/src/lib/player/watch-viewport.browser-test.ts')).run();
 ```
 
 For rendered timeline boundary checks, load a fresh `/s` URL with the desired
@@ -106,6 +107,75 @@ until another source loads; nothing is stored. Unknown or degenerate ranges
 fall back to a finite VIDEO track.
 
 ### Required physical verification
+
+The whole-page horizontal-panning issue reported on physical iPhone Safari is
+**not yet confirmed resolved**. Desktop Chromium and mobile headless WebKit did
+not reproduce it before the correction. The owner also reports no reproduction
+on Android Firefox or Chrome at the prior head; compare them again with the
+candidate changes. The watch route now uses a plain,
+viewport-wide body instead of Nimble's editor grid, with no bleed utility or
+body-child gutters. One route-aware viewport meta preserves `viewport-fit=cover`
+for `/s` and the original editor's viewport settings. These are candidate
+corrections; neither blocked gestures nor document clipping masks overflow.
+
+For the blocking Safari recheck, use the new PR head and record the iOS/Safari
+version, URL, orientation, browser toolbar state, and zoom scale. Swipe left and
+right over the black background as well as the video, before/after rotating,
+after vertical Default/Theater travel, and after reloading in each orientation.
+At initial scale 1, the document must have no horizontal scroll range or lateral
+movement. Check that title, controls and timeline overlay the same centered
+canvas, rather than a shifted sliver. Repeat with expanded/collapsed toolbars.
+A deliberate pinch zoom is a separate case; do not disable it to obtain a pass.
+
+Capture geometry in Safari's remote Web Inspector before and after each case:
+
+```js
+function watchGeometry() {
+	const root = document.scrollingElement;
+	const viewport = window.visualViewport;
+	const media = document.querySelector('youtube-video');
+	return {
+		scrollX,
+		scrollY,
+		innerWidth,
+		innerHeight,
+		root: {
+			scrollWidth: root.scrollWidth,
+			clientWidth: root.clientWidth,
+			scrollLeft: root.scrollLeft
+		},
+		viewport: {
+			width: viewport.width,
+			height: viewport.height,
+			offsetTop: viewport.offsetTop,
+			offsetLeft: viewport.offsetLeft,
+			pageLeft: viewport.pageLeft,
+			scale: viewport.scale
+		},
+		bounds: Object.fromEntries(
+			[
+				'.share-prototype',
+				'.stage',
+				'.player',
+				'.media-canvas',
+				'.watch-overlay',
+				'.watch-timeline',
+				'youtube-video'
+			].map((s) => [s, document.querySelector(s)?.getBoundingClientRect().toJSON()])
+		),
+		iframe: media.shadowRoot?.querySelector('iframe')?.getBoundingClientRect().toJSON()
+	};
+}
+console.log(JSON.stringify(watchGeometry()));
+```
+
+On the Vite preview, the same measurements are available from
+`(await import('/src/lib/player/watch-viewport.browser-test.ts')).snapshot()`.
+The checked regression attempts horizontal document scrolling and verifies
+visible-canvas intersection, media identity, native vertical scrolling and zero
+horizontal overflow. Run it again after viewport rotation and reload. Injected
+visual-viewport offsets and desktop device presets do not reproduce Safari's
+physical browser chrome or establish the device fix.
 
 Before merging, verify on a physical iPhone with Safari:
 

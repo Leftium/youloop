@@ -7,6 +7,15 @@
 	let { children }: { data: LayoutData; children: Snippet } = $props();
 </script>
 
+<svelte:head>
+	<meta
+		name="viewport"
+		content={page.route.id === '/s'
+			? 'width=device-width, initial-scale=1, viewport-fit=cover'
+			: 'width=device-width, initial-scale=1'}
+	/>
+</svelte:head>
+
 {#if page.route.id === '/s'}
 	{@render children()}
 {:else}
