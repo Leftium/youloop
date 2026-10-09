@@ -14,6 +14,7 @@
 	let youtubeId = $state(defaultVideo);
 	let orientation = $state<Orientation>('landscape');
 	let orientationOverride = $state<Orientation | null>(null);
+	let fillFrame = $state(false);
 	let orientationController: ReturnType<typeof createOrientationController>;
 	let urlLoaded = $state(false);
 
@@ -21,6 +22,7 @@
 		const url = new URL(window.location.href);
 		const video = url.searchParams.get('v');
 		const override = parseOrientation(url.searchParams.get('orientation'));
+		fillFrame = url.searchParams.get('fit') === 'cover';
 
 		if (video) {
 			youtubeId = video;
@@ -59,6 +61,8 @@
 		else url.searchParams.delete('b');
 		if (orientationOverride) url.searchParams.set('orientation', orientationOverride);
 		else url.searchParams.delete('orientation');
+		if (fillFrame) url.searchParams.set('fit', 'cover');
+		else url.searchParams.delete('fit');
 		history.replaceState(null, '', url);
 	});
 </script>
@@ -73,6 +77,7 @@
 		bind:repeatA
 		bind:repeatB
 		{orientation}
+		bind:fillFrame
 		onorientationchange={(value) => orientationController.choose(value)}
 		onsourcechange={(videoId) => orientationController.setSource(videoId, null, true)}
 	></Player>

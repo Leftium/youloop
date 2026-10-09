@@ -44,6 +44,7 @@
 		repeatA: number;
 		repeatB: number;
 		orientation?: 'landscape' | 'portrait';
+		fillFrame?: boolean;
 		onorientationchange?: (orientation: 'landscape' | 'portrait') => void;
 		onsourcechange?: (videoId: string) => void;
 	}
@@ -53,6 +54,7 @@
 		repeatA = $bindable(25),
 		repeatB = $bindable(38),
 		orientation = $bindable('landscape'),
+		fillFrame = $bindable(false),
 		onorientationchange,
 		onsourcechange
 	}: Props = $props();
@@ -434,6 +436,7 @@
 
 		// Reset before the keyed media element loads the new source.
 		orientation = 'landscape';
+		fillFrame = false;
 		onsourcechange?.(youtubeId);
 		clearTimeout(durationTimer);
 		metadataReceived = false;
@@ -458,6 +461,7 @@
 <div
 	class="player"
 	style:--media-ratio={orientation === 'portrait' ? 9 / 16 : 16 / 9}
+	style:--video-zoom={fillFrame ? 256 / 81 : 1}
 	bind:this={playerContainer}
 >
 	<div class="media-canvas">
@@ -634,6 +638,16 @@
 				<span class:active={orientation === 'portrait'}><IcRoundCropPortrait /></span>
 			</button>
 		</div>
+		<div class="nc-join" role="group" aria-label="Video framing">
+			<button
+				aria-label="Crop to fill"
+				aria-pressed={fillFrame}
+				title="Zoom into the center to fill the frame (crops edges)"
+				onclick={() => (fillFrame = !fillFrame)}
+			>
+				<span class:active={fillFrame}>Fill</span>
+			</button>
+		</div>
 	</div>
 
 	<button class="outline paste-button" onclick={pasteYoutubeId}
@@ -699,14 +713,15 @@
 
 	// Hide edge chrome and bottom captions, and reduce the paused-state gradient.
 	// A fixed height avoids resizing the oversized iframe whenever the player height changes.
-	// Keep it centered: offsets expose letterboxing. See issue #13 for crop tradeoffs.
+	// Keep the 16000px overscan fixed; optional fill zoom changes only the
+	// iframe width. Center its crop in either framing mode.
 	youtube-video::part(iframe) {
 		position: absolute;
 		top: 50%;
-		left: 0;
-		width: 100%;
+		left: 50%;
+		width: calc(100% * var(--video-zoom));
 		height: 16000px;
-		transform: translateY(-50%);
+		transform: translate(-50%, -50%);
 	}
 
 	.video-toggle {
