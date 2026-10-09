@@ -11,7 +11,7 @@ export async function run(
 	const surface = document.querySelector<HTMLElement>('.video-surface')!;
 	const canvas = document.querySelector<HTMLElement>('.media-canvas')!;
 	const controls = document.querySelector<HTMLElement>('media-controls')!;
-	const playButton = document.querySelector<HTMLElement>('youloop-play-button')!;
+	const playButton = document.querySelector<HTMLButtonElement>('.watch-playback')!;
 	const page = document.querySelector<HTMLElement>('.share-prototype')!;
 	const iframe = media?.shadowRoot?.querySelector('iframe');
 	if (!root || !iframe || media.readyState < 1)
@@ -35,7 +35,17 @@ export async function run(
 	}
 	function tap(pointerType: string) {
 		for (const type of ['pointerdown', 'pointerup']) {
-			surface.dispatchEvent(new PointerEvent(type, { bubbles: true, pointerType, button: 0 }));
+			surface.dispatchEvent(
+				new PointerEvent(type, {
+					bubbles: true,
+					pointerType,
+					button: 0,
+					isPrimary: true,
+					pointerId: 1,
+					clientX: 100,
+					clientY: 100
+				})
+			);
 		}
 	}
 	const mode = () => page.dataset.mode;
@@ -65,36 +75,86 @@ export async function run(
 			getComputedStyle(media).pointerEvents === 'none' && !media.hasAttribute('controls'),
 			'Provider Play drawing remains noninteractive'
 		);
+		check(!document.querySelector('youloop-play-button'), 'No competing visible playback icon');
 		check(
-			!document.querySelector('.video-toggle'),
-			'No full-surface playback button in watch view'
-		);
-		check(
-			document.querySelectorAll('youloop-play-button').length === 1,
-			'One explicit inline playback control'
+			playButton.getAttribute('aria-label')?.includes('video') === true &&
+				getComputedStyle(playButton).pointerEvents === 'none',
+			'Named keyboard/AT playback target is separate from pointer gestures'
 		);
 		if (!media.paused) playButton.click();
-		await until(() => media.paused, 'Explicit pause works');
+		await until(() => media.paused, 'Accessible playback activation pauses');
 		await settle();
+		const title = document.querySelector<HTMLElement>('.video-title')!;
+		check(!!title?.textContent, 'Actual provider title shown while paused');
 		check(
-			!!document.querySelector('.video-title')?.textContent,
-			'Actual provider title shown while paused'
-		);
-		tap('mouse');
-		tap('touch');
-		await settle();
-		check(
-			media.paused && getComputedStyle(controls).opacity === '1',
-			'Paused background taps preserve playback and reachable controls'
+			getComputedStyle(title).userSelect === 'none' &&
+				getComputedStyle(title).pointerEvents === 'none',
+			'Title cannot select text or intercept interactions'
 		);
 		timelineAtVisibleEdge();
+		for (const theater of [false, true]) {
+			await scrollTo(theater ? 100 : 0);
+			check(mode() === (theater ? 'theater' : 'default'), 'Scroll selects mode without playback');
+			check(media.paused, 'Entering mode while paused keeps playback paused');
+			check(
+				!playButton.closest('[inert]') && !playButton.disabled,
+				'Accessible playback remains available in Theater'
+			);
+			for (const pointer of ['mouse', 'touch']) {
+				for (const playing of [true, false]) {
+					tap(pointer);
+					await until(
+						() => (playing ? !media.paused && media.engine?.getPlayerState() === 1 : media.paused),
+						`${mode()} ${pointer}: surface tap ${playing ? 'plays' : 'pauses'} real media`
+					);
+					await settle();
+				}
+			}
+			for (const sequence of ['drag', 'cancel', 'wheel', 'scroll', 'longpress']) {
+				const event = (type: string, x = 100) =>
+					surface.dispatchEvent(
+						new PointerEvent(type, {
+							bubbles: true,
+							isPrimary: true,
+							pointerId: 1,
+							pointerType: 'touch',
+							button: 0,
+							clientX: x,
+							clientY: 100
+						})
+					);
+				event('pointerdown');
+				if (sequence === 'drag') event('pointermove', 160);
+				if (sequence === 'cancel') event('pointercancel');
+				if (sequence === 'wheel')
+					surface.dispatchEvent(new WheelEvent('wheel', { bubbles: true, deltaY: 100 }));
+				if (sequence === 'scroll') window.dispatchEvent(new Event('scroll'));
+				if (sequence === 'longpress') await wait(300);
+				event('pointerup');
+				await settle();
+				check(media.paused, `${mode()}: ${sequence} never toggles playback`);
+			}
+			playButton.click();
+			await until(
+				() => !media.paused && media.engine?.getPlayerState() === 1,
+				'Keyboard/AT Play works in either mode'
+			);
+			await settle();
+			playButton.click();
+			await until(() => media.paused, 'Keyboard/AT Pause works in either mode');
+		}
+		await scrollTo(0);
 		playButton.click();
 		await until(
 			() => !media.paused && media.engine?.getPlayerState() === 1,
-			'Explicit Play starts real YouTube playback'
+			'Playback starts for visibility checks'
 		);
 		await settle();
 		check(!document.querySelector('.video-title'), 'Title hidden while playing');
+		check(
+			!visible() && getComputedStyle(controls).opacity === '0',
+			'Default controls hide immediately when playback starts'
+		);
 		(document.activeElement as HTMLElement)?.blur();
 		root.store.toggleControls(true);
 		await wait(2300);
@@ -103,15 +163,14 @@ export async function run(
 			'Video.js inactivity hides playing controls'
 		);
 		timelineAtVisibleEdge();
-		for (const pointer of ['mouse', 'touch']) {
-			root.store.toggleControls(false);
-			tap(pointer);
-			await settle();
-			check(visible() && !media.paused, `${pointer}: hidden controls revealed without pausing`);
-			tap(pointer);
-			await settle();
-			check(!visible() && !media.paused, `${pointer}: visible controls dismissed without pausing`);
-		}
+		tap('mouse');
+		await until(() => media.paused, 'Surface remains playable after controls auto-hide');
+		tap('touch');
+		await until(
+			() => !media.paused && media.engine?.getPlayerState() === 1,
+			'Touch resumes after hidden-controls pause'
+		);
+		await settle();
 		surface.dispatchEvent(new PointerEvent('pointermove', { bubbles: true, pointerType: 'mouse' }));
 		await settle();
 		check(visible(), 'Desktop movement reveals controls');
@@ -126,7 +185,7 @@ export async function run(
 		playButton.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true }));
 		playButton.focus({ preventScroll: true });
 		await settle();
-		check(visible(), 'Keyboard focus reveals hidden controls');
+		check(visible(), 'Keyboard activity reveals hidden controls');
 		playButton.blur();
 		const geometry = canvas.getBoundingClientRect().toJSON();
 		const time = media.currentTime;
@@ -190,6 +249,7 @@ export async function run(
 		controls.style.transition = originalTransition;
 		if (media.paused !== originalPaused) playButton.click();
 		await scrollTo(0);
+		await scrollTo(originalScroll + 40);
 		await scrollTo(originalScroll);
 		if (originalMode === 'theater' && mode() !== 'theater') {
 			controls.querySelector<HTMLButtonElement>('[aria-label="Theater mode"]')!.click();

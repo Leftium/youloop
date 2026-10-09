@@ -215,7 +215,8 @@
 			controlsPlayer,
 			player,
 			playerContainer,
-			videoSurface
+			videoSurface,
+			togglePaused
 		);
 	});
 
@@ -225,7 +226,7 @@
 		const store = root.store;
 		let release: (() => void) | undefined;
 		const focusIn = (event: FocusEvent) => {
-			// Lock only keyboard focus; a pointer click must still be able to dismiss chrome.
+			// Keep controls visible for keyboard navigation, without locking them after a pointer click.
 			if ((event.target as Element).matches(':focus-visible')) {
 				release?.();
 				release = store.requestControlsLock();
@@ -374,6 +375,9 @@
 		readVideoTitle();
 		providerStalled = false;
 		paused = false;
+		// Begin the short fade on playback rather than waiting for the idle timeout.
+		// Video.js still owns hover/activity and keyboard-focus visibility.
+		if (minimal && !theater) controlsPlayer?.store.toggleControls(false);
 		if (!player.seeking) {
 			firstFrameReady = true;
 			if (duration === undefined) scheduleDuration();
@@ -623,8 +627,16 @@
 
 	{#if minimal}
 		<div class="video-surface" aria-hidden="true" bind:this={videoSurface}></div>
+		<!-- Separate keyboard/AT activation from pointer recognition so scroll-generated clicks cannot play. -->
+		<button
+			class="video-toggle watch-playback"
+			aria-label={paused ? 'Play video' : 'Pause video'}
+			aria-keyshortcuts="Space Enter"
+			disabled={!metadataReceived}
+			onclick={togglePaused}
+		></button>
 		{#if controlsModule}
-			<youloop-controls-player bind:this={controlsPlayer} onplaybackrequest={togglePaused}>
+			<youloop-controls-player bind:this={controlsPlayer}>
 				<div
 					class="watch-overlay"
 					class:theater
@@ -635,12 +647,6 @@
 				>
 					{#if paused && videoTitle && !theater}<h1 class="video-title">{videoTitle}</h1>{/if}
 					<media-controls class="watch-controls" class:paused inert={theater}>
-						<youloop-play-button
-							disabled={!metadataReceived}
-							label={paused ? 'Play video' : 'Pause video'}
-						>
-							{#if paused}<IcRoundPlayArrow />{:else}<IcRoundPause />{/if}
-						</youloop-play-button>
 						<button
 							aria-label={muted ? 'Unmute video' : 'Mute video'}
 							disabled={!metadataReceived}
@@ -957,6 +963,8 @@
 		pointer-events: none;
 	}
 	.video-title {
+		user-select: none;
+		pointer-events: none;
 		position: absolute;
 		top: max(12px, env(safe-area-inset-top));
 		left: max(12px, env(safe-area-inset-left));
@@ -986,8 +994,7 @@
 	.watch-controls:has(:focus-visible) {
 		opacity: 1;
 	}
-	.watch-controls button,
-	youloop-play-button {
+	.watch-controls button {
 		display: inline-flex;
 		align-items: center;
 		justify-content: center;
@@ -1002,22 +1009,17 @@
 		cursor: pointer;
 		pointer-events: auto;
 	}
-	.watch-controls:not(:global([data-visible])):not(.paused):not(:has(:focus-visible)) button,
-	.watch-controls:not(:global([data-visible])):not(.paused):not(:has(:focus-visible))
-		youloop-play-button {
+	.watch-controls:not(:global([data-visible])):not(.paused):not(:has(:focus-visible)) button {
 		pointer-events: none;
 	}
-	.watch-controls button:focus-visible,
-	youloop-play-button:focus-visible {
+	.watch-controls button:focus-visible {
 		outline: 2px solid white;
 		outline-offset: 3px;
 	}
-	.watch-controls button:hover,
-	youloop-play-button:hover {
+	.watch-controls button:hover {
 		background: rgb(120 120 120 / 80%);
 	}
-	.watch-controls button:disabled,
-	youloop-play-button[disabled] {
+	.watch-controls button:disabled {
 		opacity: 0.5;
 		cursor: default;
 	}
@@ -1052,6 +1054,14 @@
 		border: 0;
 		border-radius: 0;
 		background: transparent;
+	}
+
+	.watch-playback {
+		pointer-events: none;
+	}
+	.watch-playback:focus-visible {
+		outline: 2px solid white;
+		outline-offset: -4px;
 	}
 
 	.fullscreen {

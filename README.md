@@ -33,7 +33,7 @@ available. To exercise the watch controls, open
 await (await import('/src/lib/player/watch-controls.browser-test.ts')).run();
 ```
 
-If the browser blocks scripted playback, click Play then Pause once before
+If the browser blocks scripted playback, tap the video to Play then Pause once before
 running the watch regression.
 
 Keep the browser page visible during these regressions: native scroll events,
@@ -47,25 +47,31 @@ does not verify native touch scrolling or Safari chrome.
 
 ## Watch view
 
-`/s` starts in Default with an explicit inline Play/Pause button, Mute/Unmute,
-Theater, and a fullscreen button when the native container fullscreen API is
-available. The original `/` editor and sharing defaults remain available.
+`/s` starts in Default with Mute/Unmute, Theater, and a fullscreen button when
+native container fullscreen is available. Tap or click bare video space to
+Play/Pause in Default or Theater, including over YouTube's center indicator.
+YouTube draws that feedback; YouLoop handles the tap through its existing
+playback/recovery state machine. The iframe remains noninteractive and there is
+no competing lower-left or duplicate center playback icon.
 
-In Default, the provider's actual title appears while paused, when available.
-Our controls stay visible while paused and fade after Video.js's two-second
-inactivity delay during playback. Mouse movement and keyboard focus reveal them;
-keyboard focus keeps them reachable. A mouse or touch tap on bare video space
-toggles controls while playing without changing playback. Taps while paused keep
-the playback control available. Only the inline playback button requests
-play/pause. YouTube may still draw its central Play affordance, but its iframe
-remains noninteractive with native provider controls disabled.
+A transparent, named Play/Pause button gives keyboard and assistive users the
+same action in both modes. Tab to the player and press Space or Enter; its focus
+outline remains visible in Theater. Pointer taps use Video.js's tap recognizer,
+with additional travel, cancellation, and wheel guards. Swipes and drags scroll
+without toggling playback. Other controls perform only their own actions.
 
-`watch-controls.ts` uses the installed Video.js 10.0.1 playback and controls
-features, tap recognizer, controls element, and play-button semantics. The
-play-button activation delegates to YouLoop's existing recovery/A-B state
-machine. A background-only gesture surface owns pointer-up before the ancestor
-activity handler, which would otherwise mark mouse taps active and undo a
-dismissal. The media element and crop are not replaced when changing modes.
+In Default, the actual provider title appears while paused when available. It
+cannot select text or intercept taps. Our small controls stay visible while
+paused.
+Playback starts a short 180ms fade immediately; mouse hover/movement and
+keyboard focus reveal the controls again. Video.js's two-second inactivity delay
+then hides revealed controls during playback. Vertical scrolling is the main
+way to show/hide the cluster by switching Default/Theater; surface taps request
+playback rather than toggling control visibility.
+
+`watch-controls.ts` reuses installed Video.js 10.0.1 playback/controls features,
+the tap recognizer, and controls element. It attaches to the existing media
+without replacing YouLoop's A/B state machine or remounting the iframe.
 
 The persistent three-pixel Default timeline follows the intersection of the
 media canvas and `visualViewport`. Viewport changes reposition only the chrome;
@@ -85,7 +91,9 @@ Before merging, verify on a physical iPhone with Safari:
   landscape, during playback and rotation. Watch for reframing, jitter, or black
   flashes, and check that up-scrolling returns to Default after runway growth.
 - Check background taps before and after auto-hide, paused and playing;
-  Play/Pause and mute must act independently. Verify usable hit targets and
+  each tap must toggle playback in Default and Theater, including over the
+  center indicator. Swipes, drags, wheel activity, and mute must not toggle
+  playback. Check keyboard/assistive activation in Theater and title selection. Verify usable hit targets and
   safe-area placement on short landscape screens.
 - Exercise native fullscreen where the browser offers it, then exit and confirm
   the prior logical mode and uninterrupted playback state.
