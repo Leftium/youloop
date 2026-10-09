@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
+	import { onMount, tick } from 'svelte';
 	import Player from '#lib/player/Player.svelte';
 	import {
 		createOrientationController,
@@ -16,6 +16,8 @@
 	let sourceOrientation = $state<Orientation>('landscape');
 	let sourceAspectRatio = $state(16 / 9);
 	let fillFrame = $derived(orientation !== sourceOrientation);
+	let runway: HTMLDivElement;
+	let runwayHeight = $state<number>();
 
 	onMount(() => {
 		const params = new URLSearchParams(window.location.search);
@@ -36,29 +38,30 @@
 		});
 		controller.setSource(youtubeId, parseOrientation(params.get('orientation')));
 
-		let previousScrollY = window.scrollY;
-		function recycleScroll() {
-			const scrollY = window.scrollY;
-			const movingDown = scrollY > previousScrollY;
-			previousScrollY = scrollY;
-			if (!movingDown) return;
-
+		// Freeze the initial CSS height in pixels so rotation never shrinks the runway.
+		runwayHeight = runway.getBoundingClientRect().height;
+		let extending = false;
+		function extendRunway() {
+			if (extending) return;
 			const root = document.scrollingElement;
 			const viewportHeight = window.innerHeight;
 			if (!root || viewportHeight <= 0) return;
-			const maxScrollY = root.scrollHeight - root.clientHeight;
-			const recycleAt = maxScrollY - 7 * viewportHeight;
-			// Keep the landing below the trigger even if rotation leaves less scroll room.
-			const resetTo = Math.min(4 * viewportHeight, recycleAt - viewportHeight);
-			if (scrollY < recycleAt || resetTo <= 0) return;
+			const remaining = root.scrollHeight - root.clientHeight - window.scrollY;
+			if (remaining >= 9 * viewportHeight) return;
 
-			// The jump's scroll event must not count as new downward progress.
-			previousScrollY = resetTo;
-			window.scrollTo({ top: resetTo, behavior: 'instant' });
+			// Wait for the larger height to reach the DOM before checking the threshold again.
+			extending = true;
+			runwayHeight = (runwayHeight ?? runway.getBoundingClientRect().height) + 25 * viewportHeight;
+			void tick().then(() => {
+				extending = false;
+			});
 		}
-		window.addEventListener('scroll', recycleScroll, { passive: true });
+		window.addEventListener('scroll', extendRunway, { passive: true });
+		window.addEventListener('resize', extendRunway);
+		extendRunway();
 		return () => {
-			window.removeEventListener('scroll', recycleScroll);
+			window.removeEventListener('scroll', extendRunway);
+			window.removeEventListener('resize', extendRunway);
 			controller.dispose();
 		};
 	});
@@ -82,7 +85,12 @@
 		/>
 	</div>
 	<!-- Native root-document scroll range; not a nested scroll panel. -->
-	<div class="scroll-runway" aria-hidden="true"></div>
+	<div
+		class="scroll-runway"
+		aria-hidden="true"
+		bind:this={runway}
+		style:height={runwayHeight === undefined ? undefined : `${runwayHeight}px`}
+	></div>
 </div>
 
 <style>
@@ -116,7 +124,7 @@
 		overflow: hidden;
 	}
 	.scroll-runway {
-		/* Bounded scroll room is recycled before its end; no UI lives below. */
+		/* Initial scroll room; larger pixel heights are applied in chunks before its end. */
 		height: 2000svh;
 		pointer-events: none;
 	}
