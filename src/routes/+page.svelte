@@ -3,7 +3,6 @@
 	import { onMount, untrack } from 'svelte';
 	import {
 		createOrientationController,
-		loadOriginalAspect,
 		parseOrientation,
 		type Orientation
 	} from '#lib/player/youtube-orientation.ts';
@@ -43,12 +42,13 @@
 			}
 		}
 
-		orientationController = createOrientationController((value, override) => {
+		orientationController = createOrientationController((value, override, source) => {
 			orientation = value;
 			orientationOverride = override;
-			// Preserve source orientation after the user chooses a different frame.
-			// An original-aspect thumbnail can refine this independently.
-			if (override === null && originalAspectRatio === null) sourceOrientation = value;
+			if (source) {
+				sourceOrientation = source.orientation;
+				originalAspectRatio = source.aspectRatio;
+			}
 		});
 		orientationController.setSource(youtubeId, override);
 		urlLoaded = true;
@@ -59,30 +59,6 @@
 		if (!urlLoaded) return;
 		const videoId = youtubeId;
 		untrack(() => orientationController.setSource(videoId));
-	});
-
-	$effect(() => {
-		if (!urlLoaded) return;
-		const videoId = youtubeId;
-		originalAspectRatio = null;
-		let active = true;
-		void loadOriginalAspect(videoId).then((dimensions) => {
-			if (
-				!active ||
-				!dimensions ||
-				dimensions.width <= 120 ||
-				dimensions.height <= 90 ||
-				!Number.isFinite(dimensions.width) ||
-				!Number.isFinite(dimensions.height)
-			) {
-				return;
-			}
-			originalAspectRatio = dimensions.width / dimensions.height;
-			sourceOrientation = dimensions.height > dimensions.width ? 'portrait' : 'landscape';
-		});
-		return () => {
-			active = false;
-		};
 	});
 
 	$effect(() => {
@@ -123,8 +99,6 @@
 		}}
 		onsourcechange={(videoId) => {
 			fillOverride = null;
-			originalAspectRatio = null;
-			sourceOrientation = 'landscape';
 			orientationController.setSource(videoId, null, true);
 		}}
 	></Player>

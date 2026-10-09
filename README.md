@@ -15,6 +15,15 @@ pnpm dev
 Use `pnpm check` for Svelte and TypeScript validation, and `pnpm build` to create
 the static production artifact in `build/`.
 
+There is no `pnpm test` script. With `pnpm dev` running, open the app and run
+the browser regressions in its developer console. Wait for the YouTube iframe
+and source orientation to settle before running the geometry regression:
+
+```js
+await (await import('/src/lib/player/youtube-orientation.browser-test.ts')).run();
+await (await import('/src/lib/player/media-geometry.browser-test.ts')).run();
+```
+
 ## Deployment
 
 Pushes to `main` deploy the static artifact to GitHub Pages through
@@ -31,8 +40,8 @@ deployment.
 ## Player migration
 
 The player uses `@videojs/html` and `@videojs/youtube-video` 10.0.1 with explicit
-`youtube-nocookie.com` sources and YouLoop's existing controls. The iframe stays
-at its normal width with YouTube controls disabled. A centered fixed-height
+`youtube-nocookie.com` sources and YouLoop's existing controls. The iframe width
+follows the selected Fit/Fill framing, with YouTube controls disabled. A centered fixed-height
 overscan (`height: 16000px`) clips the excess height equally at each edge through
 `youtube-video::part(iframe)`. Keeping the iframe height fixed avoids changing
 that oversized height whenever the visible player height changes.
