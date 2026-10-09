@@ -14,6 +14,14 @@
 	let youtubeId = $state(defaultVideo);
 	let orientation = $state<Orientation>('landscape');
 	let orientationOverride = $state<Orientation | null>(null);
+	let sourceOrientation = $state<Orientation>('landscape');
+	let originalAspectRatio = $state<number | null>(null);
+	// null means automatic framing; an explicit choice survives page reloads.
+	let fillOverride = $state<boolean | null>(null);
+	let fillFrame = $derived(fillOverride ?? orientation !== sourceOrientation);
+	let sourceAspectRatio = $derived(
+		originalAspectRatio ?? (sourceOrientation === 'portrait' ? 9 / 16 : 16 / 9)
+	);
 	let orientationController: ReturnType<typeof createOrientationController>;
 	let urlLoaded = $state(false);
 
@@ -21,6 +29,8 @@
 		const url = new URL(window.location.href);
 		const video = url.searchParams.get('v');
 		const override = parseOrientation(url.searchParams.get('orientation'));
+		const requestedFit = url.searchParams.get('fit');
+		fillOverride = requestedFit === 'cover' ? true : requestedFit === 'contain' ? false : null;
 
 		if (video) {
 			youtubeId = video;
@@ -32,9 +42,13 @@
 			}
 		}
 
-		orientationController = createOrientationController((value, override) => {
+		orientationController = createOrientationController((value, override, source) => {
 			orientation = value;
 			orientationOverride = override;
+			if (source) {
+				sourceOrientation = source.orientation;
+				originalAspectRatio = source.aspectRatio;
+			}
 		});
 		orientationController.setSource(youtubeId, override);
 		urlLoaded = true;
@@ -59,6 +73,9 @@
 		else url.searchParams.delete('b');
 		if (orientationOverride) url.searchParams.set('orientation', orientationOverride);
 		else url.searchParams.delete('orientation');
+		if (fillOverride === true) url.searchParams.set('fit', 'cover');
+		else if (fillOverride === false) url.searchParams.set('fit', 'contain');
+		else url.searchParams.delete('fit');
 		history.replaceState(null, '', url);
 	});
 </script>
@@ -73,8 +90,17 @@
 		bind:repeatA
 		bind:repeatB
 		{orientation}
-		onorientationchange={(value) => orientationController.choose(value)}
-		onsourcechange={(videoId) => orientationController.setSource(videoId, null, true)}
+		{fillFrame}
+		{sourceAspectRatio}
+		onfillchange={(value) => (fillOverride = value)}
+		onorientationchange={(value) => {
+			fillOverride = null;
+			orientationController.choose(value);
+		}}
+		onsourcechange={(videoId) => {
+			fillOverride = null;
+			orientationController.setSource(videoId, null, true);
+		}}
 	></Player>
 
 	<hr />

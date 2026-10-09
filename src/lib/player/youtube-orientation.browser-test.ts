@@ -3,7 +3,8 @@
 import {
 	createOrientationController,
 	parseOrientation,
-	type Orientation
+	type Orientation,
+	type SourceGeometry
 } from './youtube-orientation';
 
 export async function run() {
@@ -14,11 +15,15 @@ export async function run() {
 		reject: (error: Error) => void;
 	}> = [];
 	let state: { orientation: Orientation; override: Orientation | null };
-	const cache = new Map<string, Orientation>();
+	let source: SourceGeometry;
+	const cache = new Map<string, SourceGeometry>();
 	const request: typeof fetch = (url) =>
 		new Promise((resolve, reject) => pending.push({ url: String(url), resolve, reject }));
 	const controller = createOrientationController(
-		(orientation, override) => (state = { orientation, override }),
+		(orientation, override, geometry) => {
+			state = { orientation, override };
+			if (geometry) source = geometry;
+		},
 		request,
 		cache,
 		async () => null
@@ -58,9 +63,19 @@ export async function run() {
 		controller.choose('landscape');
 		assert(state!.override === 'landscape', 'Manual landscape is an explicit override');
 		controller.setSource('explicit', 'portrait');
-		assert(pending.length === 0 && state!.orientation === 'portrait', 'URL override skips fetch');
+		await respond(480, 270);
+		assert(
+			state!.orientation === 'portrait' && source!.orientation === 'landscape',
+			'Portrait URL frame preserves independent landscape source detection'
+		);
 		controller.setSource('explicit-landscape', 'landscape');
-		assert(pending.length === 0 && state!.orientation === 'landscape', 'Landscape URL skips fetch');
+		await respond(270, 480);
+		assert(
+			state!.orientation === 'landscape' &&
+				source!.orientation === 'portrait' &&
+				source!.aspectRatio === null,
+			'Landscape URL frame retains portrait fallback when the thumbnail is unavailable'
+		);
 		controller.setSource('old');
 		controller.setSource('new');
 		await respond(270, 480);
@@ -71,6 +86,7 @@ export async function run() {
 			state!.override === 'landscape' && state!.orientation === 'landscape',
 			'Manual choice wins race'
 		);
+		assert(source!.orientation === 'portrait', 'Manual choice does not cancel source detection');
 		controller.setSource('new', null, true);
 		await settle();
 		assert(
@@ -118,10 +134,13 @@ export async function run() {
 		const before = state!;
 		await respond(270, 480);
 		assert(state! === before, 'Disposed controller ignores late response');
-		const fallbackCache = new Map<string, Orientation>();
+		const fallbackCache = new Map<string, SourceGeometry>();
 		let thumbnail: { width: number; height: number } | null = { width: 1080, height: 1920 };
 		const fallback = createOrientationController(
-			(orientation, override) => (state = { orientation, override }),
+			(orientation, override, geometry) => {
+				state = { orientation, override };
+				if (geometry) source = geometry;
+			},
 			async () => ({ ok: true, json: async () => ({ width: 200, height: 113 }) }) as Response,
 			fallbackCache,
 			async () => thumbnail
@@ -147,20 +166,121 @@ export async function run() {
 		fallback.setSource('missing', null, true);
 		await settle();
 		assert(
-			state!.orientation === 'portrait' && fallbackCache.get('missing') === 'portrait',
+			state!.orientation === 'portrait' && fallbackCache.get('missing')?.orientation === 'portrait',
 			'Retry after image failure detects and caches portrait'
 		);
 		thumbnail = { width: 1920, height: 1080 };
 		fallback.setSource('landscape-frame');
 		await settle();
 		assert(
-			state!.orientation === 'landscape' && fallbackCache.get('landscape-frame') === 'landscape',
+			state!.orientation === 'landscape' &&
+				fallbackCache.get('landscape-frame')?.orientation === 'landscape',
 			'Original-aspect frame confirms cacheable landscape'
 		);
+		thumbnail = { width: 1440, height: 1080 };
+		fallback.setSource('four-three');
+		await settle();
+		assert(source!.aspectRatio === 4 / 3, 'Original source ratio published');
+		fallback.choose('portrait');
+		fallback.setSource('four-three', null, true);
+		await settle();
+		assert(
+			source!.aspectRatio === 4 / 3 && state!.override === null,
+			'Reloading the same source restores its cached ratio and automatic orientation'
+		);
 		fallback.dispose();
+		let portraitThumbnail: { width: number; height: number } | null = null;
+		let thumbnailRequests = 0;
+		const portrait = createOrientationController(
+			(orientation, override, geometry) => {
+				state = { orientation, override };
+				if (geometry) source = geometry;
+			},
+			async () => ({ ok: true, json: async () => ({ width: 270, height: 480 }) }) as Response,
+			new Map(),
+			async () => {
+				thumbnailRequests += 1;
+				return portraitThumbnail;
+			}
+		);
+		portrait.setSource('portrait-retry', 'landscape');
+		await settle();
+		portraitThumbnail = { width: 1080, height: 1350 };
+		portrait.setSource('portrait-retry', 'landscape', true);
+		await settle();
+		assert(
+			state!.orientation === 'landscape' &&
+				source!.orientation === 'portrait' &&
+				source!.aspectRatio === 4 / 5 &&
+				thumbnailRequests === 2,
+			'Cached portrait detection retries a missing thumbnail and refines its ratio'
+		);
+		portrait.dispose();
+		let resolveEmbed: (response: Response) => void;
+		const slowEmbedCache = new Map<string, SourceGeometry>();
+		const slowEmbed = createOrientationController(
+			(orientation, override, geometry) => {
+				state = { orientation, override };
+				if (geometry) source = geometry;
+			},
+			() => new Promise((resolve) => (resolveEmbed = resolve)),
+			slowEmbedCache,
+			async () => ({ width: 1080, height: 1350 })
+		);
+		slowEmbed.setSource('slow-embed', 'landscape');
+		await settle();
+		assert(
+			state!.orientation === 'landscape' && source!.aspectRatio === 4 / 5,
+			'Native thumbnail determines framing without waiting for oEmbed'
+		);
+		resolveEmbed!({ ok: true, json: async () => ({ width: 270, height: 480 }) } as Response);
+		await settle();
+		assert(
+			source!.aspectRatio === 4 / 5 && slowEmbedCache.get('slow-embed')?.aspectRatio === 4 / 5,
+			'Late oEmbed response cannot replace a confirmed native ratio'
+		);
+		slowEmbed.dispose();
+		const slowThumbnail = createOrientationController(
+			(orientation, override, geometry) => {
+				state = { orientation, override };
+				if (geometry) source = geometry;
+			},
+			async () => ({ ok: true, json: async () => ({ width: 270, height: 480 }) }) as Response,
+			new Map(),
+			() => new Promise(() => {})
+		);
+		slowThumbnail.setSource('slow-thumbnail', 'landscape');
+		await settle();
+		assert(
+			state!.orientation === 'landscape' && source!.orientation === 'portrait',
+			'Portrait oEmbed supplies fallback geometry without waiting for the thumbnail'
+		);
+		slowThumbnail.dispose();
+		const reloadFrames: Array<(dimensions: { width: number; height: number } | null) => void> = [];
+		const reloadCache = new Map<string, SourceGeometry>();
+		const reload = createOrientationController(
+			() => {},
+			async () => ({ ok: true, json: async () => ({ width: 270, height: 480 }) }) as Response,
+			reloadCache,
+			() => new Promise((resolve) => reloadFrames.push(resolve))
+		);
+		reload.setSource('same-source');
+		reload.setSource('same-source', null, true);
+		reloadFrames[1]({ width: 1080, height: 1350 });
+		await settle();
+		reloadFrames[0](null);
+		await settle();
+		assert(
+			reloadCache.get('same-source')?.aspectRatio === 4 / 5,
+			'Stale detection cannot overwrite the ratio cached by a source reload'
+		);
+		reload.dispose();
 		const frames: Array<(dimensions: { width: number; height: number } | null) => void> = [];
 		const delayedFrame = createOrientationController(
-			(orientation, override) => (state = { orientation, override }),
+			(orientation, override, geometry) => {
+				state = { orientation, override };
+				if (geometry) source = geometry;
+			},
 			async () => ({ ok: true, json: async () => ({ width: 200, height: 113 }) }) as Response,
 			new Map(),
 			() => new Promise((resolve) => frames.push(resolve))
@@ -172,12 +292,17 @@ export async function run() {
 		frames.shift()!({ width: 1080, height: 1920 });
 		await settle();
 		assert(state!.orientation === 'landscape', 'Stale image response ignored');
+		assert(source!.aspectRatio === null, 'Stale image does not change source geometry');
 		delayedFrame.choose('landscape');
 		frames.shift()!({ width: 1080, height: 1920 });
 		await settle();
 		assert(
 			state!.orientation === 'landscape' && state!.override === 'landscape',
 			'Manual choice wins image race'
+		);
+		assert(
+			source!.orientation === 'portrait' && source!.aspectRatio === 9 / 16,
+			'Manual frame retains the independently detected source geometry'
 		);
 		delayedFrame.dispose();
 		return results;

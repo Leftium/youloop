@@ -15,6 +15,15 @@ pnpm dev
 Use `pnpm check` for Svelte and TypeScript validation, and `pnpm build` to create
 the static production artifact in `build/`.
 
+There is no `pnpm test` script. With `pnpm dev` running, open the app and run
+the browser regressions in its developer console. Wait for the YouTube iframe
+and source orientation to settle before running the geometry regression:
+
+```js
+await (await import('/src/lib/player/youtube-orientation.browser-test.ts')).run();
+await (await import('/src/lib/player/media-geometry.browser-test.ts')).run();
+```
+
 ## Deployment
 
 Pushes to `main` deploy the static artifact to GitHub Pages through
@@ -31,8 +40,8 @@ deployment.
 ## Player migration
 
 The player uses `@videojs/html` and `@videojs/youtube-video` 10.0.1 with explicit
-`youtube-nocookie.com` sources and YouLoop's existing controls. The iframe stays
-at its normal width with YouTube controls disabled. A centered fixed-height
+`youtube-nocookie.com` sources and YouLoop's existing controls. The iframe width
+follows the selected Fit/Fill framing, with YouTube controls disabled. A centered fixed-height
 overscan (`height: 16000px`) clips the excess height equally at each edge through
 `youtube-video::part(iframe)`. Keeping the iframe height fixed avoids changing
 that oversized height whenever the visible player height changes.
@@ -81,6 +90,38 @@ crop; fixed-height fullscreen still needs a manual check. T3 automation could
 not enter native fullscreen; geometry checks are separate from manual checks.
 Pointer clicks still reach YouLoop; pure hover/movement was not isolated by
 the available automation.
+
+### Optional Fit / Fill framing
+
+The Landscape/Portrait buttons still choose the **current display canvas**;
+automatic source-orientation detection remains supported. The independent Fill
+toggle controls how the actual video is framed inside that canvas:
+
+- **Fit** contains the full video, adding unused black space if the aspects differ.
+- **Fill** centers and crops the video to cover the canvas, possibly losing edges.
+
+The default is automatic: when the selected orientation matches the detected
+source orientation, Fit is selected; when it differs, Fill is selected. Each
+manual Landscape/Portrait choice restores that automatic default. The user may
+override it with the Fill button; `fit=cover` stores explicit Fill and
+`fit=contain` stores explicit Fit. With no `fit` parameter, a shared URL uses
+the automatic default. Clipboard source replacement clears the manual override.
+
+The iframe width is derived from the **actual canvas width/height** and source
+aspect ratio, rather than using a fixed zoom multiplier. Original-aspect YouTube
+thumbnails (`oar2.jpg`) supply the ratio when available, falling back to the
+detected portrait/landscape orientation (9:16 or 16:9). Cropping follows canvas
+resizes without resetting playback. The centered iframe retains its fixed
+`16000px` height, avoiding the proportional-overscan resize loop.
+
+Users can experiment with removing black bars encoded _inside_ a video by
+changing framing and, when the canvas itself becomes responsive, adjusting its
+aspect ratio through the window/device layout. Today the player retains a
+fixed outer 16:9 footprint and an inner 16:9 or 9:16 canvas; simple window
+resizing changes their size but **not** their aspect ratio. The future
+responsive player-surface redesign will make this interaction more useful.
+Unusual source ratios or embedded black bars may still be impossible to
+eliminate automatically; no manual zoom slider is offered.
 
 ### Fixed-height overscan
 
