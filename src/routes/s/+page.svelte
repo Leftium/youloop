@@ -59,6 +59,11 @@
 	:global(html:has(.share-prototype)) {
 		margin: 0;
 		padding: 0;
+		/* Hide the scroll indicator, not the actual document scroll. */
+		scrollbar-width: none;
+	}
+	:global(html:has(.share-prototype)::-webkit-scrollbar) {
+		display: none;
 	}
 	:global(body:has(.share-prototype)) {
 		margin: 0;
@@ -80,7 +85,8 @@
 		overflow: hidden;
 	}
 	.scroll-runway {
-		height: 125dvh;
+		/* Temporary scroll room for Safari toolbar testing; no UI lives below. */
+		height: 2000svh;
 		pointer-events: none;
 	}
 </style>
