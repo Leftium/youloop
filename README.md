@@ -82,20 +82,37 @@ not enter native fullscreen; geometry checks are separate from manual checks.
 Pointer clicks still reach YouLoop; pure hover/movement was not isolated by
 the available automation.
 
-### Optional crop-to-fill framing
+### Optional Fit / Fill framing
 
-Landscape/Portrait chooses the shape of the visible video canvas. The separate
-**Fill** toggle optionally zooms the YouTube image inside that canvas, cropping
-its center rather than keeping letterboxing when source and selected frame
-orientations differ. **Fit** (the complete video, without extra zoom) remains
-the default and is preserved by older URLs.
+The Landscape/Portrait buttons still choose the **current display canvas**;
+automatic source-orientation detection remains supported. The independent Fill
+toggle controls how the actual video is framed inside that canvas:
 
-Fill uses a centered `256/81` (~3.16x) horizontal enlargement, targeting the
-common 16:9 vs. 9:16 mismatch. It is a manual framing choice, not a guarantee
-of perfect fill for every YouTube source or unusual aspect ratio. It may hide
-important content around the edges. `fit=cover` makes the choice shareable;
-removing the parameter returns to Fit. Changing the video through the clipboard
-restores Fit. The centered `16000px` iframe height remains unchanged.
+- **Fit** contains the full video, adding unused black space if the aspects differ.
+- **Fill** centers and crops the video to cover the canvas, possibly losing edges.
+
+The default is automatic: when the selected orientation matches the detected
+source orientation, Fit is selected; when it differs, Fill is selected. Each
+manual Landscape/Portrait choice restores that automatic default. The user may
+override it with the Fill button; `fit=cover` stores explicit Fill and
+`fit=contain` stores explicit Fit. With no `fit` parameter, a shared URL uses
+the automatic default. Clipboard source replacement clears the manual override.
+
+The iframe width is derived from the **actual canvas width/height** and source
+aspect ratio, rather than using a fixed zoom multiplier. Original-aspect YouTube
+thumbnails (`oar2.jpg`) supply the ratio when available, falling back to the
+detected portrait/landscape orientation (9:16 or 16:9). Cropping follows canvas
+resizes without resetting playback. The centered iframe retains its fixed
+`16000px` height, avoiding the proportional-overscan resize loop.
+
+Users can experiment with removing black bars encoded *inside* a video by
+changing framing and, when the canvas itself becomes responsive, adjusting its
+aspect ratio through the window/device layout. Today the player retains a
+fixed outer 16:9 footprint and an inner 16:9 or 9:16 canvas; simple window
+resizing changes their size but **not** their aspect ratio. The future
+responsive player-surface redesign will make this interaction more useful.
+Unusual source ratios or embedded black bars may still be impossible to
+eliminate automatically; no manual zoom slider is offered.
 
 ### Fixed-height overscan
 

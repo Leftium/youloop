@@ -2,6 +2,7 @@
 	import type { YouTubeVideoElement } from '@videojs/html/media/youtube-video';
 	import { onMount } from 'svelte';
 	import { excludeYouTubeProviderFocus } from './youtube-provider-focus';
+	import { calculateFrameVideoWidth } from './video-framing';
 
 	import IcRoundPlayArrow from '~icons/ic/round-play-arrow';
 	import IcRoundPause from '~icons/ic/round-pause';
@@ -45,6 +46,8 @@
 		repeatB: number;
 		orientation?: 'landscape' | 'portrait';
 		fillFrame?: boolean;
+		sourceAspectRatio?: number;
+		onfillchange?: (fill: boolean) => void;
 		onorientationchange?: (orientation: 'landscape' | 'portrait') => void;
 		onsourcechange?: (videoId: string) => void;
 	}
@@ -54,7 +57,9 @@
 		repeatA = $bindable(25),
 		repeatB = $bindable(38),
 		orientation = $bindable('landscape'),
-		fillFrame = $bindable(false),
+		fillFrame = false,
+		sourceAspectRatio = 16 / 9,
+		onfillchange,
 		onorientationchange,
 		onsourcechange
 	}: Props = $props();
@@ -86,6 +91,11 @@
 	let percentB = $derived(`${100 - (duration === undefined ? 0 : (repeatB / duration) * 100)}%`);
 
 	let fullscreen = $state(false);
+	let canvasWidth = $state(0);
+	let canvasHeight = $state(0);
+	let frameVideoWidth = $derived(
+		calculateFrameVideoWidth(canvasWidth, canvasHeight, sourceAspectRatio, fillFrame)
+	);
 	let playerError = $state('');
 	let pauseAfterSeek = false;
 	let initialFramePending = false;
@@ -436,7 +446,6 @@
 
 		// Reset before the keyed media element loads the new source.
 		orientation = 'landscape';
-		fillFrame = false;
 		onsourcechange?.(youtubeId);
 		clearTimeout(durationTimer);
 		metadataReceived = false;
@@ -461,10 +470,11 @@
 <div
 	class="player"
 	style:--media-ratio={orientation === 'portrait' ? 9 / 16 : 16 / 9}
-	style:--video-zoom={fillFrame ? 256 / 81 : 1}
+	style:--video-width={frameVideoWidth === null ? '100%' : `${frameVideoWidth}px`}
+	style:--video-source-ratio={sourceAspectRatio}
 	bind:this={playerContainer}
 >
-	<div class="media-canvas">
+	<div class="media-canvas" bind:clientWidth={canvasWidth} bind:clientHeight={canvasHeight}>
 		{#if playerMounted}
 			{#key `${youtubeId}:${sourceVersion}`}
 				<youtube-video
@@ -643,7 +653,7 @@
 				aria-label="Crop to fill"
 				aria-pressed={fillFrame}
 				title="Zoom into the center to fill the frame (crops edges)"
-				onclick={() => (fillFrame = !fillFrame)}
+				onclick={() => onfillchange?.(!fillFrame)}
 			>
 				<span class:active={fillFrame}>Fill</span>
 			</button>
@@ -713,13 +723,13 @@
 
 	// Hide edge chrome and bottom captions, and reduce the paused-state gradient.
 	// A fixed height avoids resizing the oversized iframe whenever the player height changes.
-	// Keep the 16000px overscan fixed; optional fill zoom changes only the
-	// iframe width. Center its crop in either framing mode.
+	// The video frame's width depends on its real canvas dimensions and source aspect.
+	// Keep the iframe's overscan height fixed, and center both contain/cover framing.
 	youtube-video::part(iframe) {
 		position: absolute;
 		top: 50%;
 		left: 50%;
-		width: calc(100% * var(--video-zoom));
+		width: var(--video-width);
 		height: 16000px;
 		transform: translate(-50%, -50%);
 	}
