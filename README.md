@@ -33,6 +33,7 @@ available. To exercise the watch controls, open
 await (await import('/src/lib/player/watch-controls.browser-test.ts')).run();
 (await import('/src/lib/player/watch-timeline.browser-test.ts')).run();
 await (await import('/src/lib/player/watch-viewport.browser-test.ts')).run();
+await (await import('/src/lib/player/watch-source-geometry.browser-test.ts')).run();
 ```
 
 For rendered timeline boundary checks, load a fresh `/s` URL with the desired
@@ -118,6 +119,23 @@ body-child gutters. One route-aware viewport meta preserves `viewport-fit=cover`
 for `/s` and the original editor's viewport settings. These are candidate
 corrections; neither blocked gestures nor document clipping masks overflow.
 
+The owner confirmed that `467728f` still fails alignment on physical iPhone
+Safari: a portrait source shrinks from the left after loading with the phone
+held landscape. Landscape-source timeline width/alignment also remains wrong;
+horizontal panning at that exact head has not been established. The next
+candidate explicitly anchors the watch canvas center with `left/top:50%` and
+translation, removing reliance on absolute flex static positioning during
+source detection. Its dimensions, provider crop, and editor positioning remain
+unchanged. Delayed detection stayed centered even before this change in headless
+WebKit, so this is a candidate stabilization, not a confirmed device diagnosis.
+
+The source-geometry regression mounts the actual watch Player and orientation
+controller, delays landscape-to-portrait detection until after first paint, and
+checks both-axis centering, provider iframe bounds/identity, visible overlay and
+3px timeline geometry, and document overflow. Run it at both phone viewport
+orientations. It measures the iframe, not YouTube's cross-origin internal video
+pixels; compare the visible picture separately on device.
+
 For the blocking Safari recheck, use the new PR head and record the iOS/Safari
 version, URL, orientation, browser toolbar state, and zoom scale. Swipe left and
 right over the black background as well as the video, before/after rotating,
@@ -125,6 +143,11 @@ after vertical Default/Theater travel, and after reloading in each orientation.
 At initial scale 1, the document must have no horizontal scroll range or lateral
 movement. Check that title, controls and timeline overlay the same centered
 canvas, rather than a shifted sliver. Repeat with expanded/collapsed toolbars.
+Use both landscape-format and portrait-format source videos in both phone
+orientations. Reload directly in landscape and record initial paint, pending
+orientation detection, and settled geometry; repeat after rotation. Compare the
+actual picture with the canvas and provider frame rather than assuming which
+width is right. Keep the panning and alignment outcomes separate.
 A deliberate pinch zoom is a separate case; do not disable it to obtain a pass.
 
 Capture geometry in Safari's remote Web Inspector before and after each case:

@@ -960,6 +960,11 @@
 	}
 
 	.player.minimal .media-canvas {
+		// Source detection can resize this absolute child after first paint.
+		// Anchor its center independently of flex static-position recalculation.
+		left: 50%;
+		top: 50%;
+		transform: translate(-50%, -50%);
 		width: min(100%, calc(100cqh * var(--media-ratio)));
 		height: min(100%, calc(100cqw / var(--media-ratio)));
 		aspect-ratio: var(--media-ratio);
