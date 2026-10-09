@@ -7,7 +7,7 @@
 	let { children }: { data: LayoutData; children: Snippet } = $props();
 </script>
 
-{#if page.url.pathname.startsWith('/s/')}
+{#if page.route.id === '/s'}
 	{@render children()}
 {:else}
 <main>
