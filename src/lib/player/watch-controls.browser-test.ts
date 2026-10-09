@@ -1,7 +1,7 @@
 import type { YouTubeVideoElement } from '@videojs/html/media/youtube-video';
 import type { WatchControlsPlayer } from './watch-controls';
 
-// Run on /s?v=dt-SqNL4z3w&a=0&b=120 after the first frame settles.
+// Run on /s?v=dt-SqNL4z3w&a=0&b=15 after the first frame settles.
 // Synthetic touch events verify gesture wiring, not physical Safari toolbar behavior.
 export async function run(
 	options: { notifyScroll?: boolean; skipViewportSimulation?: boolean } = {}
@@ -92,6 +92,106 @@ export async function run(
 			'Title cannot select text or intercept interactions'
 		);
 		timelineAtVisibleEdge();
+		const timeControl = controls.querySelector<HTMLButtonElement>('.watch-time')!;
+		const timeline = () => document.querySelector<HTMLElement>('.watch-timeline')!;
+		check(
+			!timeControl.disabled && timeControl.textContent?.includes('A:B') === true,
+			'Settled short range initially uses A:B'
+		);
+		check(
+			timeControl.lastElementChild?.textContent === 'A:B',
+			'A:B label follows elapsed time and duration'
+		);
+		const beforeTime = media.currentTime;
+		const beforeGeometry = canvas.getBoundingClientRect().toJSON();
+		const beforeUrl = location.href;
+		const beforeFrame = iframe;
+		const label = timeControl.getAttribute('aria-label');
+		check(
+			label?.includes('A:B progress, switch to full-video') === true,
+			'Time toggle names current mode and destination'
+		);
+		const tails = document.querySelectorAll<HTMLElement>('.timeline-tail');
+		check(
+			tails.length === 1 && tails[0].classList.contains('right'),
+			'A=0 shows only excluded end tail'
+		);
+		check(
+			getComputedStyle(tails[0]).backgroundImage.includes('repeating-linear-gradient') &&
+				getComputedStyle(tails[0]).pointerEvents === 'none',
+			'Tail is dashed and inert'
+		);
+		check(
+			Math.abs(
+				tails[0].getBoundingClientRect().width / timeline().getBoundingClientRect().width - 0.06
+			) < 0.001,
+			'Tail has fixed six-percent width'
+		);
+		check(
+			getComputedStyle(document.querySelector('.timeline-fill')!).backgroundColor ===
+				'rgb(0, 221, 255)',
+			'A:B fill is cyan'
+		);
+		for (const type of ['pointerdown', 'pointerup'])
+			timeControl.dispatchEvent(
+				new PointerEvent(type, { bubbles: true, pointerType: 'touch', isPrimary: true })
+			);
+		timeControl.click();
+		await settle();
+		check(
+			timeline().dataset.mode === 'video' &&
+				!timeControl.querySelector('.time-label') &&
+				!timeControl.textContent?.includes('VIDEO'),
+			'Full-video toggle removes visible A:B and redundant VIDEO label'
+		);
+		check(
+			getComputedStyle(document.querySelector('.timeline-fill')!).backgroundColor ===
+				'rgb(255, 51, 51)',
+			'VIDEO progress is red'
+		);
+		const selection = document.querySelector<HTMLElement>('.timeline-selection')!;
+		check(
+			parseFloat(selection.style.left) === 0 &&
+				Math.abs(
+					parseFloat(selection.style.width) -
+						(15 / Number(timeline().getAttribute('aria-valuemax'))) * 100
+				) < 0.001,
+			'VIDEO selection has absolute position and proportional width'
+		);
+		check(!document.querySelector('.timeline-tail'), 'VIDEO has no decorative tails');
+		check(
+			selection.getBoundingClientRect().height === 1 &&
+				document.querySelector('.timeline-fill')!.getBoundingClientRect().height === 3,
+			'Cyan selection leaves red absolute progress visible within A:B'
+		);
+		check(
+			Number(timeline().getAttribute('aria-valuemax')) > 60,
+			'VIDEO uses full-duration progress semantics'
+		);
+		timeControl.click();
+		await settle();
+		check(
+			Number(timeline().getAttribute('aria-valuemax')) === 15,
+			'A:B uses clip-duration progress semantics'
+		);
+		check(
+			media.paused && Math.abs(media.currentTime - beforeTime) < 0.2 && location.href === beforeUrl,
+			'Time switch does not play, seek or alter URL range'
+		);
+		check(
+			media.shadowRoot?.querySelector('iframe') === beforeFrame &&
+				JSON.stringify(canvas.getBoundingClientRect().toJSON()) === JSON.stringify(beforeGeometry),
+			'Time switch preserves iframe and geometry'
+		);
+		const row = controls.getBoundingClientRect();
+		const actions = controls.querySelector<HTMLElement>('.watch-actions')!.getBoundingClientRect();
+		check(
+			timeControl.getBoundingClientRect().right <= actions.left &&
+				row.bottom < timeline().getBoundingClientRect().top &&
+				actions.right === row.right,
+			'Time is left and actions right in the same row above the timeline'
+		);
+
 		for (const theater of [false, true]) {
 			await scrollTo(theater ? 100 : 0);
 			check(mode() === (theater ? 'theater' : 'default'), 'Scroll selects mode without playback');
@@ -155,6 +255,28 @@ export async function run(
 			!visible() && getComputedStyle(controls).opacity === '0',
 			'Default controls hide immediately when playback starts'
 		);
+		const playingTime = media.currentTime;
+		timeControl.click();
+		await settle();
+		check(
+			timeline().dataset.mode === 'video' &&
+				!media.paused &&
+				media.currentTime >= playingTime &&
+				media.currentTime < playingTime + 1,
+			'Playing time toggle preserves playback and absolute time'
+		);
+		media.dispatchEvent(new Event('durationchange'));
+		await wait(350);
+		check(
+			timeline().dataset.mode === 'video',
+			'Later settled metadata cannot override manual timeline mode'
+		);
+		timeControl.click();
+		await settle();
+		check(
+			timeline().dataset.mode === 'clip' && !media.paused,
+			'Return to A:B preserves playing state'
+		);
 		(document.activeElement as HTMLElement)?.blur();
 		root.store.toggleControls(true);
 		await wait(2300);
@@ -174,7 +296,7 @@ export async function run(
 		surface.dispatchEvent(new PointerEvent('pointermove', { bubbles: true, pointerType: 'mouse' }));
 		await settle();
 		check(visible(), 'Desktop movement reveals controls');
-		const mute = controls.querySelector<HTMLButtonElement>('button')!;
+		const mute = controls.querySelector<HTMLButtonElement>('.watch-actions button')!;
 		const originalMute = media.muted;
 		mute.click();
 		await until(() => media.muted !== originalMute, 'Mute control updates real media');
@@ -195,8 +317,19 @@ export async function run(
 			'First down scroll hides Default chrome without a Transport panel'
 		);
 		check(getComputedStyle(controls).visibility === 'hidden', 'Theater controls are hidden');
+		root.store.toggleControls(false);
+		await settle();
 		await scrollTo(60);
 		check(mode() === 'default', 'Up scroll at a nonzero offset restores Default');
+		check(
+			visible() && getComputedStyle(controls).opacity === '1',
+			'Up scroll reveals inactive controls without pointer activity'
+		);
+		await wait(2300);
+		check(
+			!visible() && getComputedStyle(controls).opacity === '0',
+			'Up-scroll reveal subsequently fades on inactivity'
+		);
 		timelineAtVisibleEdge();
 		check(media.currentTime >= time && !media.paused, 'Playback continues across mode changes');
 		check(

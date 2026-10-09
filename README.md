@@ -27,11 +27,19 @@ await (await import('/src/lib/player/media-geometry.browser-test.ts')).run();
 
 Run the geometry regression on `/`, where the orientation and Fill controls are
 available. To exercise the watch controls, open
-`/s?v=dt-SqNL4z3w&a=0&b=120`, wait for the paused first frame, and run:
+`/s?v=dt-SqNL4z3w&a=0&b=15`, wait for the paused first frame, and run:
 
 ```js
 await (await import('/src/lib/player/watch-controls.browser-test.ts')).run();
+(await import('/src/lib/player/watch-timeline.browser-test.ts')).run();
 ```
+
+For rendered timeline boundary checks, load a fresh `/s` URL with the desired
+`a` and `b`, wait for the duration to settle, and run
+`await (await import('/src/lib/player/watch-timeline.browser-test.ts')).runView()`.
+Cover `a=31&b=38`, `a=50&b=99999`, `a=0&b=99999`, and a very short
+`a=31&b=31.05` selection. The pure timeline regression covers the exact 25%
+threshold and manual-choice reset independently of provider timing.
 
 If the browser blocks scripted playback, tap the video to Play then Pause once before
 running the watch regression.
@@ -77,9 +85,24 @@ The persistent three-pixel Default timeline follows the intersection of the
 media canvas and `visualViewport`. Viewport changes reposition only the chrome;
 they do not resize the `100lvh` stage or the centered `16000px` iframe crop.
 Downward document-scroll travel selects Theater; upward travel selects Default,
-including after the empty runway grows. Theater hides our title, controls, and
-timeline. Fullscreen is independent of those modes. Safari owns toolbar collapse;
+including after the empty runway grows. Returning from Theater explicitly reveals
+faded controls, which may then fade again after inactivity. Theater hides our
+title, controls, and timeline. Fullscreen is independent of those modes. Safari owns toolbar collapse;
 the Theater button only advances the native document scroll.
+
+The time button at the left of the control row switches between VIDEO and A:B
+without seeking or changing playback or the share URL. The cyan `A:B` label
+follows the duration in clip mode; full-video mode has no visible mode label.
+VIDEO shows absolute time and red full-video progress, with the cyan selection at its true proportional
+position. A:B shows elapsed clip time and cyan clip progress. Fixed six-percent,
+muted-red dashed tails indicate excluded video before A or after B; they are
+inert. Full-video selections have no highlight, tails, or available toggle.
+
+After the actual duration settles, a restricted clip shorter than 25% of the
+video starts in A:B; other selections start in VIDEO. The automatic decision is
+made once per source. Manual choice survives metadata/time and range updates
+until another source loads; nothing is stored. Unknown or degenerate ranges
+fall back to a finite VIDEO track.
 
 ### Required physical verification
 
@@ -95,6 +118,10 @@ Before merging, verify on a physical iPhone with Safari:
   center indicator. Swipes, drags, wheel activity, and mute must not toggle
   playback. Check keyboard/assistive activation in Theater and title selection. Verify usable hit targets and
   safe-area placement on short landscape screens.
+- Switch the time display by touch and keyboard. Check both progress scales,
+  time labels, tails, and narrow-screen layout; switching must preserve playback
+  and the video frame. After controls fade in Theater, scroll up and confirm
+  they visibly reappear without a mouse movement.
 - Exercise native fullscreen where the browser offers it, then exit and confirm
   the prior logical mode and uninterrupted playback state.
 

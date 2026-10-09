@@ -4,6 +4,7 @@
 	import { onMount } from 'svelte';
 	import { excludeYouTubeProviderFocus } from './youtube-provider-focus';
 	import { calculateFrameVideoWidth } from './video-framing';
+	import { createTimelineMode, timelineRange, type TimelineMode } from './watch-timeline';
 
 	import IcRoundPlayArrow from '~icons/ic/round-play-arrow';
 	import IcRoundPause from '~icons/ic/round-pause';
@@ -92,6 +93,15 @@
 
 	let currentTime = $state(repeatA);
 	let duration: number | undefined = $state();
+	const timelineChoice = createTimelineMode();
+	let timelineMode = $state<TimelineMode>('video');
+	let range = $derived(timelineRange(duration, repeatA, repeatB, currentTime));
+	let clipTimeline = $derived(range.restricted && timelineMode === 'clip');
+	let timelineTime = $derived(clipTimeline ? range.elapsed : range.absolute);
+	let timelineDuration = $derived(clipTimeline ? range.length : range.total);
+	function toggleTimeline() {
+		if (range.restricted) timelineMode = timelineChoice.toggle();
+	}
 	let paused = $state(true);
 	let requestedPaused = true;
 	let providerStalled = false;
@@ -120,6 +130,20 @@
 	let retrySeekTime: number | undefined;
 	let sourceVersion = $state(0);
 	let playerMounted = $state(false);
+
+	$effect(() => {
+		// Source identity, not time/range updates, resets the viewer's visual choice.
+		void youtubeId;
+		void sourceVersion;
+		timelineChoice.reset();
+		timelineMode = 'video';
+	});
+
+	let wasTheater = false;
+	$effect(() => {
+		if (minimal && wasTheater && !theater) controlsPlayer?.store.toggleControls(true);
+		wasTheater = theater;
+	});
 
 	function youtubePlayerState() {
 		const engine = player?.engine;
@@ -314,6 +338,7 @@
 		duration = nextDuration;
 		repeatB = Math.min(repeatB, nextDuration);
 		repeatA = Math.max(0, Math.min(repeatA, repeatB));
+		if (minimal) timelineMode = timelineChoice.choose(nextDuration, repeatA, repeatB);
 	}
 
 	function scheduleDuration() {
@@ -648,37 +673,75 @@
 					{#if paused && videoTitle && !theater}<h1 class="video-title">{videoTitle}</h1>{/if}
 					<media-controls class="watch-controls" class:paused inert={theater}>
 						<button
-							aria-label={muted ? 'Unmute video' : 'Mute video'}
-							disabled={!metadataReceived}
-							onclick={toggleMute}
+							class="watch-time"
+							class:clip={clipTimeline}
+							disabled={!range.restricted}
+							aria-label={range.restricted
+								? `${clipTimeline ? 'A:B' : 'VIDEO'} progress, switch to ${clipTimeline ? 'full-video' : 'A:B'} progress`
+								: 'VIDEO progress, full video selected'}
+							onclick={toggleTimeline}
 						>
-							{#if muted}<IcRoundVolumeOff />{:else}<IcRoundVolumeUp />{/if}
-						</button>
-						<button aria-label="Theater mode" disabled={fullscreen} onclick={ontheater}
-							><IcRoundCropLandscape /></button
-						>
-						{#if nativeFullscreen}
-							<button
-								aria-label={fullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
-								onclick={toggleFullscreen}
+							<span class="time-value"
+								><span>{range.valid ? formatVideoTime(timelineTime) : '?:??'}</span><span
+									>/ {range.valid ? formatVideoTime(timelineDuration) : '?:??'}</span
+								></span
 							>
-								{#if fullscreen}<IcRoundFullscreenExit />{:else}<IcRoundFullscreen />{/if}
+							{#if clipTimeline}<span class="time-label">A:B</span>{/if}
+						</button>
+						<div class="watch-actions">
+							<button
+								aria-label={muted ? 'Unmute video' : 'Mute video'}
+								disabled={!metadataReceived}
+								onclick={toggleMute}
+							>
+								{#if muted}<IcRoundVolumeOff />{:else}<IcRoundVolumeUp />{/if}
 							</button>
-						{/if}
+							<button aria-label="Theater mode" disabled={fullscreen} onclick={ontheater}
+								><IcRoundCropLandscape /></button
+							>
+							{#if nativeFullscreen}
+								<button
+									aria-label={fullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
+									onclick={toggleFullscreen}
+								>
+									{#if fullscreen}<IcRoundFullscreenExit />{:else}<IcRoundFullscreen />{/if}
+								</button>
+							{/if}
+						</div>
 					</media-controls>
 					{#if !theater}
 						<div
 							class="watch-timeline"
+							class:clip={clipTimeline}
+							data-mode={clipTimeline ? 'clip' : 'video'}
 							role="progressbar"
-							aria-label="Video progress"
+							aria-label={clipTimeline ? 'A:B progress' : 'Video progress'}
 							aria-valuemin="0"
-							aria-valuemax={duration ?? 0}
-							aria-valuenow={duration ? Math.min(duration, currentTime) : 0}
-							aria-valuetext={`${formatVideoTime(currentTime)} / ${formatVideoTime(duration)}`}
+							aria-valuemax={timelineDuration}
+							aria-valuenow={timelineTime}
+							aria-valuetext={`${range.valid ? formatVideoTime(timelineTime) : '?:??'} / ${range.valid ? formatVideoTime(timelineDuration) : '?:??'}`}
 						>
-							<div
-								style:width={`${duration ? Math.max(0, Math.min(100, (currentTime / duration) * 100)) : 0}%`}
-							></div>
+							{#if clipTimeline && range.leftTail}<div
+									class="timeline-tail left"
+									aria-hidden="true"
+								></div>{/if}
+							<div class="timeline-track">
+								{#if !clipTimeline && range.restricted}
+									<div
+										class="timeline-selection"
+										style:left={`${range.selectionStart * 100}%`}
+										style:width={`${range.selectionWidth * 100}%`}
+									></div>
+								{/if}
+								<div
+									class="timeline-fill"
+									style:width={`${(clipTimeline ? range.clipProgress : range.videoProgress) * 100}%`}
+								></div>
+							</div>
+							{#if clipTimeline && range.rightTail}<div
+									class="timeline-tail right"
+									aria-hidden="true"
+								></div>{/if}
 						</div>
 					{/if}
 				</div>
@@ -959,6 +1022,7 @@
 		inset: 0;
 	}
 	.watch-overlay {
+		container-type: inline-size;
 		position: absolute;
 		pointer-events: none;
 	}
@@ -983,8 +1047,9 @@
 		left: max(12px, env(safe-area-inset-left));
 		right: max(12px, env(safe-area-inset-right));
 		display: flex;
-		flex-wrap: wrap;
-		gap: 8px;
+		align-items: center;
+		justify-content: space-between;
+		gap: 6px;
 		opacity: 0;
 		transition: opacity 180ms;
 		pointer-events: none;
@@ -1012,6 +1077,63 @@
 	.watch-controls:not(:global([data-visible])):not(.paused):not(:has(:focus-visible)) button {
 		pointer-events: none;
 	}
+	.watch-actions {
+		display: flex;
+		gap: 6px;
+		margin-left: auto;
+	}
+	.watch-controls .watch-time {
+		width: auto;
+		min-width: 0;
+		padding: 6px 8px;
+		gap: 6px;
+		font-size: clamp(0.7rem, 2.5vw, 0.9rem);
+		font-variant-numeric: tabular-nums;
+		white-space: nowrap;
+	}
+	.time-value {
+		display: inline-flex;
+		gap: 0.3em;
+	}
+	.watch-time .time-label {
+		color: #0df;
+	}
+	.watch-controls .watch-time:disabled {
+		opacity: 1;
+		cursor: default;
+	}
+	@container (max-width: 360px) {
+		.watch-controls {
+			left: max(6px, env(safe-area-inset-left));
+			right: max(6px, env(safe-area-inset-right));
+			gap: 4px;
+		}
+		.watch-actions {
+			gap: 4px;
+		}
+		.watch-controls .watch-time {
+			flex-direction: column;
+			gap: 0;
+			padding: 4px;
+		}
+	}
+	@container (max-width: 260px) {
+		.watch-controls .watch-time {
+			flex: 1;
+			min-width: 44px;
+			height: auto;
+			min-height: 44px;
+			font-size: 0.7rem;
+		}
+		.time-value {
+			flex-direction: column;
+			gap: 0;
+			line-height: 1.1;
+		}
+		.watch-actions {
+			flex-shrink: 0;
+		}
+	}
 	.watch-controls button:focus-visible {
 		outline: 2px solid white;
 		outline-offset: 3px;
@@ -1032,11 +1154,37 @@
 		right: 0;
 		bottom: 0;
 		height: 3px;
+		display: flex;
+		pointer-events: none;
+	}
+	.timeline-track {
+		position: relative;
+		flex: 1;
+		height: 100%;
 		background: rgb(255 255 255 / 65%);
 	}
-	.watch-timeline div {
+	.timeline-fill {
+		position: absolute;
+		left: 0;
+		top: 0;
 		height: 100%;
 		background: #f33;
+	}
+	.timeline-selection {
+		position: absolute;
+		bottom: 0;
+		/* Preserve cyan context without covering the red absolute progress above it. */
+		height: 1px;
+		background: #0df;
+		z-index: 1;
+	}
+	.watch-timeline.clip .timeline-fill {
+		background: #0df;
+	}
+	.timeline-tail {
+		flex: 0 0 6%;
+		height: 100%;
+		background: repeating-linear-gradient(to right, #b85b5b 0 4px, transparent 4px 7px);
 	}
 	@media (prefers-reduced-motion: reduce) {
 		.watch-controls {
