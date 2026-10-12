@@ -11,11 +11,9 @@
 	let runway: HTMLDivElement;
 	let runwayHeight = $state<number>();
 	let mobile = $state(false);
-	let videoScrollRequested = $state(true);
-	let snapRequested = $state(true);
 	const snapSpacing = 20;
-	let videoScroll = $derived(mobile && videoScrollRequested);
-	let documentSnap = $derived(videoScroll && snapRequested);
+	let videoScroll = $derived(mobile);
+	let documentSnap = $derived(videoScroll);
 	let width = $state(0);
 	let height = $state(0);
 	let snapPointCount = $derived(
@@ -165,8 +163,6 @@
 
 	function reset() {
 		endDrag();
-		videoScrollRequested = false;
-		snapRequested = false;
 		preference = null;
 		ratios = { columns: 0.62, rows: 0.55 };
 		remember();
@@ -245,20 +241,6 @@
 			aria-label="Clip settings"
 			tabindex="0"
 		>
-			{#if mobile}
-				<label class="video-scroll-option">
-					<input type="checkbox" bind:checked={videoScrollRequested} />
-					Video swipe scrolling (experimental)
-				</label>
-				<label class="video-scroll-option">
-					<input type="checkbox" bind:checked={snapRequested} disabled={!videoScroll} />
-					Snap document scrolling (experimental)
-				</label>
-				<p class="scroll-hint">
-					Swipe upward on the picture to try minimizing Safari's toolbar. Controls scroll
-					separately. Safari owns toolbar visibility; Reset split exits the experiment.
-				</p>
-			{/if}
 			{@render settings()}
 		</div>
 	</div>
@@ -298,17 +280,6 @@
 		scroll-snap-align: start;
 		scroll-snap-stop: always;
 	}
-	.video-scroll-option {
-		display: flex;
-		align-items: center;
-		gap: 0.5rem;
-		min-height: 44px;
-		margin: 0;
-	}
-	.scroll-hint {
-		font-size: 0.8rem;
-		margin: 0 0 1rem;
-	}
 	.video-scroll-runway {
 		display: none;
 	}
@@ -320,7 +291,7 @@
 	.video-scroll .workspace-grid {
 		position: sticky;
 		top: 0;
-		/* Keep the experimental canvas at the collapsed-toolbar height to avoid
+		/* Keep the mobile canvas at the collapsed-toolbar height to avoid
 		   intermediate dvh clipping and toolbar-animation resize jitter. Expanded
 		   Safari bars may cover its bottom edge; verify reachability on device. */
 		height: 100lvh;

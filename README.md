@@ -71,13 +71,11 @@ The editor keeps video, timeline, transport, and splitter in the preview while
 controls scroll in their own pane. Layout and scrolling never replace the mounted
 YouTube provider or reset playback/clip state. Video-first mode is unchanged.
 
-On small touch viewports, the top of settings offers **Video swipe scrolling
-(experimental)** and **Snap document scrolling (experimental)**. Both start checked
-on mobile at the owner's request. Unchecking Video swipe scrolling restores the
-bounded editor; unchecking snapping keeps native document scrolling without snap
-points. Reset split disables both for the current visit. Reload starts both checked
-again. These switches never enter URLs or session layout preferences; desktop
-uses the bounded workspace.
+On small touch viewports, video swipes use native document scrolling with 20px
+snapping automatically. Controls retain independent scrolling. Desktop uses the
+bounded workspace. Reset split restores layout ratios and the automatic layout
+choice; it does not disable mobile scrolling. No experiment switches or hints are
+shown, and scrolling behavior adds no URL or session parameters.
 
 With video scrolling active, the complete grid is sticky over a native document
 runway. Controls retain their own `overflow-y: auto` scroller, with
@@ -85,7 +83,7 @@ runway. Controls retain their own `overflow-y: auto` scroller, with
 Only the document scrollbar indicator is hidden; the controls scrollbar remains.
 The controls pane uses Nimble's `--nc-surface-2` to distinguish it from the
 surrounding page in both light and dark themes.
-The experimental grid uses `100lvh` to limit resizing during toolbar animation.
+The mobile grid uses `100lvh` to limit resizing during toolbar animation.
 Expanded Safari bars can cover its bottom edge; the owner accepted this landscape
 tradeoff. The bounded editor uses `100dvh`. In portrait, settings add a scrollable
 `100lvh - 100svh` bottom reserve plus normal safe-area padding. The owner confirmed
@@ -136,12 +134,12 @@ Use a normal Safari tab, record phone/iOS version, address-bar position, orienta
 and starting toolbar state. Chromium verifies geometry and provider identity,
 not actual Safari toolbar collapse, momentum handoff, or native resize animation.
 
-1. Reload `/?v=dt-SqNL4z3w&t=5-50&mute`; confirm both switches start checked at
-   the top of controls. Uncheck both for the bounded baseline, then re-enable them.
-   The controls scrollbar should belong only to its pane.
+1. Reload `/?v=dt-SqNL4z3w&t=5-50&mute`; confirm controls contain no experiment
+   switches or explanatory hint. Video swipes should scroll the document; the
+   controls scrollbar should belong only to its pane.
 2. Compare strong/weak and slow/fast video swipes, including similar travel at
    different speeds. Check partial/full collapse, reverse gestures, and the
-   immediate/wait/separate-tap controls handoff. Compare snapping on/off.
+   immediate/wait/separate-tap controls handoff.
 3. Repeat both splitter directions in portrait and landscape, both layouts, with
    bars expanded and minimized. Keep preview, timeline, and all actions reachable;
    watch for viewport jitter and unwanted page movement.
@@ -150,9 +148,9 @@ not actual Safari toolbar collapse, momentum handoff, or native resize animation
    and rotating. Repeat while paused; swipes must not toggle playback or reload
    the provider. Inspect root `scrollY` and pane `scrollTop` remotely if needed.
 5. Check bottom spacing, safe areas, Safari's address-bar keyboard opening/closing,
-   external-keyboard focus, and all settings' reachability. Reset disables both
-   switches for this visit; reload restores mobile defaults without changing URLs
-   or session layout preferences. Compare editor/watch Back/Forward and the
+   external-keyboard focus, and all settings' reachability. Reset restores layout defaults while native mobile scrolling
+   remains active; reload preserves the chosen mobile behavior without adding URL
+   or session parameters. Compare editor/watch Back/Forward and the
    unchanged video-first `/dt-SqNL4z3w?t=5-50&mute`.
 
 The remaining portrait gap above the floating toolbar is accepted to preserve

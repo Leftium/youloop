@@ -50,7 +50,7 @@ async function geometry(page: Page) {
 			page.evaluate(() => {
 				const preview = document.querySelector('#editor-preview')!.getBoundingClientRect();
 				const picture = document.querySelector('.player')!.getBoundingClientRect();
-				const workspace = document.querySelector('.editor-workspace')!.getBoundingClientRect();
+				const workspace = document.querySelector('.workspace-grid')!.getBoundingClientRect();
 				const canvas = document.querySelector('.media-canvas')!.getBoundingClientRect();
 				const controls = document.querySelector('#editor-settings')!.getBoundingClientRect();
 				const ratio = Number(
@@ -318,7 +318,6 @@ test('touch capture and cancellation clean up without changing provider identity
 	try {
 		const page = await context.newPage();
 		await openEditor(page);
-		await page.getByRole('checkbox', { name: 'Video swipe scrolling (experimental)' }).uncheck();
 		const before = await value(page);
 		const box = (await divider(page).boundingBox())!;
 		const cdp = await context.newCDPSession(page);
@@ -508,12 +507,6 @@ test.describe('mobile pane scrolling', () => {
 				context
 			}) => {
 				await openEditor(page);
-				await page
-					.getByRole('checkbox', { name: 'Video swipe scrolling (experimental)' })
-					.uncheck();
-				await expect(
-					page.getByRole('checkbox', { name: 'Video swipe scrolling (experimental)' })
-				).toBeInViewport({ ratio: 1 });
 				await geometry(page);
 				const url = page.url();
 				await page.getByRole('button', { name: 'Play', exact: true }).click();
@@ -577,14 +570,11 @@ test.describe('mobile pane scrolling', () => {
 	]) {
 		test.describe(`${viewport.width}x${viewport.height}`, () => {
 			test.use({ viewport, screen: viewport });
-			test(`only settings scroll; picture swipes leave playback and pane position unchanged at ${viewport.width}x${viewport.height}`, async ({
+			test(`settings scroll independently; picture swipes scroll the document without changing playback at ${viewport.width}x${viewport.height}`, async ({
 				page,
 				context
 			}) => {
 				await openEditor(page);
-				await page
-					.getByRole('checkbox', { name: 'Video swipe scrolling (experimental)' })
-					.uncheck();
 				await expect(
 					page.getByRole('checkbox', { name: 'Page scrolling (experimental)' })
 				).toHaveCount(0);
@@ -638,7 +628,7 @@ test.describe('mobile pane scrolling', () => {
 						reverse ? picture.y + 20 : picture.y + picture.height - 20,
 						reverse ? picture.y + picture.height - 20 : picture.y + 20
 					);
-					expect(await rootOffset(page)).toBe(0);
+					if (!reverse) expect(await rootOffset(page)).toBeGreaterThan(0);
 					expect(await settings.evaluate((el) => el.scrollTop)).toBe(paneOffset);
 					await expect
 						.poll(() =>
@@ -652,7 +642,7 @@ test.describe('mobile pane scrolling', () => {
 				expect(
 					await page.evaluate(
 						() =>
-							document.documentElement.scrollHeight <= innerHeight &&
+							document.documentElement.scrollHeight > innerHeight &&
 							document.documentElement.scrollWidth <= innerWidth
 					)
 				).toBe(true);
@@ -673,13 +663,10 @@ test.describe('pinned workspace with independent settings experiment', () => {
 				context
 			}) => {
 				await openEditor(page);
-				const option = page.getByRole('checkbox', { name: 'Video swipe scrolling (experimental)' });
-				const snapOption = page.getByRole('checkbox', {
-					name: 'Snap document scrolling (experimental)'
-				});
-				await expect(option).toBeChecked();
-				await expect(snapOption).toBeChecked();
-				await expect(snapOption).toBeInViewport({ ratio: 1 });
+				await expect(page.locator('.editor-workspace')).toHaveClass(/video-scroll/);
+				await expect(page.getByRole('checkbox', { name: /experimental|diagnostic/i })).toHaveCount(
+					0
+				);
 				await expect(page.locator('html')).toHaveCSS('scroll-snap-type', 'y mandatory');
 				await expect(page.locator('#editor-settings')).toHaveCSS('scroll-snap-type', 'none');
 				expect(
@@ -824,18 +811,15 @@ test.describe('pinned workspace with independent settings experiment', () => {
 					await pinned();
 				}
 				// Test runway extension independently of the snap-stop distance limit.
-				await snapOption.uncheck();
-				await expect(page.locator('.document-snap-point')).toHaveCount(0);
 				const settingsBeforeExtensions = await settings.evaluate((el) => el.scrollTop);
-				// Native wheel input over the picture approaches the current runway
-				// threshold repeatedly without directly assigning document scroll offsets.
-				await page.mouse.move(picture.x + picture.width / 4, picture.y + 20);
+				// Jump the root for geometry-only runway coverage; native picture swipe
+				// ownership was checked above. This does not test Safari toolbar collapse.
 				for (let extension = 0; extension < 3; extension++) {
 					const beforeOffset = await offset();
 					const before = await page
 						.locator('.video-scroll-runway')
 						.evaluate((el) => el.getBoundingClientRect().height);
-					await page.mouse.wheel(0, 25 * viewport.height);
+					await page.evaluate((distance) => scrollTo(0, scrollY + distance), 25 * viewport.height);
 					await expect
 						.poll(() =>
 							page
@@ -856,7 +840,7 @@ test.describe('pinned workspace with independent settings experiment', () => {
 					.locator('.video-scroll-runway')
 					.evaluate((el) => el.getBoundingClientRect().height);
 				// Approximate toolbar-driven viewport expansion; physical Safari must
-				// confirm actual dvh updates. The complete grid must fill the new height.
+				// confirm actual viewport-unit updates. The complete grid must fill the new height.
 				const preferences = await page.evaluate((key) => sessionStorage.getItem(key), storageKey);
 				await page.setViewportSize({ width: viewport.width, height: viewport.height + 120 });
 				await pinned();
@@ -896,14 +880,13 @@ test.describe('pinned workspace with independent settings experiment', () => {
 				).toBeGreaterThanOrEqual(started);
 				expect(page.url()).toBe(url);
 				await page.getByRole('button', { name: 'Reset split', exact: true }).click();
-				await expect(option).not.toBeChecked();
-				await expect(snapOption).not.toBeChecked();
-				await expect(snapOption).toBeDisabled();
+				await expect(page.locator('.editor-workspace')).toHaveClass(/video-scroll/);
+				await expect(page.locator('html')).toHaveCSS('scroll-snap-type', 'y mandatory');
 				await geometry(page);
 				await identity(page);
 				await page.reload();
-				await expect(option).toBeChecked();
-				await expect(snapOption).toBeChecked();
+				await expect(page.locator('.editor-workspace')).toHaveClass(/video-scroll/);
+				await expect(page.locator('html')).toHaveCSS('scroll-snap-type', 'y mandatory');
 			});
 		});
 	}
