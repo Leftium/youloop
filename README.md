@@ -74,13 +74,36 @@ state, and the mounted YouTube provider remain independent of scrolling.
 Settings boundary gestures are contained where supported, and splitter focus
 uses `preventScroll`.
 
-The native page-scrolling experiment was removed after physical-device feedback:
-video and settings gestures moved the same document scroller, Safari's chrome
-responded in both directions, and splitter drags never minimized it. The shared
-scrollbar did not meet the intended editor behavior. Splitter-triggered collapse
-and the editor video-swipe fallback are deferred; no synthetic scroll forwarding
-or toolbar-lock workaround is used. Video-first mode keeps its existing native
-scrolling behavior.
+The first native page-scrolling experiment was removed after physical-device
+feedback: video and settings gestures moved the same document scroller, Safari's
+chrome responded in both directions, and splitter drags never minimized it. The
+owner confirmed the restored bounded workspace did not shrink chrome.
+
+### Pinned workspace experiment with independent controls
+
+On small touch viewports, **Video swipe scrolling (experimental)** enables a
+second experiment, off by default and scoped to the current visit. Unlike the
+removed variant, the entire two-pane grid is sticky over a finite native document
+runway. The controls pane retains `overflow-y: auto` and boundary containment.
+An upward video swipe can scroll the root document while controls gestures stay
+inside their own pane. Both layouts use the same DOM and provider; desktop sizing
+falls back to the bounded workspace. Reset split exits the experiment; reload
+starts it off. The option never enters URLs or session layout preferences.
+
+Only the document's scrollbar indicator is hidden; the controls pane retains its
+own scrollbar. The root still has genuine native scroll range. Nothing forwards
+scroll deltas, synthesizes gestures, programmatically scrolls the document, or
+tries to detect/lock Safari's toolbar. Splitters retain `touch-action: none` and
+capture their resize gestures, so splitter-triggered minimization is still deferred.
+Reverse document scrolling may expand chrome; use Safari's native toolbar to
+restore it deliberately.
+
+The complete grid uses `100svh` so expanded bars do not obscure transport or
+settings, and toolbar changes do not resize the split. After collapse, additional
+viewport height can remain below the workspace rather than enlarge the video.
+Rotation still reconciles pane dimensions. The runway is finite: at its end,
+further upward swipes cannot advance the document. Device testing must assess
+whether these limits are acceptable. Video-first mode remains unchanged.
 
 ### Required physical iPhone Safari check
 
@@ -101,13 +124,23 @@ ownership and playback continuity, not Safari's actual toolbar behavior.
    accidental playback toggle, page scroll, or movement of the controls pane.
    Play the clip and repeat settings scrolling, resizing, layout changes, Fit/Fill,
    and rotation; check for provider reloads, playback resets, or lost A/B state.
-4. Check safe-area edges, Safari's address-bar keyboard opening/closing, external
+4. Enable Video swipe scrolling in settings. Swipe upward on the picture:
+   record whether chrome collapses while the complete workspace stays pinned and
+   controls retain their scroll position. Scroll controls in both directions and
+   at both boundaries: the document should not move. Repeat resizing in both
+   directions, both layouts, and after collapse. Scroll to the runway's end;
+   verify video, timeline, splitter, and every setting remain usable. Note any
+   browser-owned expansion, extra space below the workspace, or accidental playback.
+5. Turn the option off, use Reset split, and reload. Confirm the default bounded
+   workspace returns, the option starts off, and clip/layout state is preserved.
+   Check safe-area edges, Safari's address-bar keyboard opening/closing, external
    keyboard focus, and all settings' reachability. Reset/reload and editor/watch
    Back/Forward must preserve the existing URL behavior. Compare the unchanged
    video-first `/dt-SqNL4z3w?t=5-50&mute`.
 
 **Physical Safari recheck: pending.** The owner's feedback establishes the removed
-experiment's limitations; the restored pane layout still needs a device recheck.
+experiment's limitations and the bounded baseline's lack of collapse. The new
+pinned-workspace variant still needs physical verification.
 Safari owns toolbar visibility, and independent pane scrolling cannot promise
 that chrome will remain minimized.
 

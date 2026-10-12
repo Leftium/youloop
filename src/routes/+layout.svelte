@@ -62,6 +62,18 @@
 		overflow: hidden;
 	}
 
+	.editor-page:has(:global(.video-scroll)) {
+		height: auto;
+		overflow: visible;
+	}
+	/* Hide the runway indicator while keeping native scrolling and the pane scrollbar. */
+	:global(html:has(.video-scroll)) {
+		scrollbar-width: none;
+	}
+	:global(html:has(.video-scroll)::-webkit-scrollbar) {
+		display: none;
+	}
+
 	nav h1 {
 		font-size: 1.75rem;
 		margin: 0;

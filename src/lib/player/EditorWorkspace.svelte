@@ -8,6 +8,9 @@
 	const storageKey = 'youloop.editor-workspace';
 	const dividerSize = 3;
 	let grid: HTMLDivElement;
+	let mobile = $state(false);
+	let videoScrollRequested = $state(false);
+	let videoScroll = $derived(mobile && videoScrollRequested);
 	let width = $state(0);
 	let height = $state(0);
 	let preference = $state<Layout | null>(null);
@@ -32,6 +35,12 @@
 		} catch {
 			// Storage restrictions must not prevent editing or resizing.
 		}
+		const query = window.matchMedia(
+			'(pointer: coarse) and (max-width: 900px), (pointer: coarse) and (max-height: 500px)'
+		);
+		const updateMobile = () => (mobile = query.matches);
+		updateMobile();
+		query.addEventListener('change', updateMobile);
 		const observer = new ResizeObserver(() => {
 			endDrag();
 			width = grid.clientWidth;
@@ -39,6 +48,7 @@
 		});
 		observer.observe(grid);
 		return () => {
+			query.removeEventListener('change', updateMobile);
 			observer.disconnect();
 			endDrag();
 		};
@@ -118,6 +128,7 @@
 
 	function reset() {
 		endDrag();
+		videoScrollRequested = false;
 		preference = null;
 		ratios = { columns: 0.62, rows: 0.55 };
 		remember();
@@ -151,7 +162,7 @@
 	</div>
 {/snippet}
 
-<section class="editor-workspace" aria-label="Editor workspace">
+<section class="editor-workspace" class:video-scroll={videoScroll} aria-label="Editor workspace">
 	<div
 		class="workspace-grid"
 		class:dragging
@@ -192,14 +203,57 @@
 			tabindex="0"
 		>
 			{@render settings()}
+			{#if mobile}
+				<label class="video-scroll-option">
+					<input type="checkbox" bind:checked={videoScrollRequested} />
+					Video swipe scrolling (experimental)
+				</label>
+				<p class="scroll-hint">
+					Swipe upward on the picture to try minimizing Safari's toolbar. Controls scroll
+					separately. Safari owns toolbar visibility; Reset split exits the experiment.
+				</p>
+			{/if}
 		</div>
 	</div>
+	<div class="video-scroll-runway" aria-hidden="true"></div>
 </section>
 
 <style>
 	.editor-workspace {
 		height: 100dvh;
 		min-height: 0;
+	}
+	.video-scroll-option {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		min-height: 44px;
+		margin-top: 1rem;
+	}
+	.scroll-hint {
+		font-size: 0.8rem;
+		margin: 0;
+	}
+	.video-scroll-runway {
+		display: none;
+	}
+	.video-scroll {
+		height: auto;
+		overflow-anchor: none;
+	}
+	.video-scroll .workspace-grid {
+		position: sticky;
+		top: 0;
+		/* Keep the complete workspace visible with expanded bars and avoid
+		   toolbar-driven split changes. Rotation still reconciles the viewport. */
+		height: 100svh;
+	}
+	.video-scroll .video-scroll-runway {
+		display: block;
+		/* Native document scroll room belongs to the picture, not the controls.
+		   The whole grid stays pinned through this finite containing section. */
+		height: calc(100svh + 80px);
+		pointer-events: none;
 	}
 	.workspace-layout {
 		display: flex;

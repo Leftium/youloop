@@ -650,3 +650,177 @@ test.describe('mobile pane scrolling', () => {
 		});
 	}
 });
+
+test.describe('pinned workspace with independent settings experiment', () => {
+	for (const viewport of [
+		{ width: 390, height: 844 },
+		{ width: 844, height: 390 }
+	]) {
+		test.describe(`${viewport.width}x${viewport.height}`, () => {
+			test.use({ hasTouch: true, isMobile: true, viewport, screen: viewport });
+			test('video scrolls the document while settings, splitter and live provider stay independent', async ({
+				page,
+				context
+			}) => {
+				await openEditor(page);
+				const option = page.getByRole('checkbox', { name: 'Video swipe scrolling (experimental)' });
+				await expect(option).not.toBeChecked();
+				await option.check();
+				const url = page.url();
+				const offset = () => page.evaluate(() => scrollY);
+				async function pinned() {
+					await expect
+						.poll(() =>
+							page.evaluate(() => {
+								const grid = document.querySelector('.workspace-grid')!.getBoundingClientRect();
+								const preview = document.querySelector('#editor-preview')!.getBoundingClientRect();
+								const timeline = document.querySelector('.wrap-sliders')!.getBoundingClientRect();
+								const settings = document.querySelector('#editor-settings')!;
+								const pane = settings.getBoundingClientRect();
+								return (
+									Math.abs(grid.top) <= 1 &&
+									Math.abs(grid.bottom - innerHeight) <= 1 &&
+									preview.top >= 0 &&
+									preview.bottom <= innerHeight + 1 &&
+									timeline.top >= preview.top &&
+									timeline.bottom <= preview.bottom &&
+									pane.top >= 0 &&
+									pane.bottom <= innerHeight + 1 &&
+									getComputedStyle(settings).overflowY === 'auto' &&
+									document.documentElement.scrollWidth <= innerWidth
+								);
+							})
+						)
+						.toBe(true);
+					await identity(page);
+				}
+				await pinned();
+				await page.locator('#editor-settings').evaluate((el) => {
+					const tall = document.createElement('div');
+					tall.style.height = '1400px';
+					el.prepend(tall);
+					el.scrollTop = 0;
+				});
+				const cdp = await context.newCDPSession(page);
+				async function swipe(x: number, y: number, dx: number, dy: number) {
+					await cdp.send('Input.dispatchTouchEvent', {
+						type: 'touchStart',
+						touchPoints: [{ x, y }]
+					});
+					await page.waitForTimeout(50);
+					for (let step = 1; step <= 8; step++) {
+						await cdp.send('Input.dispatchTouchEvent', {
+							type: 'touchMove',
+							touchPoints: [{ x: x + (dx * step) / 8, y: y + (dy * step) / 8 }]
+						});
+						await page.waitForTimeout(30);
+					}
+					await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+					await page.waitForTimeout(400);
+				}
+				const settings = page.locator('#editor-settings');
+				const pane = (await settings.boundingBox())!;
+				await swipe(pane.x + pane.width / 2, pane.y + pane.height - 25, 0, -120);
+				await expect.poll(() => settings.evaluate((el) => el.scrollTop)).toBeGreaterThan(0);
+				expect(await offset()).toBe(0);
+				await pinned();
+				await settings.evaluate((el) => {
+					el.scrollTop = 0;
+				});
+				const picture = (await page.locator('.player').boundingBox())!;
+				await swipe(picture.x + picture.width / 4, picture.y + picture.height - 25, 0, -80);
+				await expect.poll(offset).toBeGreaterThan(0);
+				expect(await settings.evaluate((el) => el.scrollTop)).toBe(0);
+				expect(
+					await page
+						.locator('youtube-video')
+						.evaluate((el) => (el as HTMLElement & { paused: boolean }).paused)
+				).toBe(true);
+				await pinned();
+				const root = await offset();
+				for (const bottom of [true, false]) {
+					await settings.evaluate((el, bottom) => {
+						el.scrollTop = bottom ? el.scrollHeight : 0;
+					}, bottom);
+					await swipe(
+						pane.x + pane.width / 2,
+						bottom ? pane.y + pane.height - 25 : pane.y + 25,
+						0,
+						bottom ? -100 : 100
+					);
+					expect(await offset()).toBe(root);
+					await pinned();
+				}
+				await page.getByRole('button', { name: 'Play', exact: true }).click();
+				await page.waitForFunction(
+					() =>
+						(
+							document.querySelector('youtube-video') as HTMLElement & {
+								engine: { getPlayerState(): number };
+							}
+						).engine.getPlayerState() === 1
+				);
+				const started = await page
+					.locator('youtube-video')
+					.evaluate((el) => (el as HTMLElement & { currentTime: number }).currentTime);
+				for (const delta of [20, -20, 20, -20]) {
+					const box = (await divider(page).boundingBox())!;
+					const before = await value(page);
+					const columns = viewport.width > viewport.height;
+					await swipe(
+						box.x + box.width / 2,
+						box.y + box.height / 2,
+						columns ? delta : 0,
+						columns ? 0 : delta
+					);
+					expect(Math.abs((await value(page)) - before - delta)).toBeLessThanOrEqual(1);
+					expect(await offset()).toBe(root);
+					await expect(page.locator('.workspace-grid')).not.toHaveClass(/dragging/);
+					await pinned();
+				}
+				// Keyboard scrolling the document to its end must not unpin the workspace.
+				await divider(page).focus();
+				await page.keyboard.press('PageDown');
+				await page.keyboard.press('PageDown');
+				await expect
+					.poll(() =>
+						page.evaluate(() =>
+							Math.abs(scrollY - (document.documentElement.scrollHeight - innerHeight))
+						)
+					)
+					.toBeLessThanOrEqual(1);
+				await pinned();
+				expect(await offset()).toBeGreaterThanOrEqual(root);
+				if (viewport.width > viewport.height) {
+					await page.getByRole('button', { name: 'Stacked', exact: true }).click();
+					await pinned();
+					await page.getByRole('button', { name: 'Side by side', exact: true }).click();
+					await pinned();
+				}
+				await page.setViewportSize({ width: 1280, height: 800 });
+				await expect(page.locator('.editor-workspace')).not.toHaveClass(/video-scroll/);
+				await geometry(page);
+				await page.setViewportSize(viewport);
+				await expect(page.locator('.editor-workspace')).toHaveClass(/video-scroll/);
+				await pinned();
+				expect(
+					await page.locator('youtube-video').evaluate((el) => {
+						const media = el as HTMLElement & {
+							paused: boolean;
+							currentTime: number;
+							playbackRate: number;
+						};
+						return !media.paused && media.playbackRate === 1.5 && media.currentTime;
+					})
+				).toBeGreaterThanOrEqual(started);
+				expect(page.url()).toBe(url);
+				await page.getByRole('button', { name: 'Reset split', exact: true }).click();
+				await expect(option).not.toBeChecked();
+				await geometry(page);
+				await identity(page);
+				await page.reload();
+				await expect(option).not.toBeChecked();
+			});
+		});
+	}
+});
