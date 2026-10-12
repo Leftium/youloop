@@ -65,6 +65,105 @@ can use `{ notifyScroll: true, skipViewportSimulation: true }`; that explicitly
 dispatches scroll notifications and omits the viewport-resize simulation. It
 does not verify native touch scrolling or Safari chrome.
 
+## Code quality audits
+
+Use Node 24 and the pinned pnpm version in `package.json`. Install with
+`pnpm install --frozen-lockfile` before running the audits:
+
+`pnpm knip` first runs `svelte-kit sync` because its TypeScript config loader
+needs the generated `$app/tsconfig`, including on a fresh checkout.
+
+| Command            | Purpose                                                                                                  |
+| ------------------ | -------------------------------------------------------------------------------------------------------- |
+| `pnpm knip`        | Unused files, exports, types, and dependencies.                                                          |
+| `pnpm fallow`      | Summary of dead code, duplication, and health, compared with the committed duplication/health baselines. |
+| `pnpm fallow:full` | Individual findings and structural context with the same baselines.                                      |
+| `pnpm code-qc`     | Run both tools even if Knip reports issues; return Knip's native exit status and print Fallow failures.  |
+
+Knip is the primary dead-code signal. Fallow is a secondary signal; independently
+verify reachability before removing anything it flags. Both audits are permanently
+advisory for merge and deployment. They supplement `pnpm check`, `pnpm lint`,
+tests, and the build. They are not invoked by those commands, the required hosting
+workflow, or Vercel. If CI reporting is added, keep it optional and nonrequired,
+separate from the deployment job, and report failures visibly. A nonzero local
+Knip or `code-qc` exit status does not make the audit a required check.
+The pinned Fallow CLI also returns 1 in human output for the retained dead-code
+findings and aggregate health thresholds, even with the known health identities
+filtered. Its baseline-filtered JSON report shows zero new clones and health
+findings; use that report to distinguish new findings from aggregate counts.
+
+The framework/tool plugins discover SvelteKit routes and hooks, SSR metadata,
+Node tests, Playwright tests, and build configuration. Both configs explicitly
+include `src/params.ts` (SvelteKit 3 parameter matchers) and the eight
+`src/lib/player/*.browser-test.ts` modules loaded through computed Playwright URLs
+or DevTools. Their fixture imports remain in the graph. No bridge is needed.
+Fallow excludes generated `.svelte-kit` and `.vercel` output and exempts only the
+`~icons` virtual package, its two installed Iconify collections, and the Nimble
+stylesheet bundled by Sass. Revisit those dependency exceptions if the icon or
+stylesheet imports change. Knip needs no dependency exceptions.
+
+Fallow's default duplication exclusions omit `*.test.*` and `*.spec.*`; this
+project disables those defaults so the upcoming test cleanup can inspect the
+whole suite. Duplication still excludes module wiring by default. Health keeps
+the default thresholds and includes tests. CRAP risk estimates use static
+coverage estimates, not measured test coverage, so they do not establish that
+code is untested. Architecture boundaries and policy rule packs are not
+configured; zero counts for those checks do not establish architectural health.
+
+### Initial findings and deferred cleanup
+
+The tooling adoption for [#33](https://github.com/Leftium/youloop/issues/33)
+retains source and tests. It records the following inventory for
+[#32](https://github.com/Leftium/youloop/issues/32):
+
+- Knip reports the externally unused `loadOriginalAspect` function export and
+  `ShareUrlError` type export. Both declarations are used within their own files;
+  cleanup should consider removing the export, not deleting the implementation
+  or type. These findings stay visible, with local Knip exit status 1.
+- Fallow also reports the empty `src/lib/index.ts` placeholder. Knip treats this
+  as the package import entry. Confirm its alias/manifest role before cleanup.
+- The duplication baseline contains 12 clone groups, 199 duplicated lines
+  (2.34%), across six files. Most are in the browser specs, alongside orientation
+  setup and viewport restoration in the browser regression modules.
+- The health baseline captures 52 above-threshold findings in 623 analyzed
+  functions, including the large watch-control regression, player templates,
+  URL parsing, and orientation logic. Baseline comparison removes those known
+  findings from the detailed list; aggregate health scores, large-function
+  context, and dead-code findings remain visible.
+
+### Maintaining baselines
+
+`fallow-baselines/dupes.json` matches clone content and occurrences, with location
+keys retained by Fallow. `fallow-baselines/health.json` was saved in identity mode,
+which matches file, function name, and finding category instead of only a file's
+finding count. New identities or clone groups remain reportable. Functions with
+the same name in one file, including anonymous functions, can share an identity;
+identity matching also does not guarantee detection of worsening metrics on an
+existing finding. Review full reports when assessing a refactor.
+
+To see the inventory without baseline filtering:
+
+```bash
+pnpm exec fallow --summary
+pnpm exec fallow health
+pnpm exec fallow dupes
+```
+
+After reviewing an intentional baseline change, regenerate the relevant file:
+
+```bash
+pnpm exec fallow dupes --save-baseline fallow-baselines/dupes.json
+pnpm exec fallow health --save-baseline fallow-baselines/health.json --baseline-mode identity
+pnpm exec prettier --write fallow-baselines/*.json
+pnpm code-qc
+```
+
+The standalone health command can exit 1 after successfully writing its baseline
+because existing findings exceed thresholds. Review the saved diff and command
+output rather than treating that exit status as a failed write. Do not reset
+baselines just to hide new findings. Remove resolved entries after cleanup, and
+review any growth with its rationale. Dead-code findings have no baseline.
+
 ## Editor workspace and mobile Safari
 
 The editor keeps video, timeline, transport, and splitter in the preview while
