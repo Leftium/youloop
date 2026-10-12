@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { onMount, untrack, type Snippet } from 'svelte';
-	import IcRoundViewColumn from '~icons/ic/round-view-column';
 	import IcRoundViewAgenda from '~icons/ic/round-view-agenda';
 	import IcRoundRestartAlt from '~icons/ic/round-restart-alt';
 
@@ -136,7 +135,7 @@
 					: 'Side by side'}
 				aria-pressed={layout === 'columns'}
 				disabled={width < 660}
-				onclick={() => choose('columns')}><IcRoundViewColumn /></button
+				onclick={() => choose('columns')}><IcRoundViewAgenda class="columns-icon" /></button
 			>
 			<button
 				aria-label="Stacked"
@@ -216,13 +215,26 @@
 		height: 44px;
 		padding: 0;
 		margin: 0;
+		border: 0;
+		background: #646b79;
+		color: white;
+	}
+	.workspace-layout button:hover:not(:disabled) {
+		background: #5c6370;
+	}
+	.workspace-layout button:focus-visible {
+		outline: 2px solid #646b79;
+		outline-offset: 2px;
 	}
 	.workspace-layout :global(svg) {
 		width: 24px;
 		height: 24px;
 	}
-	.workspace-layout button[aria-pressed='true'] {
-		box-shadow: inset 0 -3px #01aaff;
+	.workspace-layout :global(.columns-icon) {
+		transform: rotate(90deg);
+	}
+	.workspace-layout button[aria-pressed='false'] :global(svg) {
+		opacity: 0.4;
 	}
 	.workspace-grid {
 		display: grid;
