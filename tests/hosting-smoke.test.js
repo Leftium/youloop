@@ -8,7 +8,9 @@ for (const path of [
 	'/',
 	'/?v=dt-SqNL4z3w&t=31-38',
 	'/s?v=dt-SqNL4z3w&a=31&b=38',
-	'/dt-SqNL4z3w?t=31-38'
+	'/dt-SqNL4z3w',
+	'/dt-SqNL4z3w/31~38',
+	'/dt-SqNL4z3w/-30.5~-5.25'
 ]) {
 	test(`direct request and reload: ${path}`, async () => {
 		const ids = new Set();

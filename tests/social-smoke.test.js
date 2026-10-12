@@ -6,7 +6,7 @@ assert.ok(origin, 'Set HOSTING_URL to a local server or public deployment');
 const id = 'dt-SqNL4z3w';
 const requireVideo = process.env.REQUIRE_VIDEO_METADATA === '1';
 
-for (const route of ['/', '/s', `/${id}`]) {
+for (const route of ['/', '/s']) {
 	test(`crawler direct request and reload contain social head: ${route}`, async () => {
 		for (let attempt = 0; attempt < 2; attempt++) {
 			const response = await fetch(new URL(`${route}?v=${id}&a=31&b=38&fit=cover`, origin), {
@@ -30,7 +30,7 @@ for (const route of ['/', '/s', `/${id}`]) {
 			]) {
 				assert.ok(head.includes(`"${tag}"`), tag);
 			}
-			assert.ok(head.includes(`content="https://youloop.leftium.com/${id}?t=31-38"`));
+			assert.ok(head.includes(`content="https://youloop.leftium.com/${id}/31~38"`));
 			assert.equal((head.match(/<title>/g) ?? []).length, 1);
 			if (requireVideo) {
 				assert.match(head, /property="og:title" content="[^"<>]+ - YouLoop"/);
@@ -58,11 +58,11 @@ for (const route of ['/', '/s', `/${id}`]) {
 }
 
 test('full-video sentinel is omitted from server-rendered OG URLs', async () => {
-	for (const route of ['/', '/s', `/${id}`]) {
+	for (const route of ['/', '/s']) {
 		const response = await fetch(new URL(`${route}?v=${id}&a=31&b=99999`, origin));
 		assert.equal(response.status, 200);
 		const head = (await response.text()).split('</head>')[0];
-		assert.ok(head.includes(`property="og:url" content="https://youloop.leftium.com/${id}?t=31-"`));
+		assert.ok(head.includes(`property="og:url" content="https://youloop.leftium.com/${id}/31"`));
 	}
 });
 
@@ -72,19 +72,16 @@ test('bare root is generic and new-style editor URLs keep video-specific SSR ide
 	assert.match(generic, /property="og:title" content="YouLoop"/);
 	assert.match(generic, /property="og:type" content="website"/);
 	assert.match(generic, /property="og:url" content="https:\/\/youloop.leftium.com\/"/);
-	for (const route of [`/?v=${id}`, `/${id}`]) {
+	for (const route of [`/?v=${id}&t=24.5~32.75`, `/${id}/24.5~32.75`]) {
 		const response = await fetch(
-			new URL(
-				`${route}${route.includes('?') ? '&' : '?'}t=24.5-32.75&once&mute&vertical=0&fill=0`,
-				origin
-			)
+			new URL(`${route}${route.includes('?') ? '&' : '?'}once&mute&vertical=0&fill=0`, origin)
 		);
 		assert.equal(response.status, 200);
 		const html = await response.text();
 		const head = html.split('</head>')[0];
 		assert.match(
 			head,
-			new RegExp(`property="og:url" content="https://youloop.leftium.com/${id}\\?t=24.5-32.75"`)
+			new RegExp(`property="og:url" content="https://youloop.leftium.com/${id}/24.5~32.75"`)
 		);
 		if (requireVideo) assert.match(head, /property="og:type" content="video.other"/);
 		assert.equal(/class="brand(?: |")/.test(html), route.startsWith('/?'));
@@ -113,4 +110,29 @@ test('unrelated root query keys keep generic SSR and the demo editor', async () 
 		assert.match(html, /Invalid link/);
 		assert.doesNotMatch(html, /class="media-canvas(?: |")/);
 	}
+});
+
+test('signed watch paths render canonical social identity directly and on reload', async () => {
+	for (const range of ['', '/-60', '/-30.5~-5.25', '/0~60', '/120~']) {
+		const canonical = range === '/0~60' ? '/~60' : range === '/120~' ? '/120' : range;
+		for (let attempt = 0; attempt < 2; attempt++) {
+			const response = await fetch(new URL(`/${id}${range}?mute&speed=2&once`, origin), {
+				headers: { 'user-agent': 'facebookexternalhit/1.1' }
+			});
+			assert.equal(response.status, 200);
+			const html = await response.text();
+			assert.ok(
+				html
+					.split('</head>')[0]
+					.includes(`property="og:url" content="https://youloop.leftium.com/${id}${canonical}"`)
+			);
+			assert.match(html, /media-canvas/);
+		}
+	}
+	for (const path of [`/${id}?t=31-38`, `/${id}/~`, `/${id}/bad`, `/${id}/`, `/${id}/31~38/`]) {
+		const html = await (await fetch(new URL(path, origin))).text();
+		assert.match(html, /Invalid link/);
+		assert.doesNotMatch(html, /class="media-canvas(?: |")/);
+	}
+	assert.equal((await fetch(new URL(`/${id}/1/2`, origin))).status, 404);
 });

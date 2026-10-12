@@ -1,4 +1,4 @@
-/** Input values use seconds; undefined flags retain default/automatic behavior. */
+/** Negative seconds are offsets from video end; undefined flags retain defaults. */
 export interface ShareUrlState {
 	videoId: string;
 	start?: number;
@@ -20,6 +20,7 @@ export type ShareUrlResult =
 
 const videoIdPattern = /^[A-Za-z0-9_-]{11}$/;
 const decimalPattern = /^\d+(?:\.\d+)?$/;
+const signedDecimalPattern = /^-?\d+(?:\.\d+)?$/;
 const flags = ['once', 'mute', 'vertical', 'fill'] as const;
 const recognized = ['v', 't', 'a', 'b', 'speed', 'orientation', 'fit', ...flags];
 
@@ -35,9 +36,17 @@ export function normalizeShareUrl(state: ShareUrlState): ShareUrlResult {
 	if (typeof state.videoId !== 'string' || !videoIdPattern.test(state.videoId)) invalid('videoId');
 	for (const key of ['start', 'end'] as const) {
 		const value = state[key];
-		if (value !== undefined && (!Number.isFinite(value) || value < 0)) invalid(key);
+		if (value !== undefined && !Number.isFinite(value)) invalid(key);
 	}
-	if (state.end !== undefined && state.end <= (state.start ?? 0)) invalid('end');
+	// Mixed origins need provider duration before their order can be validated.
+	const startIsRelative = (state.start ?? 0) < 0;
+	const endIsRelative = (state.end ?? 0) < 0;
+	if (
+		state.end !== undefined &&
+		endIsRelative === startIsRelative &&
+		state.end <= (state.start ?? 0)
+	)
+		invalid('end');
 	if (
 		state.speed !== undefined &&
 		(!Number.isFinite(state.speed) || state.speed < 0.25 || state.speed > 2)
@@ -59,13 +68,10 @@ export function normalizeShareUrl(state: ShareUrlState): ShareUrlResult {
 }
 
 /**
- * Parse an absolute URL or root-relative path (including legacy / and /s).
- * Canonical path/t/vertical/fill take precedence over v/a+b/orientation/fit,
- * even when invalid. Duplicate recognized keys fail, including shadowed aliases;
- * unknown keys and fragments are ignored. Malformed selected values fail the
- * whole parse rather than quietly changing the requested video or clip.
- * Empty boolean values (bare or '=') mean true. Both '-' and ':' delimit ranges.
- * Legacy b=0 and b=99999 mean video end; canonical t endpoints are literal.
+ * Watch routes use /ID[/START~END]; editor / and legacy /s retain query bounds.
+ * Duplicate recognized keys fail, including shadowed aliases. Malformed selected
+ * values fail the whole parse. Unknown query keys and fragments are ignored.
+ * Legacy b=0/99999 mean video end; explicit range endpoints remain literal.
  */
 export function parseShareUrl(input: string | URL): ShareUrlResult {
 	let url: URL;
@@ -86,19 +92,18 @@ export function parseShareUrl(input: string | URL): ShareUrlResult {
 	}
 	if (errors.length) return { ok: false, errors };
 
-	let videoId: string;
+	const editor = ['/', '/s'].includes(url.pathname);
+	let segments: string[];
 	try {
-		videoId = ['/', '/s'].includes(url.pathname)
-			? (params.get('v') ?? '')
-			: decodeURIComponent(url.pathname.slice(1));
+		segments = url.pathname.slice(1).split('/').map(decodeURIComponent);
 	} catch {
 		return { ok: false, errors: [{ parameter: 'videoId', code: 'invalid' }] };
 	}
-	const state: ShareUrlState = { videoId };
-	const seconds = (raw: string, key: string): number | undefined => {
+	const state: ShareUrlState = { videoId: editor ? (params.get('v') ?? '') : segments[0] };
+	const seconds = (raw: string, key: string, signed = false): number | undefined => {
 		const value = Number(raw);
 		if (
-			!decimalPattern.test(raw) ||
+			!(signed ? signedDecimalPattern : decimalPattern).test(raw) ||
 			!Number.isFinite(value) ||
 			(value === 0 && /[1-9]/.test(raw))
 		) {
@@ -107,13 +112,25 @@ export function parseShareUrl(input: string | URL): ShareUrlResult {
 		}
 		return value;
 	};
-	if (params.has('t')) {
-		const match = /^(\d+(?:\.\d+)?)?[-:](\d+(?:\.\d+)?)?$/.exec(params.get('t')!);
-		if (!match) invalid('t');
+	const parseRange = (raw: string, key: string, legacy = false) => {
+		const match = legacy
+			? /^(\d+(?:\.\d+)?)?[-:](\d+(?:\.\d+)?)?$/.exec(raw)
+			: /^(-?\d+(?:\.\d+)?)?(?:~(-?\d+(?:\.\d+)?)?)?$/.exec(raw);
+		if (!match || (!legacy && !match[1] && !match[2])) invalid(key);
 		else {
-			if (match[1]) state.start = seconds(match[1], 't');
-			if (match[2]) state.end = seconds(match[2], 't');
+			if (match[1]) state.start = seconds(match[1], key, !legacy);
+			if (match[2]) state.end = seconds(match[2], key, !legacy);
 		}
+	};
+	if (!editor) {
+		if (segments.length > 2) invalid('range');
+		if (segments.length === 2) parseRange(segments[1], 'range');
+		// Never discard obsolete clip queries on watch routes.
+		for (const key of ['t', 'a', 'b']) if (params.has(key)) invalid(key);
+	} else if (params.has('t')) {
+		const raw = params.get('t')!;
+		// Root editor keeps the old positive-only grammar. Signed intent uses ~.
+		parseRange(raw, 't', !raw.includes('~'));
 	} else {
 		if (params.has('a')) state.start = seconds(params.get('a')!, 'a');
 		if (params.has('b')) {
@@ -145,6 +162,7 @@ export function parseShareUrl(input: string | URL): ShareUrlResult {
 
 // Number.toString uses exponents for small/large numbers; the URL grammar uses decimals.
 function decimal(value: number): string {
+	if (value < 0) return `-${decimal(-value)}`;
 	const [mantissa, exponent] = String(value).split('e');
 	if (exponent === undefined) return mantissa;
 	const [whole, fraction = ''] = mantissa.split('.');
@@ -155,21 +173,23 @@ function decimal(value: number): string {
 	return `${digits.slice(0, point)}.${digits.slice(point)}`;
 }
 
-/** Return a root-relative canonical URL; throw RangeError for invalid state. */
-export function serializeShareUrl(state: ShareUrlState): string {
+function validatedState(state: ShareUrlState): ShareUrlState {
 	const result = normalizeShareUrl(state);
 	if (!result.ok) {
 		throw new RangeError(
 			`Invalid share URL state: ${result.errors.map((e) => e.parameter).join(', ')}`
 		);
 	}
-	const value = result.value;
+	return result.value;
+}
+
+function rangeSegment(value: ShareUrlState): string {
+	const start = value.start === undefined ? '' : decimal(value.start);
+	return value.end === undefined ? start : `${start}~${decimal(value.end)}`;
+}
+
+function optionQuery(value: ShareUrlState): string[] {
 	const query: string[] = [];
-	if (value.start !== undefined || value.end !== undefined) {
-		query.push(
-			`t=${value.start === undefined ? '' : decimal(value.start)}-${value.end === undefined ? '' : decimal(value.end)}`
-		);
-	}
 	for (const key of ['once', 'mute'] as const) {
 		if (value[key] !== undefined) query.push(value[key] ? key : `${key}=0`);
 	}
@@ -177,14 +197,46 @@ export function serializeShareUrl(state: ShareUrlState): string {
 	for (const key of ['vertical', 'fill'] as const) {
 		if (value[key] !== undefined) query.push(value[key] ? key : `${key}=0`);
 	}
-	return `/${value.videoId}${query.length ? `?${query.join('&')}` : ''}`;
+	return query;
 }
 
-/** Preserve editor intent using the same canonical query grammar. */
+/** Return a root-relative watch URL, retaining duration-relative expressions. */
+export function serializeShareUrl(state: ShareUrlState): string {
+	const value = validatedState(state);
+	const range = rangeSegment(value);
+	const query = optionQuery(value);
+	return `/${value.videoId}${range ? `/${range}` : ''}${query.length ? `?${query.join('&')}` : ''}`;
+}
+
+/** Editor intent stays at root; ~ distinguishes signed starts from legacy t=-END. */
 export function serializeEditorUrl(state: ShareUrlState): string {
-	const canonical = serializeShareUrl(state);
-	const query = canonical.split('?')[1];
-	return `/?v=${state.videoId}${query ? `&${query}` : ''}`;
+	const value = validatedState(state);
+	let range = rangeSegment(value);
+	if (range && value.end === undefined) range += '~';
+	const query = [`v=${value.videoId}`, ...(range ? [`t=${range}`] : []), ...optionQuery(value)];
+	return `/?${query.join('&')}`;
+}
+
+export type ResolvedClipRange = { ok: true; start: number; end: number } | { ok: false };
+
+/** Clamp to the video without swapping or expanding a collapsed/reversed range. */
+export function resolveClipRange(
+	state: Pick<ShareUrlState, 'start' | 'end'>,
+	duration: number
+): ResolvedClipRange {
+	if (
+		!Number.isFinite(duration) ||
+		duration <= 0 ||
+		[state.start, state.end].some((value) => value !== undefined && !Number.isFinite(value))
+	)
+		return { ok: false };
+	const resolve = (value: number) =>
+		Math.max(0, Math.min(duration, value < 0 ? duration + value : value));
+	const start = resolve(state.start ?? 0);
+	const end = state.end === undefined ? duration : resolve(state.end);
+	return Number.isFinite(start) && Number.isFinite(end) && end > start
+		? { ok: true, start, end }
+		: { ok: false };
 }
 
 /** The player supplies a demo only when legacy editor/watch URLs omit v entirely. */

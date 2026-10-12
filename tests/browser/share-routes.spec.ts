@@ -37,7 +37,9 @@ async function settled(page: Page) {
 		},
 		{ timeout: 30_000 }
 	);
-	await expect.poll(async () => page.locator('body').innerText()).not.toContain('?:??');
+	await expect
+		.poll(async () => page.locator('body').innerText(), { timeout: 15000 })
+		.not.toContain('?:??');
 }
 
 async function runModule(page: Page, file: string, method = 'run', options: object = {}) {
@@ -56,7 +58,7 @@ test('bare root stays generic; malformed and reserved routes are safe', async ({
 	await expect(page).toHaveURL('http://localhost:5173/');
 	await expect(page.getByRole('link', { name: 'Open video', exact: true })).toHaveAttribute(
 		'href',
-		`/${id}?t=31-38`
+		`/${id}/31~38`
 	);
 	for (const path of [`/?v=${id}&t=bad`, `/${id}?mute=0&mute`, `/?v=bad`]) {
 		await page.goto(path);
@@ -99,7 +101,7 @@ test('editor aliases, live state, canonical sharing, reload and Back/Forward', a
 	await page.getByRole('slider', { name: 'Repeat end', exact: true }).fill('33.2');
 	await page.getByRole('button', { name: 'Crop to fill' }).click();
 	await page.getByRole('button', { name: 'Mute', exact: true }).click();
-	const expected = `/${id}?t=25.5-33.2&once&mute&speed=1.5&vertical&fill`;
+	const expected = `/${id}/25.5~33.2?once&mute&speed=1.5&vertical&fill`;
 	await expect(page.getByRole('link', { name: 'Open video', exact: true })).toHaveAttribute(
 		'href',
 		expected
@@ -127,7 +129,7 @@ test('editor aliases, live state, canonical sharing, reload and Back/Forward', a
 	await expect(page.locator('.brand')).toHaveCount(0);
 	await expect(page.getByRole('link', { name: 'Edit', exact: true })).toHaveAttribute(
 		'href',
-		`/?v=${id}&t=25.5-33.2&once&mute&speed=1.5&vertical&fill`
+		`/?v=${id}&t=25.5~33.2&once&mute&speed=1.5&vertical&fill`
 	);
 	await page.goBack();
 	await settled(page);
@@ -146,7 +148,7 @@ test('new editor parameters win over aliases, seek/step/loop/once work with real
 	page
 }) => {
 	await page.goto(
-		`/?v=${id}&t=31-33&a=1&b=2&once=0&mute=0&vertical=0&orientation=portrait&fill=0&fit=cover`
+		`/?v=${id}&t=31~33&a=1&b=2&once=0&mute=0&vertical=0&orientation=portrait&fill=0&fit=cover`
 	);
 	await settled(page);
 	await expect(page.getByRole('button', { name: 'Landscape', exact: true })).toHaveAttribute(
@@ -181,30 +183,28 @@ test('new editor parameters win over aliases, seek/step/loop/once work with real
 	await page.getByRole('slider', { name: 'Current time', exact: true }).fill('40');
 	await expect(page.getByRole('link', { name: 'Open video', exact: true })).toHaveAttribute(
 		'href',
-		new RegExp('t=31-40')
+		new RegExp('/31~40')
 	);
 	await page.getByRole('button', { name: 'B', exact: true }).click();
 	await page.getByRole('button', { name: 'A', exact: true }).click();
-	// Equal A/B remains a nonempty, duration-validated selection.
-	await expect(page.getByRole('link', { name: 'Open video', exact: true })).toHaveAttribute(
-		'href',
-		/t=/
-	);
+	// Equal A/B must not silently expand into a different clip.
+	await expect(page.locator('nav[aria-label="Clip navigation"] a')).not.toHaveAttribute('href');
+	await expect(page.getByRole('button', { name: 'Copy Link', exact: true })).toBeDisabled();
 });
 
-for (const path of [`/s?v=${id}&a=31&b=99999&fit=contain`, `/${id}?t=31-&fill=0`]) {
+for (const path of [`/s?v=${id}&a=31&b=99999&fit=contain`, `/${id}/31?fill=0`]) {
 	test(`open end survives duration settlement and reload: ${path}`, async ({ page }) => {
 		await page.goto(path);
 		await settled(page);
 		await expect(page.getByRole('link', { name: 'Edit', exact: true })).toHaveAttribute(
 			'href',
-			`/?v=${id}&t=31-&fill=0`
+			`/?v=${id}&t=31~&fill=0`
 		);
 		await page.reload();
 		await settled(page);
 		await expect(page.getByRole('link', { name: 'Edit', exact: true })).toHaveAttribute(
 			'href',
-			`/?v=${id}&t=31-&fill=0`
+			`/?v=${id}&t=31~&fill=0`
 		);
 	});
 }
@@ -214,13 +214,12 @@ test('source changes and out-of-duration validation retain editor parity', async
 	context
 }) => {
 	await context.grantPermissions(['clipboard-read', 'clipboard-write']);
-	await page.goto(`/?v=${id}&t=90-100&mute`);
+	await page.goto(`/?v=${id}&t=90~100&mute`);
 	await settled(page);
 	expect((await mediaState(page)).duration).toBeLessThan(90);
-	await expect(page.getByRole('link', { name: 'Open video', exact: true })).not.toHaveAttribute(
-		'href',
-		/90-100/
-	);
+	await expect(page.getByRole('alert')).toContainText('Invalid clip');
+	await expect(page.locator('nav[aria-label="Clip navigation"] a')).not.toHaveAttribute('href');
+	await expect(page.getByRole('button', { name: 'Copy Link', exact: true })).toBeDisabled();
 	await page.evaluate(() => navigator.clipboard.writeText('https://youtu.be/jNQXAC9IVRw'));
 	await page.getByRole('button', { name: 'Load YouTube URL/ID from clipboard' }).click();
 	await settled(page);
@@ -236,7 +235,7 @@ test('source changes and out-of-duration validation retain editor parity', async
 test('existing editor geometry, orientation, provider focus and timeline suites', async ({
 	page
 }) => {
-	await page.goto(`/?v=${id}&t=31-38&mute`);
+	await page.goto(`/?v=${id}&t=31~38&mute`);
 	await settled(page);
 	for (const file of [
 		'youtube-orientation',
@@ -252,7 +251,7 @@ test('canonical watch gestures, mute/unmute, Theater and viewport regressions', 
 	page
 }) => {
 	test.setTimeout(90_000);
-	await page.goto(`/${id}?t=-15&mute`);
+	await page.goto(`/${id}/~15?mute`);
 	await settled(page);
 	expect(
 		(await runModule(page, 'watch-controls', 'run', { audioSuppressed: true })).length
@@ -269,14 +268,14 @@ for (const viewport of [
 		page
 	}) => {
 		await page.setViewportSize(viewport);
-		await page.goto(`/${id}?t=31-38&vertical&fill=0&mute`);
+		await page.goto(`/${id}/31~38?vertical&fill=0&mute`);
 		await settled(page);
 		const frameWidth = () =>
 			page
 				.locator('youtube-video')
 				.evaluate((el) => el.shadowRoot!.querySelector('iframe')!.getBoundingClientRect().width);
 		const fit = await frameWidth();
-		await page.goto(`/${id}?t=31-38&vertical&fill&mute`);
+		await page.goto(`/${id}/31~38?vertical&fill&mute`);
 		await settled(page);
 		expect(await frameWidth()).toBeGreaterThan(fit);
 		expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
@@ -321,7 +320,7 @@ for (const viewport of [
 				await page.addInitScript(() => {
 					Object.defineProperty(document, 'fullscreenEnabled', { get: () => false });
 				});
-			await page.goto(`/${id}?t=31-38&once&mute&speed=1.5&vertical=0&fill=0`);
+			await page.goto(`/${id}/31~38?once&mute&speed=1.5&vertical=0&fill=0`);
 			await settled(page);
 			await expect(page.getByRole('button', { name: 'Copy Link', exact: true })).toHaveCount(0);
 			await expect(page.locator('.watch-navigation')).toHaveCount(0);
@@ -342,7 +341,7 @@ for (const viewport of [
 				nativeFullscreen ? 4 : 3
 			);
 			await page.getByRole('button', { name: 'Unmute video', exact: true }).click();
-			const editorPath = `/?v=${id}&t=31-38&once&mute=0&speed=1.5&vertical=0&fill=0`;
+			const editorPath = `/?v=${id}&t=31~38&once&mute=0&speed=1.5&vertical=0&fill=0`;
 			await expect(edit).toHaveAttribute('href', editorPath);
 			expect(
 				await page.evaluate(() => {

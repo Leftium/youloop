@@ -17,7 +17,7 @@
 	<SocialHead metadata={data.social} />
 {/if}
 
-{#if page.route.id === '/s' || page.route.id === '/[videoId=videoId]'}
+{#if page.route.id === '/s' || page.route.id === '/[videoId=videoId]/[[range]]'}
 	{@render children()}
 {:else if page.route.id === '/'}
 	<main class="editor-page">{@render children()}</main>
