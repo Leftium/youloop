@@ -377,6 +377,7 @@
 	}
 	@media (orientation: portrait) {
 		.video-scroll .settings-pane {
+			border-bottom: 1px solid var(--nc-border);
 			/* lvh extends behind expanded bars. A scrollable reserve lifts the
 			   final controls clear of them without resizing the preview. */
 			--browser-chrome-reserve: max(0px, calc(100lvh - 100svh));

@@ -83,7 +83,8 @@ runway. Controls retain their own `overflow-y: auto` scroller, with
 Only the document scrollbar indicator is hidden; the controls scrollbar remains.
 The controls pane uses Nimble's `--nc-surface-2`; the preview uses surface 1.
 Mobile document scroll room matches surface 2 to hide the contrasting strip
-exposed during Safari toolbar transitions. On mobile the controls content
+exposed during Safari toolbar transitions. A one-pixel Nimble border at the
+portrait controls bottom edge marks the division from the matching chrome area. On mobile the controls content
 has a minimum height one pixel greater than its available area, giving even short
 content a native scroll range. The owner confirmed this restores independent
 scrolling for controls whose real content fits without scrolling. It adds no touch cancellation or root-scroll lock.
