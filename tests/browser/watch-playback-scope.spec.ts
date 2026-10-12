@@ -47,9 +47,9 @@ async function play(page: Page) {
 	await expect.poll(async () => (await state(page)).providerState).toBe(1);
 }
 
-for (const route of [`/${id}?t=5-15`, `/s?v=${id}&a=5&b=15`]) {
+for (const route of [`/${id}/5~15`, `/s?v=${id}&a=5&b=15`]) {
 	test(`scope switches preserve playback, URL and provider: ${route}`, async ({ page }) => {
-		await open(page, `${route}&mute&speed=1.5`);
+		await open(page, `${route}${route.includes('?') ? '&' : '?'}mute&speed=1.5`);
 		await expect(timeline(page)).toHaveAttribute('data-mode', 'clip');
 		await expect(timeline(page)).toHaveAttribute('aria-valuemax', '10');
 		const originalUrl = page.url();
@@ -115,7 +115,7 @@ for (const route of [`/${id}?t=5-15`, `/s?v=${id}&a=5&b=15`]) {
 for (const once of [false, true]) {
 	test(`selected scope obeys ${once ? 'Once' : 'Loop'} at clip and video end`, async ({ page }) => {
 		test.setTimeout(90_000);
-		await open(page, `/${id}?t=5-8&mute${once ? '&once' : ''}`);
+		await open(page, `/${id}/5~8?mute${once ? '&once' : ''}`);
 		await play(page);
 		await seek(page, 7);
 		if (once) {
@@ -149,15 +149,15 @@ for (const once of [false, true]) {
 test('long, open-ended and complete clips select the right default, including source navigation', async ({
 	page
 }) => {
-	await open(page, `/${id}?t=5-50&mute`);
+	await open(page, `/${id}/5~50?mute`);
 	await expect(timeline(page)).toHaveAttribute('data-mode', 'clip');
-	await open(page, `/${id}?t=5-&mute`);
+	await open(page, `/${id}/5?mute`);
 	await expect(timeline(page)).toHaveAttribute('data-mode', 'clip');
 	await switchScope(page, 'video');
 	// Client-side source navigation must reset the local scope choice.
 	await page.evaluate(() => {
 		const link = document.createElement('a');
-		link.href = '/b90IRPG5UZs?t=6-&mute';
+		link.href = '/b90IRPG5UZs/6?mute';
 		link.textContent = 'Change test source';
 		document.body.append(link);
 	});

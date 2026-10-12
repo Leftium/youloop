@@ -3,7 +3,7 @@
 	import type { YouTubeVideoElement } from '@videojs/html/media/youtube-video';
 	import { onMount, untrack, type Snippet } from 'svelte';
 	import EditorWorkspace from './EditorWorkspace.svelte';
-	import { clampClipBounds } from './clip-bounds';
+	import { resolveClipRange, type ShareUrlState } from '#lib/share-url.ts';
 	import {
 		playbackBounds,
 		scopeSwitchTarget,
@@ -81,7 +81,10 @@
 		ononcechange?: (once: boolean) => void;
 		onmutechange?: (mute: boolean) => void;
 		onspeedchange?: (speed: number) => void;
-		onendchange?: () => void;
+		onstartchange?: (start: number) => void;
+		onendchange?: (end: number) => void;
+		requestedBounds: Pick<ShareUrlState, 'start' | 'end'>;
+		onboundsresolved?: (valid: boolean) => void;
 		theater?: boolean;
 		controlPageVisible?: boolean;
 		ontheater?: () => void;
@@ -106,7 +109,10 @@
 		ononcechange,
 		onmutechange,
 		onspeedchange,
+		onstartchange,
 		onendchange,
+		requestedBounds,
+		onboundsresolved,
 		theater = false,
 		controlPageVisible = false,
 		ontheater,
@@ -117,14 +123,6 @@
 
 	if (youtubeId === null) {
 		youtubeId = 'dt-SqNL4z3w';
-	}
-
-	if (repeatA > repeatB) {
-		[repeatA, repeatB] = [repeatB, repeatA];
-	}
-
-	if (repeatB <= 0) {
-		repeatB = 99999;
 	}
 
 	let currentTime = $state(repeatA);
@@ -162,6 +160,7 @@
 		calculateFrameVideoWidth(canvasWidth, canvasHeight, sourceAspectRatio, fillFrame)
 	);
 	let playerError = $state('');
+	let boundsError = $state('');
 	let pauseAfterSeek = false;
 	let initialFramePending = false;
 	let bootstrapMuted = false;
@@ -193,11 +192,10 @@
 		untrack(resetSource);
 	});
 	$effect(() => {
-		void repeatA;
-		void repeatB;
+		void requestedBounds;
 		untrack(() => {
 			if (!metadataReceived || !player) return;
-			if (duration !== undefined) validateBounds();
+			if (duration !== undefined && !validateBounds()) return;
 			if (player.currentTime < activeBounds.start || player.currentTime > activeBounds.end) {
 				seek(activeBounds.start);
 			}
@@ -461,7 +459,7 @@
 		const nextDuration = player.engine?.getDuration() ?? player.duration;
 		if (!Number.isFinite(nextDuration) || nextDuration <= 0) return;
 		duration = nextDuration;
-		validateBounds();
+		if (!validateBounds()) return;
 		if (minimal) playbackScope = scopeChoice.choose(nextDuration, repeatA, repeatB);
 		if (player.currentTime < activeBounds.start || player.currentTime > activeBounds.end) {
 			seek(activeBounds.start);
@@ -469,10 +467,18 @@
 	}
 
 	function validateBounds() {
-		if (duration === undefined) return;
-		const bounds = clampClipBounds(repeatA, repeatB, duration);
+		if (duration === undefined) return false;
+		const bounds = resolveClipRange(requestedBounds, duration);
+		onboundsresolved?.(bounds.ok);
+		if (!bounds.ok) {
+			boundsError = 'Invalid clip: the resolved end must be after the start within this video.';
+			pause();
+			return false;
+		}
+		boundsError = '';
 		repeatA = bounds.start;
 		repeatB = bounds.end;
+		return true;
 	}
 
 	function scheduleDuration() {
@@ -526,7 +532,7 @@
 		// provider first; settled duration then clamps the requested range.
 		pauseAfterSeek = true;
 		currentTime =
-			repeatA >= player.duration - 1
+			!resolveClipRange(requestedBounds, player.duration).ok || repeatA >= player.duration - 1
 				? Math.min(1, player.duration / 2)
 				: Math.max(repeatA, Math.min(1, repeatB));
 		player.currentTime = currentTime;
@@ -541,6 +547,10 @@
 	}
 
 	function handlePlaying() {
+		if (boundsError) {
+			pause();
+			return;
+		}
 		readVideoTitle();
 		providerStalled = false;
 		paused = false;
@@ -583,7 +593,7 @@
 
 	function handleTimeUpdate() {
 		if (!videoTitle) readVideoTitle();
-		if (duration === undefined || player.seeking) return;
+		if (duration === undefined || boundsError || player.seeking) return;
 		currentTime = player.currentTime;
 		const action = playbackBoundaryAction(currentTime, activeBounds, loop, !player.paused);
 		if (action === 'clamp-start') seek(activeBounds.start);
@@ -595,6 +605,7 @@
 	}
 
 	function handleEnded() {
+		if (boundsError) return;
 		if (initialFramePending) {
 			firstFrameReady = true;
 			pause();
@@ -608,6 +619,7 @@
 	}
 
 	async function play() {
+		if (boundsError) return;
 		requestedPaused = false;
 		pauseAfterSeek = false;
 		initialFramePending = false;
@@ -620,7 +632,7 @@
 	}
 
 	function togglePaused() {
-		if (!player || !metadataReceived) return;
+		if (!player || !metadataReceived || boundsError) return;
 		// The adapter can retain paused=false when YouTube returns to unstarted/cued.
 		// Treat those states as a Play request so a stalled startup can be retried.
 		const youtubeState = youtubePlayerState();
@@ -664,16 +676,20 @@
 
 	function setRepeatA() {
 		repeatA = currentTime;
+		onstartchange?.(repeatA);
 		if (repeatA > repeatB) {
-			onendchange?.();
 			repeatB = repeatA;
+			onendchange?.(repeatB);
 		}
 	}
 
 	function setRepeatB() {
-		onendchange?.();
 		repeatB = currentTime;
-		if (repeatB < repeatA) repeatA = repeatB;
+		onendchange?.(repeatB);
+		if (repeatB < repeatA) {
+			repeatA = repeatB;
+			onstartchange?.(repeatA);
+		}
 	}
 
 	function makeTogglePlaybackRate(rate?: number) {
@@ -706,30 +722,53 @@
 		currentTime = Number((event.currentTarget as HTMLInputElement).value);
 		if (currentTime < repeatA) {
 			repeatA = currentTime;
+			onstartchange?.(repeatA);
 		}
 		if (currentTime > repeatB) {
-			onendchange?.();
 			repeatB = currentTime;
+			onendchange?.(repeatB);
 		}
 		seek(currentTime);
 	}
 
 	function handleInputRepeatA(event: Event) {
 		repeatA = Number((event.currentTarget as HTMLInputElement).value);
+		onstartchange?.(repeatA);
 		if (repeatA > repeatB) {
-			onendchange?.();
 			repeatB = repeatA;
+			onendchange?.(repeatB);
 		}
 		seek(repeatA);
 	}
 
 	function handleInputRepeatB(event: Event) {
-		onendchange?.();
 		repeatB = Number((event.currentTarget as HTMLInputElement).value);
+		onendchange?.(repeatB);
 		if (repeatB < repeatA) {
 			repeatA = repeatB;
+			onstartchange?.(repeatA);
 		}
 		seek(repeatB);
+	}
+
+	function handleBoundKeydown(event: KeyboardEvent, bound: 'start' | 'end') {
+		const direction = ['ArrowRight', 'ArrowUp'].includes(event.key)
+			? 1
+			: ['ArrowLeft', 'ArrowDown'].includes(event.key)
+				? -1
+				: 0;
+		if (!direction) return;
+		event.preventDefault();
+		const input = event.currentTarget as HTMLInputElement;
+		// step=any retains signed fractions; keyboard edits still move by 0.1 seconds.
+		input.value = String(
+			Math.max(
+				0,
+				Math.min(duration ?? repeatB, Number((Number(input.value) + direction * 0.1).toFixed(10)))
+			)
+		);
+		if (bound === 'start') handleInputRepeatA(event);
+		else handleInputRepeatB(event);
 	}
 
 	async function pasteYoutubeId() {
@@ -776,12 +815,15 @@
 		providerStalled = false;
 		playbackRate = (speed ?? 1) * 100;
 		playerError = '';
+		boundsError = '';
 		videoTitle = '';
 		pauseAfterSeek = false;
 		initialFramePending = false;
 		retrySeekTime = undefined;
 	}
 </script>
+
+{#if boundsError}<p role="alert">{boundsError}</p>{/if}
 
 {#snippet media()}
 	<div
@@ -834,7 +876,7 @@
 				class="video-toggle watch-playback"
 				aria-label={paused ? 'Play video' : 'Pause video'}
 				aria-keyshortcuts="Space Enter"
-				disabled={!metadataReceived}
+				disabled={!metadataReceived || !!boundsError}
 				onclick={togglePaused}
 			></button>
 			{#if controlsModule}
@@ -940,7 +982,7 @@
 							<div class="watch-actions">
 								<button
 									aria-label={muted ? 'Unmute video' : 'Mute video'}
-									disabled={!metadataReceived}
+									disabled={!metadataReceived || !!boundsError}
 									onclick={toggleMute}
 								>
 									{#if muted}<IcRoundVolumeOff />{:else}<IcRoundVolumeUp />{/if}
@@ -1018,8 +1060,9 @@
 						aria-label="Repeat start"
 						class="repeat-a"
 						min="0"
-						step="0.1"
+						step="any"
 						oninput={handleInputRepeatA}
+						onkeydown={(event) => handleBoundKeydown(event, 'start')}
 						bind:value={repeatA}
 						max={duration}
 					/>
@@ -1029,8 +1072,9 @@
 						aria-label="Repeat end"
 						class="repeat-b"
 						min="0"
-						step="0.1"
+						step="any"
 						oninput={handleInputRepeatB}
+						onkeydown={(event) => handleBoundKeydown(event, 'end')}
 						bind:value={repeatB}
 						max={duration}
 					/>

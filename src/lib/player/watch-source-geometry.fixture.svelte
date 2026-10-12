@@ -49,6 +49,7 @@
 	{youtubeId}
 	repeatA={0}
 	repeatB={15}
+	requestedBounds={{ end: 15 }}
 	minimal
 	editorPath={`/?v=${youtubeId}&t=-15`}
 	{orientation}

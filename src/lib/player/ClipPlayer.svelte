@@ -26,9 +26,14 @@
 	const initialClip = initial.ok ? initial.value : { videoId: 'dt-SqNL4z3w' };
 
 	let youtubeId = $state(initialClip.videoId);
-	let repeatA = $state(initialClip.start ?? 0);
-	let repeatB = $state(initialClip.end ?? 99999);
-	let endOpen = $state(initialClip.end === undefined);
+	let startExpression = $state(initialClip.start);
+	let endExpression = $state(initialClip.end);
+	let clipInvalid = $state(false);
+	let requestedBounds = $derived({ start: startExpression, end: endExpression });
+	let repeatA = $state(Math.max(0, initialClip.start ?? 0));
+	let repeatB = $state(
+		initialClip.end !== undefined && initialClip.end > 0 ? initialClip.end : 99999
+	);
 	let once = $state(initialClip.once ?? false);
 	let mute = $state<boolean | undefined>(initialClip.mute);
 	let speed = $state<number | undefined>(initialClip.speed);
@@ -51,8 +56,8 @@
 
 	let clip = $derived<ShareUrlState>({
 		videoId: youtubeId,
-		start: repeatA,
-		end: endOpen ? undefined : repeatB,
+		start: startExpression,
+		end: endExpression,
 		once,
 		mute,
 		speed,
@@ -60,8 +65,12 @@
 		fill
 	});
 	let normalized = $derived(normalizeShareUrl(clip));
-	let sharePath = $derived(normalized.ok ? serializeShareUrl(normalized.value) : undefined);
-	let editorPath = $derived(normalized.ok ? serializeEditorUrl(normalized.value) : undefined);
+	let sharePath = $derived(
+		normalized.ok && !clipInvalid ? serializeShareUrl(normalized.value) : undefined
+	);
+	let editorPath = $derived(
+		normalized.ok && !clipInvalid ? serializeEditorUrl(normalized.value) : undefined
+	);
 
 	onMount(() => {
 		controller = createOrientationController((frame, _override, source) => {
@@ -89,9 +98,11 @@
 		error = '';
 		copyMessage = '';
 		youtubeId = value.videoId;
-		repeatA = value.start ?? 0;
-		repeatB = value.end ?? 99999;
-		endOpen = value.end === undefined;
+		startExpression = value.start;
+		endExpression = value.end;
+		clipInvalid = false;
+		repeatA = Math.max(0, value.start ?? 0);
+		repeatB = value.end !== undefined && value.end > 0 ? value.end : 99999;
 		once = value.once ?? false;
 		mute = value.mute;
 		speed = value.speed;
@@ -121,7 +132,7 @@
 		untrack(() => {
 			// Keep demo selection out of the bare root's URL and social identity.
 			if (bareDemo && sharePath === demoState) return;
-			const next = new URL(path, page.url.href);
+			const next = new URL(path, window.location.href);
 			if (next.href === loadedHref) return;
 			bareDemo = false;
 			loadedHref = next.href;
@@ -133,7 +144,7 @@
 	async function copyLink() {
 		if (!sharePath) return;
 		try {
-			await navigator.clipboard.writeText(new URL(sharePath, page.url.origin).href);
+			await navigator.clipboard.writeText(new URL(sharePath, window.location.origin).href);
 			copyMessage = 'Link copied';
 		} catch {
 			copyMessage = 'Clipboard unavailable. Copy the link below.';
@@ -151,6 +162,9 @@
 			bind:youtubeId
 			bind:repeatA
 			bind:repeatB
+			{requestedBounds}
+			onboundsresolved={(valid) => (clipInvalid = !valid)}
+			onstartchange={(value) => (startExpression = value)}
 			{once}
 			{mute}
 			{speed}
@@ -164,7 +178,7 @@
 			ononcechange={(value) => (once = value)}
 			onmutechange={(value) => (mute = value)}
 			onspeedchange={(value) => (speed = value)}
-			onendchange={() => (endOpen = false)}
+			onendchange={(value) => (endExpression = value)}
 			onfillchange={(value) => (fill = value)}
 			onorientationchange={(value) => {
 				vertical = value === 'portrait';
@@ -172,7 +186,9 @@
 				controller.choose(value);
 			}}
 			onsourcechange={(videoId) => {
-				endOpen = true;
+				startExpression = undefined;
+				endExpression = undefined;
+				clipInvalid = false;
 				vertical = undefined;
 				fill = undefined;
 				speed = undefined;

@@ -57,12 +57,12 @@ test('legacy and canonical routes preserve clip identity while ignoring UI flags
 			return reply();
 		}
 	});
-	for (const route of ['/', '/s', `/${id}`]) {
+	for (const route of ['/', '/s']) {
 		const result = await resolveSocialMetadata(
 			url(`fit=cover&v=${id}&a=031&b=038&orientation=portrait&tracking=x`, route),
 			resolve
 		);
-		assert.equal(result.url, `https://youloop.leftium.com/${id}?t=31-38`);
+		assert.equal(result.url, `https://youloop.leftium.com/${id}/31~38`);
 		assert.equal(result.title, 'Test video - YouLoop');
 		assert.match(result.description, /Creator/);
 		assert.equal(result.image, payload.thumbnail_url);
@@ -251,7 +251,7 @@ test('Svelte renders escaped OG and Twitter tags in server head, with no upstrea
 
 test('editor full-video sentinel does not change OG URL identity on either route', async () => {
 	const resolve = createVideoMetadataResolver({ fetcher: async () => reply() });
-	for (const route of ['/', '/s', `/${id}`]) {
+	for (const route of ['/', '/s']) {
 		for (const start of ['', '&a=31']) {
 			const base = await resolveSocialMetadata(url(`v=${id}${start}`, route), resolve);
 			for (const end of ['99999', '099999', '99999.00']) {
@@ -268,14 +268,34 @@ test('editor full-video sentinel does not change OG URL identity on either route
 test('canonical path and new range precedence also govern SSR identity', async () => {
 	const resolve = createVideoMetadataResolver({ fetcher: async () => reply() });
 	const result = await resolveSocialMetadata(
-		url(`v=bad&t=24.5:32.75&a=1&b=99999&vertical=0&fill=0`, `/${id}`),
+		url('v=bad&vertical=0&fill=0', `/${id}/24.5~32.75`),
 		resolve
 	);
-	assert.equal(result.url, `https://youloop.leftium.com/${id}?t=24.5-32.75`);
+	assert.equal(result.url, `https://youloop.leftium.com/${id}/24.5~32.75`);
 	assert.equal(result.title, 'Test video - YouLoop');
 	const editor = await resolveSocialMetadata(url(`v=${id}&t=24-32&once&mute=0`), resolve);
-	assert.equal(editor.url, `https://youloop.leftium.com/${id}?t=24-32`);
+	assert.equal(editor.url, `https://youloop.leftium.com/${id}/24~32`);
 	for (const query of [`v=${id}&t=bad`, `v=${id}&mute&mute=0`, `v=${id}&vertical=bad`]) {
 		assert.equal((await resolveSocialMetadata(url(query), resolve)).type, 'website');
 	}
+});
+
+test('signed watch metadata preserves expressions and rejects obsolete watch queries', async () => {
+	const resolve = createVideoMetadataResolver({ fetcher: async () => reply() });
+	for (const range of ['-120~-30', '120~-30', '-30.5~-5.25', '-60']) {
+		const result = await resolveSocialMetadata(
+			url('once&mute&speed=2', `/${id}/${range}`),
+			resolve
+		);
+		assert.equal(result.url, `https://youloop.leftium.com/${id}/${range}`);
+		assert.equal(result.type, 'video.other');
+	}
+	for (const route of [`/${id}?t=31-38`, `/${id}/~`, `/${id}/bad`, `/${id}/31~38?t=31-38`]) {
+		assert.equal(
+			(await resolveSocialMetadata(new URL(route, 'https://preview.example'), resolve)).type,
+			'website'
+		);
+	}
+	const editor = await resolveSocialMetadata(url(`v=${id}&t=-120~-30&mute`), resolve);
+	assert.equal(editor.url, `https://youloop.leftium.com/${id}/-120~-30`);
 });
