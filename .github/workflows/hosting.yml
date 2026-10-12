@@ -22,6 +22,7 @@ jobs:
       - run: pnpm check
       - run: pnpm lint
       - run: pnpm test:share-url
+      - run: pnpm test:metadata
       - run: pnpm build
         env:
           YOULOOP_RUNTIME_PROOF: '1'
@@ -35,10 +36,4 @@ jobs:
             sleep 1
           done
           HOSTING_URL=http://127.0.0.1:4173 pnpm test:hosting
-      - run: pnpm build:static
-      - name: Verify static fallback artifact
-        run: |
-          test -f build/index.html
-          test -f build/s.html
-          test -f build/about.html
-          test -f build/logo.svg
+          HOSTING_URL=http://127.0.0.1:4173 pnpm test:social

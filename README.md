@@ -13,9 +13,8 @@ pnpm dev
 ```
 
 Use `pnpm check` for Svelte and TypeScript validation. `pnpm build` creates the
-Vercel server artifact in `.vercel/output/`. `pnpm build:static` creates an
-optional prerendered fallback in `build/`; it is not automatically deployed.
-Both builds use the same routes and player.
+Vercel server artifact in `.vercel/output/`. Query-based social previews require
+a server; the static build and its CI check have been retired.
 
 There is no `pnpm test` script. With `pnpm dev` running, open the app and run
 the browser regressions in its developer console. Wait for the YouTube iframe
@@ -251,8 +250,8 @@ from the domain root; no SvelteKit base path is configured.
 The former GitHub Pages publish workflow has been retired. The GitHub Pages
 site/custom-domain configuration may still exist in repository settings;
 deleting the workflow does not disable that site or change its settings.
-`pnpm build:static` remains available as a rollback artifact and in hosting CI,
-but it does not publish automatically.
+The static rollback build was retired when video-specific server metadata was
+added. A prerendered page cannot resolve a video from request query parameters.
 
 ### Provider decision
 
@@ -300,13 +299,10 @@ The app uses Node 24, the `sveltekit` framework, and the committed install/build
 commands in `vercel.json`. No application secrets are currently required. Local
 `.vercel/` and OIDC environment files must remain untracked.
 
-`DEPLOY_TARGET` defaults to `vercel`; `static` selects the static adapter and
-prerenders the existing routes for optional rollback. Unknown targets fail the
-build. This is a build-time setting, not an environment switch on an already
-built artifact.
-The Vercel build renders the existing shell per request. Video source creation,
-URL parsing, and playback remain in browser mount handlers; this does not
-choose the eventual social metadata design or add new share paths.
+`DEPLOY_TARGET` accepts only `vercel` (the default). Other targets, including
+`static`, fail the build. The Vercel build renders the player shell and social
+metadata per request. Video source creation, player URL parsing, and playback
+remain in browser mount handlers.
 
 For a future dual Vercel/Workers deployment, add a `cloudflare` adapter branch
 to `vite.config.ts`, a separate Wrangler config and CI build, then repeat the
@@ -315,11 +311,69 @@ provider bindings behind server-only boundaries. Current shared code has no
 Vercel SDK calls, ISR configuration, or route-level vendor settings. Workers
 deployment is an extension point, not a verified target in this change.
 
+### Video-specific social previews
+
+Direct requests and reloads of `/?v=VIDEO_ID&a=31&b=38` and
+`/s?v=VIDEO_ID&a=31&b=38` render Open Graph and Twitter Card tags in the initial
+HTML. A shared server layout calls `src/lib/server/video-metadata.ts` once and
+passes plain data to `SocialHead.svelte`; Svelte escapes it during rendering.
+The Video.js custom element and watch controls still load inside browser mount.
+The future `/<videoId>?t=A-B` grammar remains tracked by issue #21.
+
+YouTube's fixed HTTPS oEmbed endpoint supplies the title and thumbnail without
+an API key. oEmbed normally has no video description, so the preview uses title
+and creator attribution plus YouLoop's segment-repeat description. Upstream
+embed HTML is ignored. IDs must contain exactly 11 ASCII letters, digits,
+hyphens, or underscores; duplicate IDs and malformed values cause no lookup.
+Thumbnail URLs must use a known YouTube image host and the requested video path.
+Missing or unavailable metadata uses the YouLoop title and PNG icon.
+
+`og:url` uses `https://youloop.leftium.com`, the requested legacy route, and
+normalized `v`, `a`, and `b` parameters. Zero/default or invalid bounds are
+omitted; unrelated UI flags and tracking parameters do not change preview
+identity. `/` and `/s` retain their separate playable routes but share metadata
+for the same video. Preview deployments also emit the production origin.
+
+Each warm server instance keeps at most 1,000 cached videos: successful lookups
+last one hour and failures one minute. Concurrent requests for the same video
+share a pending lookup. Each lookup has a two-second timeout, including body
+consumption, with redirects disabled. At most eight lookups run at once and
+60 new lookups start per minute per instance; excess requests render defaults
+without queueing. Cold starts and multiple instances have independent caches
+and budgets. These limits reduce upstream traffic but are not a distributed
+rate limiter.
+
+Normal SvelteKit SSR keeps the metadata in the usual route/head pipeline.
+The player shell is small and media initialization already happens in the
+browser, so a custom metadata-injection hook has no demonstrated cost benefit.
+Vercel Fluid Compute meters active CPU, provisioned memory, and invocations
+([pricing](https://vercel.com/docs/functions/usage-and-pricing)). Caching reduces
+repeat upstream work; it does not eliminate function invocations or measure
+savings. HTML CDN caching is deferred: query-dependent clip identity, default
+responses during upstream failures, and SvelteKit data-navigation variants
+need a deliberate cache policy before enabling it. Static assets keep their
+normal hosting cache behavior.
+
+Run `pnpm test:metadata` for deterministic cache, timeout, limits, URL safety,
+fallback, and server-head escaping checks. With a built server running:
+
+```bash
+HOSTING_URL=http://127.0.0.1:4173 pnpm test:social
+# Require successful live YouTube metadata rather than accepting safe defaults:
+HOSTING_URL=https://YOUR-PUBLIC-PREVIEW.vercel.app REQUIRE_VIDEO_METADATA=1 pnpm test:social
+```
+
+The social smoke suite sends crawler-style HTTP requests without executing JS.
+CI permits upstream fallback because YouTube availability is external; release
+verification should also use `REQUIRE_VIDEO_METADATA=1` on the public preview.
+Real social platforms cache unfurls independently; a successful HTTP check
+does not prove that a platform has refreshed its preview.
+
 ### Runtime verification
 
 `YOULOOP_RUNTIME_PROOF=1` opts into fresh UUID/time response headers and
 `Cache-Control: private, no-store` on ordinary server routes. It is off by
-default and ignored for static builds. There is no diagnostic endpoint. Omit
+default. There is no diagnostic endpoint. Omit
 the flag and rebuild for a normal deployment; changing runtime env alone does
 not remove a compiled-in proof flag.
 
@@ -338,8 +392,8 @@ checks an SVG asset and a missing-route 404. This distinguishes runtime SSR
 from a static SPA fallback. `vite preview` runs the production-built Kit server
 locally; hosted checks exercise the actual Vercel function. Browser reload and
 YouTube interaction checks are separate from HTTP tests. The
-[hosting CI workflow](.github/workflows/hosting.yml) checks both builds, types,
-lint, URL codec, production-mode HTTP, and the static fallback HTML/assets.
+[hosting CI workflow](.github/workflows/hosting.yml) checks the server build,
+types, lint, URL codec, metadata resolver, and production-mode HTTP.
 It does not publish to GitHub Pages or change Vercel domain settings.
 
 ### Production operation and rollback
@@ -357,11 +411,10 @@ creates Preview deployments for pull requests and other branches.
 2. For an application regression, promote or redeploy a known-good version in
    the original `youloop` Vercel project, then recheck the domain and routes.
    This rollback normally needs no DNS change.
-3. To restore GitHub Pages as an emergency fallback, build the static site with
-   `pnpm build:static`, restore the retired publishing workflow from Git
-   history, configure GitHub Pages and its custom domain in repository settings,
-   and switch DNS to the verified Pages record. Verify HTTPS and direct links
-   afterward. This is an explicit owner action, not an automatic rollback.
+3. An emergency GitHub Pages rollback requires checking out a pre-metadata
+   version (for example, PR #26), restoring its static build and retired
+   publishing workflow, and changing Pages settings and DNS. It loses
+   video-specific server previews. Prefer a known-good Vercel deployment.
 4. If GitHub Pages remains enabled in repository settings, disable the unused
    site and remove its old domain association separately when no longer needed.
    Removing the workflow alone does not modify Pages settings.

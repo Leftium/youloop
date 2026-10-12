@@ -1,16 +1,21 @@
 <script lang="ts">
 	import '../app.scss';
+	import SocialHead from '#lib/SocialHead.svelte';
 	import { page } from '$app/state';
 	import type { Snippet } from 'svelte';
 	import type { LayoutData } from './$types';
 
-	let { children }: { data: LayoutData; children: Snippet } = $props();
+	let { data, children }: { data: LayoutData; children: Snippet } = $props();
 </script>
 
 <svelte:head>
 	<!-- viewport-fit=cover clipped the centered YouTube iframe on physical iPhone Safari. -->
 	<meta name="viewport" content="width=device-width, initial-scale=1" />
 </svelte:head>
+
+{#if data.social}
+	<SocialHead metadata={data.social} />
+{/if}
 
 {#if page.route.id === '/s'}
 	{@render children()}
