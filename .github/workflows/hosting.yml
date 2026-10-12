@@ -1,0 +1,44 @@
+name: Verify hosting builds
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/setup@v2
+        with:
+          version: 11.25.0
+          cache: true
+          install: false
+          runtime: node@24
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm check
+      - run: pnpm lint
+      - run: pnpm test:share-url
+      - run: pnpm build
+        env:
+          YOULOOP_RUNTIME_PROOF: '1'
+      - name: Verify production-mode server
+        run: |
+          pnpm preview --host 127.0.0.1 --port 4173 > /tmp/youloop-preview.log 2>&1 &
+          preview_pid=$!
+          trap 'kill "$preview_pid"' EXIT
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:4173/about > /dev/null; then break; fi
+            sleep 1
+          done
+          HOSTING_URL=http://127.0.0.1:4173 pnpm test:hosting
+      - run: pnpm build:static
+      - name: Verify Pages artifact
+        run: |
+          test -f build/index.html
+          test -f build/s.html
+          test -f build/about.html
+          test -f build/logo.svg
