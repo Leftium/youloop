@@ -87,14 +87,17 @@ The experimental grid uses `100lvh`, matching watch mode's stable large viewport
 to avoid shortening the panes during toolbar animation. This is a follow-up trial
 for the owner's report that controls were clipped above the minimized address bar.
 The owner found the expanded bars covering controls acceptable, but reported that
-the landscape bottom gap remained even before collapse. The next trial scopes
+the portrait bottom gap remained even before collapse (landscape has no bottom
+chrome). The editor-only cover trial also did not remove that portrait gap. The next trial scopes
 `viewport-fit=cover` to the editor, allowing Safari to render to the screen edges
 while retaining safe-area padding on controls. Physical Safari must verify the
-gap and provider framing; `lvh` alone did not fix the gap. The bounded editor
+provider framing; neither `lvh` nor viewport cover fixed the reported gap. The bounded editor
 still uses `100dvh`. In portrait, the experimental settings pane adds a scrollable
 bottom reserve of `100lvh - 100svh` plus its normal safe-area padding, so the last
 controls can be raised above expanded bars without changing the grid height.
-Existing split ratios and provider identity remain unchanged.
+The owner confirmed this portrait reserve lets the very bottom controls scroll
+above the chrome. The remaining visual gap is unresolved; existing split ratios
+and provider identity remain unchanged.
 
 The runway starts at 25 small viewports and freezes its height in pixels. Passive
 scroll/resize listeners add 25 current viewports before fewer than nine remain.
