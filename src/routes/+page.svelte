@@ -2,7 +2,4 @@
 	import ClipPlayer from '#lib/player/ClipPlayer.svelte';
 </script>
 
-<main>
-	<ClipPlayer />
-	<hr />
-</main>
+<ClipPlayer />

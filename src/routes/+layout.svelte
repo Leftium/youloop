@@ -19,6 +19,8 @@
 
 {#if page.route.id === '/s' || page.route.id === '/[videoId=videoId]'}
 	{@render children()}
+{:else if page.route.id === '/'}
+	<main class="editor-page">{@render children()}</main>
 {:else}
 	<main>
 		{@render children()}
@@ -37,6 +39,48 @@
 <style>
 	:global(:root) {
 		--nc-content-width: 1200px;
+	}
+
+	:global(html:has(.editor-page)),
+	:global(body:has(.editor-page)) {
+		margin: 0;
+		padding: 0;
+		max-width: none;
+		scrollbar-gutter: auto;
+	}
+
+	:global(body:has(.editor-page)) {
+		display: block;
+		/* Keep exposed document edges in the editor's theme during Safari UI changes. */
+		background: var(--nc-surface-1);
+	}
+
+	:global(html:has(.editor-page .video-scroll)),
+	:global(body:has(.editor-page .video-scroll)) {
+		/* Match native scroll room to controls so Safari UI transitions do not
+		   expose a contrasting document strip below the pinned workspace. */
+		background: var(--nc-surface-1);
+	}
+
+	.editor-page {
+		width: 100%;
+		max-width: none;
+		height: 100dvh;
+		margin: 0;
+		padding: 0;
+		overflow: hidden;
+	}
+
+	.editor-page:has(:global(.video-scroll)) {
+		height: auto;
+		overflow: visible;
+	}
+	/* Hide the runway indicator while keeping native scrolling and the pane scrollbar. */
+	:global(html:has(.video-scroll)) {
+		scrollbar-width: none;
+	}
+	:global(html:has(.video-scroll)::-webkit-scrollbar) {
+		display: none;
 	}
 
 	nav h1 {
