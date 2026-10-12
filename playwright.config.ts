@@ -6,6 +6,7 @@ export default defineConfig({
 	timeout: 60_000,
 	use: {
 		baseURL: 'http://localhost:5173',
+		channel: 'chromium',
 		launchOptions: { args: ['--mute-audio'] },
 		trace: 'retain-on-failure'
 	},

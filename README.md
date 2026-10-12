@@ -19,6 +19,8 @@ a server; the static build and its CI check have been retired.
 Run the automated real-YouTube browser suite with `pnpm test:browser` after
 `pnpm exec playwright install chromium`. Chromium launches with `--mute-audio`,
 so playback is silent even while tests verify unmuted state and `mute=0`.
+The runner uses `channel: 'chromium'` for full Chromium's headless mode, avoiding
+the separate headless-shell binary that produced macOS renderer crash reports.
 Production playback defaults are unchanged. Console watch regressions mute the
 media before playing and leave it muted afterward; their unmute assertions pause
 the provider first unless browser output is already suppressed.

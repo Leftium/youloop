@@ -927,12 +927,12 @@
 							>
 								{#if muted}<IcRoundVolumeOff />{:else}<IcRoundVolumeUp />{/if}
 							</button>
-							<button aria-label="Theater mode" disabled={fullscreen} onclick={ontheater}
-								><IcRoundCropLandscape /></button
-							>
 							{#if editorPath}
 								<a href={editorPath} aria-label="Edit" title="Edit"><IcRoundEdit /></a>
 							{/if}
+							<button aria-label="Theater mode" disabled={fullscreen} onclick={ontheater}
+								><IcRoundCropLandscape /></button
+							>
 							{#if nativeFullscreen}
 								<button
 									aria-label={fullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}

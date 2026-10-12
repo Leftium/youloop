@@ -329,6 +329,15 @@ for (const viewport of [
 			await expect(edit).toHaveCount(1);
 			await expect(edit).toHaveAttribute('title', 'Edit');
 			await expect(edit).toHaveText('');
+			expect(
+				await page
+					.locator('.watch-actions :is(button,a)')
+					.evaluateAll((elements) => elements.map((el) => el.getAttribute('aria-label')))
+			).toEqual(
+				nativeFullscreen
+					? ['Unmute video', 'Edit', 'Theater mode', 'Enter fullscreen']
+					: ['Unmute video', 'Edit', 'Theater mode']
+			);
 			await expect(page.locator('.watch-actions :is(button,a)')).toHaveCount(
 				nativeFullscreen ? 4 : 3
 			);
