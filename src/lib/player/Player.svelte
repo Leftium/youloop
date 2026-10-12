@@ -4,6 +4,11 @@
 	import { onMount, untrack, type Snippet } from 'svelte';
 	import EditorWorkspace from './EditorWorkspace.svelte';
 	import { clampClipBounds } from './clip-bounds';
+	import {
+		playbackBounds,
+		scopeSwitchTarget,
+		playbackBoundaryAction
+	} from './watch-playback-scope';
 	import { excludeYouTubeProviderFocus } from './youtube-provider-focus';
 	import { calculateFrameVideoWidth } from './video-framing';
 	import { placeWatchControls, placeWatchTitle } from './watch-controls-placement';
@@ -124,14 +129,19 @@
 
 	let currentTime = $state(repeatA);
 	let duration: number | undefined = $state();
-	const timelineChoice = createTimelineMode();
-	let timelineMode = $state<TimelineMode>('video');
+	const scopeChoice = createTimelineMode();
+	let playbackScope = $state<TimelineMode>('video');
 	let range = $derived(timelineRange(duration, repeatA, repeatB, currentTime));
-	let clipTimeline = $derived(range.restricted && timelineMode === 'clip');
+	let activeScope = $derived(minimal && range.valid ? playbackScope : 'clip');
+	let activeBounds = $derived(playbackBounds(duration, repeatA, repeatB, activeScope));
+	let clipTimeline = $derived(range.restricted && activeScope === 'clip');
 	let timelineTime = $derived(clipTimeline ? range.elapsed : range.absolute);
 	let timelineDuration = $derived(clipTimeline ? range.length : range.total);
 	function toggleTimeline() {
-		if (range.restricted) timelineMode = timelineChoice.toggle();
+		if (!range.restricted || !player) return;
+		playbackScope = scopeChoice.toggle();
+		const target = scopeSwitchTarget(player.currentTime, activeBounds);
+		if (target !== player.currentTime) seek(target, requestedPaused);
 	}
 	let paused = $state(true);
 	let requestedPaused = true;
@@ -188,16 +198,10 @@
 		untrack(() => {
 			if (!metadataReceived || !player) return;
 			if (duration !== undefined) validateBounds();
-			if (player.currentTime < repeatA || player.currentTime > repeatB) seek(repeatA);
+			if (player.currentTime < activeBounds.start || player.currentTime > activeBounds.end) {
+				seek(activeBounds.start);
+			}
 		});
-	});
-
-	$effect(() => {
-		// Source identity, not time/range updates, resets the viewer's visual choice.
-		void youtubeId;
-		void sourceVersion;
-		timelineChoice.reset();
-		timelineMode = 'video';
 	});
 
 	let wasTheater = false;
@@ -216,9 +220,9 @@
 	}
 
 	function recoverySeekTarget(time = player.currentTime) {
-		const finiteTime = Number.isFinite(time) ? time : repeatA;
-		const target = Math.max(repeatA, Math.min(repeatB, finiteTime));
-		return target >= repeatB ? repeatA : target;
+		const finiteTime = Number.isFinite(time) ? time : activeBounds.start;
+		const target = Math.max(activeBounds.start, Math.min(activeBounds.end, finiteTime));
+		return target >= activeBounds.end ? activeBounds.start : target;
 	}
 
 	function pause() {
@@ -444,9 +448,9 @@
 		if (typeof title === 'string') videoTitle = title;
 	}
 
-	function seek(time: number, stayPaused = player.paused) {
+	function seek(time: number, stayPaused = minimal ? requestedPaused : player.paused) {
 		pauseAfterSeek = stayPaused;
-		currentTime = Math.max(repeatA, Math.min(repeatB, time));
+		currentTime = Math.max(activeBounds.start, Math.min(activeBounds.end, time));
 		if (retrySeekTime !== undefined) retrySeekTime = recoverySeekTarget(currentTime);
 		player.currentTime = currentTime;
 	}
@@ -458,8 +462,10 @@
 		if (!Number.isFinite(nextDuration) || nextDuration <= 0) return;
 		duration = nextDuration;
 		validateBounds();
-		if (player.currentTime < repeatA || player.currentTime > repeatB) seek(repeatA);
-		if (minimal) timelineMode = timelineChoice.choose(nextDuration, repeatA, repeatB);
+		if (minimal) playbackScope = scopeChoice.choose(nextDuration, repeatA, repeatB);
+		if (player.currentTime < activeBounds.start || player.currentTime > activeBounds.end) {
+			seek(activeBounds.start);
+		}
 	}
 
 	function validateBounds() {
@@ -579,13 +585,12 @@
 		if (!videoTitle) readVideoTitle();
 		if (duration === undefined || player.seeking) return;
 		currentTime = player.currentTime;
-		if (currentTime < repeatA) seek(repeatA);
-		else if (currentTime > repeatB || (!player.paused && currentTime >= repeatB)) {
-			if (loop) seek(repeatA, false);
-			else {
-				pause();
-				if (currentTime > repeatB) seek(repeatB, true);
-			}
+		const action = playbackBoundaryAction(currentTime, activeBounds, loop, !player.paused);
+		if (action === 'clamp-start') seek(activeBounds.start);
+		else if (action === 'repeat') seek(activeBounds.start, false);
+		else if (action === 'stop') {
+			pause();
+			if (currentTime > activeBounds.end) seek(activeBounds.end, true);
 		}
 	}
 
@@ -595,9 +600,9 @@
 			pause();
 			return;
 		}
-		if (!loop) pause();
+		if (playbackBoundaryAction(currentTime, activeBounds, loop, false, true) === 'stop') pause();
 		else {
-			seek(repeatA, false);
+			seek(activeBounds.start, false);
 			void play();
 		}
 	}
@@ -624,7 +629,13 @@
 				providerStalled = true;
 				retrySeekTime = recoverySeekTarget();
 			}
-			if (player.currentTime < repeatA || player.currentTime >= repeatB) seek(repeatA);
+			if (
+				player.ended ||
+				player.currentTime < activeBounds.start ||
+				player.currentTime >= activeBounds.end
+			) {
+				seek(activeBounds.start);
+			}
 			void play();
 		} else {
 			pause();
@@ -752,6 +763,8 @@
 	}
 
 	function resetSource() {
+		scopeChoice.reset();
+		playbackScope = 'video';
 		clearTimeout(durationTimer);
 		metadataReceived = false;
 		firstFrameReady = false;
@@ -913,7 +926,7 @@
 								class:clip={clipTimeline}
 								disabled={!range.restricted}
 								aria-label={range.restricted
-									? `${clipTimeline ? 'A:B' : 'VIDEO'} progress, switch to ${clipTimeline ? 'full-video' : 'A:B'} progress`
+									? `${clipTimeline ? 'A:B' : 'VIDEO'} progress, switch to ${clipTimeline ? 'full-video' : 'A:B'} playback`
 									: 'VIDEO progress, full video selected'}
 								onclick={toggleTimeline}
 							>
