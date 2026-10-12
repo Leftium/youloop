@@ -170,10 +170,11 @@ editor URL with an existing query (or `?viewportDebug=1` on the bare root).
 A noninteractive readout reports CSS-pixel viewport, grid/pane bottom, padding,
 and scroll offsets. Capture it immediately after load and after toolbar collapse.
 Compare the reported pane bottom with the visible cutoff; geometry alone cannot
-prove Safari's compositor clipping. The debug-only **Disable controls scroller**
-checkbox temporarily changes the pane to `overflow: visible` to isolate nested
-scroll clipping. It disables independent controls scrolling while checked; uncheck
-to restore normal behavior. It defaults off and is not saved. Without the URL flag
+prove Safari's compositor clipping. The owner confirmed disabling the controls scroller alone did not move the cutoff.
+The debug-only **Use document flow** checkbox now also removes grid stickiness,
+letting the preview and controls scroll with the document. This compares ordinary
+document painting with the sticky workspace. It disables independent controls
+scrolling and the pinned preview while checked; uncheck to restore normal behavior. It defaults off and is not saved. Without the URL flag
 no diagnostic listeners run.
 
 **Remaining device verification:** detailed safe-area/keyboard coverage, viewport

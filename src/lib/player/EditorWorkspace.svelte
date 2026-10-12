@@ -12,7 +12,7 @@
 	let runwayHeight = $state<number>();
 	let mobile = $state(false);
 	let viewportDebug = $state(false);
-	let debugOverflow = $state(false);
+	let debugFlow = $state(false);
 	let viewportReadout = $state('');
 	let videoScrollRequested = $state(true);
 	let snapRequested = $state(true);
@@ -68,7 +68,7 @@
 
 	$effect(() => {
 		if (!viewportDebug) return;
-		void debugOverflow;
+		void debugFlow;
 		const pane = grid.querySelector<HTMLElement>('#editor-settings')!;
 		const viewport = window.visualViewport;
 		let frame = 0;
@@ -82,7 +82,7 @@
 				`grid ${round(grid.getBoundingClientRect().bottom)} / pane ${round(bounds.bottom)}`,
 				`pane h ${pane.clientHeight} / pad ${round(parseFloat(getComputedStyle(pane).paddingBottom))}`,
 				`doc y ${round(scrollY)} / pane y ${round(pane.scrollTop)}`,
-				`overflow ${getComputedStyle(pane).overflowY}`
+				`overflow ${getComputedStyle(pane).overflowY} / ${getComputedStyle(grid).position}`
 			].join('\n');
 		};
 		const schedule = () => {
@@ -253,6 +253,7 @@
 	class="editor-workspace"
 	class:video-scroll={videoScroll}
 	class:document-snap={documentSnap}
+	class:debug-flow={viewportDebug && debugFlow}
 	aria-label="Editor workspace"
 >
 	<div
@@ -290,15 +291,14 @@
 		<div
 			id="editor-settings"
 			class="settings-pane"
-			class:debug-overflow={viewportDebug && debugOverflow}
 			role="region"
 			aria-label="Clip settings"
 			tabindex="0"
 		>
 			{#if viewportDebug}
 				<label class="video-scroll-option">
-					<input type="checkbox" bind:checked={debugOverflow} />
-					Disable controls scroller (diagnostic)
+					<input type="checkbox" bind:checked={debugFlow} />
+					Use document flow (diagnostic)
 				</label>
 			{/if}
 			{#if mobile}
@@ -478,8 +478,11 @@
 			);
 		}
 	}
-	.settings-pane.debug-overflow {
-		/* Diagnostic only: isolate nested overflow clipping from viewport clipping. */
+	.editor-workspace.debug-flow .workspace-grid {
+		/* Diagnostic only: compare ordinary document painting with the sticky grid. */
+		position: static;
+	}
+	.editor-workspace.debug-flow .settings-pane {
 		overflow: visible;
 	}
 	.settings-pane > :global(:last-child) {
