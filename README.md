@@ -83,7 +83,7 @@ owner confirmed the restored bounded workspace did not shrink chrome.
 
 On small touch viewports, **Video swipe scrolling (experimental)** enables a
 second experiment, off by default and scoped to the current visit. Unlike the
-removed variant, the entire two-pane grid is sticky over a finite native document
+removed variant, the entire two-pane grid is sticky over an extending native document
 runway. The controls pane retains `overflow-y: auto` and boundary containment.
 An upward video swipe can scroll the root document while controls gestures stay
 inside their own pane. Both layouts use the same DOM and provider; desktop sizing
@@ -98,12 +98,22 @@ capture their resize gestures, so splitter-triggered minimization is still defer
 Reverse document scrolling may expand chrome; use Safari's native toolbar to
 restore it deliberately.
 
-The complete grid uses `100svh` so expanded bars do not obscure transport or
-settings, and toolbar changes do not resize the split. After collapse, additional
-viewport height can remain below the workspace rather than enlarge the video.
-Rotation still reconciles pane dimensions. The runway is finite: at its end,
-further upward swipes cannot advance the document. Device testing must assess
-whether these limits are acceptable. Video-first mode remains unchanged.
+The complete grid uses `100dvh` to fill height freed by Safari's toolbar. The
+existing split ratio reconciles viewport changes without remounting the provider.
+The runway starts at 25 small viewports, freezes that height in pixels, and grows
+by 25 current viewports when fewer than nine remain, following watch mode's
+technique. Resize also checks remaining room; rotation never shrinks the runway.
+Only the document height grows: there is no scroll-position reset or synthetic
+scrolling. The effect's passive listeners exist only while the experiment is active.
+
+In the experiment, controls use `overscroll-behavior-y: none` to suppress boundary
+chaining and rubber-band affordances where supported. This cannot guarantee that
+Safari ignores nested gestures: toolbar reactions may occur even when root
+`scrollY` does not change. The owner reported intermittent nested-control coupling
+with the earlier pinned version. Check the root offset in remote Web Inspector
+while reproducing it, and distinguish actual document motion from Safari-owned
+chrome changes. No global touch interception is introduced. Video-first mode
+remains unchanged.
 
 ### Required physical iPhone Safari check
 
@@ -128,9 +138,10 @@ ownership and playback continuity, not Safari's actual toolbar behavior.
    record whether chrome collapses while the complete workspace stays pinned and
    controls retain their scroll position. Scroll controls in both directions and
    at both boundaries: the document should not move. Repeat resizing in both
-   directions, both layouts, and after collapse. Scroll to the runway's end;
-   verify video, timeline, splitter, and every setting remain usable. Note any
-   browser-owned expansion, extra space below the workspace, or accidental playback.
+   directions, both layouts, and after collapse. Continue many upward picture swipes and approach the current runway end;
+   confirm it extends without a jump or playback reset. Verify the workspace grows
+   to fill newly freed height, and video, timeline, splitter, and every setting
+   remain usable. Note any toolbar jitter, browser-owned expansion, or accidental playback.
 5. Turn the option off, use Reset split, and reload. Confirm the default bounded
    workspace returns, the option starts off, and clip/layout state is preserved.
    Check safe-area edges, Safari's address-bar keyboard opening/closing, external

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onMount, untrack, type Snippet } from 'svelte';
+	import { onMount, tick, untrack, type Snippet } from 'svelte';
 	import IcRoundViewAgenda from '~icons/ic/round-view-agenda';
 	import IcRoundRestartAlt from '~icons/ic/round-restart-alt';
 
@@ -8,6 +8,8 @@
 	const storageKey = 'youloop.editor-workspace';
 	const dividerSize = 3;
 	let grid: HTMLDivElement;
+	let runway: HTMLDivElement;
+	let runwayHeight = $state<number>();
 	let mobile = $state(false);
 	let videoScrollRequested = $state(false);
 	let videoScroll = $derived(mobile && videoScrollRequested);
@@ -57,6 +59,35 @@
 	$effect(() => {
 		void layout;
 		untrack(endDrag);
+	});
+
+	$effect(() => {
+		if (!videoScroll) return;
+		// Freeze each runway budget in pixels: viewport changes must not shrink
+		// document scroll room. Only mode changes install/remove these listeners.
+		return untrack(() => {
+			runwayHeight = Math.max(runwayHeight ?? 0, runway.getBoundingClientRect().height);
+			let extending = false;
+			function extendRunway() {
+				const root = document.scrollingElement;
+				const viewportHeight = window.innerHeight;
+				if (extending || !root || viewportHeight <= 0) return;
+				const remaining = root.scrollHeight - root.clientHeight - window.scrollY;
+				if (remaining >= 9 * viewportHeight) return;
+				extending = true;
+				runwayHeight = (runwayHeight ?? 0) + 25 * viewportHeight;
+				void tick().then(() => {
+					extending = false;
+				});
+			}
+			window.addEventListener('scroll', extendRunway, { passive: true });
+			window.addEventListener('resize', extendRunway);
+			extendRunway();
+			return () => {
+				window.removeEventListener('scroll', extendRunway);
+				window.removeEventListener('resize', extendRunway);
+			};
+		});
 	});
 
 	function remember() {
@@ -215,7 +246,12 @@
 			{/if}
 		</div>
 	</div>
-	<div class="video-scroll-runway" aria-hidden="true"></div>
+	<div
+		class="video-scroll-runway"
+		aria-hidden="true"
+		bind:this={runway}
+		style:height={runwayHeight === undefined ? undefined : `${runwayHeight}px`}
+	></div>
 </section>
 
 <style>
@@ -244,16 +280,21 @@
 	.video-scroll .workspace-grid {
 		position: sticky;
 		top: 0;
-		/* Keep the complete workspace visible with expanded bars and avoid
-		   toolbar-driven split changes. Rotation still reconciles the viewport. */
-		height: 100svh;
+		/* Fill space freed by browser chrome. The observer reconciles the split
+		   from its existing ratio without remounting the provider. */
+		height: 100dvh;
 	}
 	.video-scroll .video-scroll-runway {
 		display: block;
-		/* Native document scroll room belongs to the picture, not the controls.
-		   The whole grid stays pinned through this finite containing section. */
-		height: calc(100svh + 80px);
+		/* Native picture scroll room grows in pixel chunks before its end,
+		   following watch mode. Controls keep their separate scroll container. */
+		height: 2500svh;
 		pointer-events: none;
+	}
+	.video-scroll .settings-pane {
+		/* Suppress both boundary chaining and rubber-band affordances where
+		   supported. Safari can still react to nested gestures independently. */
+		overscroll-behavior-y: none;
 	}
 	.workspace-layout {
 		display: flex;

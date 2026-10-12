@@ -778,19 +778,51 @@ test.describe('pinned workspace with independent settings experiment', () => {
 					await expect(page.locator('.workspace-grid')).not.toHaveClass(/dragging/);
 					await pinned();
 				}
-				// Keyboard scrolling the document to its end must not unpin the workspace.
-				await divider(page).focus();
-				await page.keyboard.press('PageDown');
-				await page.keyboard.press('PageDown');
-				await expect
-					.poll(() =>
-						page.evaluate(() =>
-							Math.abs(scrollY - (document.documentElement.scrollHeight - innerHeight))
+				// Native wheel input over the picture approaches the current runway
+				// threshold repeatedly without directly assigning document scroll offsets.
+				await page.mouse.move(picture.x + picture.width / 4, picture.y + 20);
+				for (let extension = 0; extension < 3; extension++) {
+					const beforeOffset = await offset();
+					const before = await page
+						.locator('.video-scroll-runway')
+						.evaluate((el) => el.getBoundingClientRect().height);
+					await page.mouse.wheel(0, 25 * viewport.height);
+					await expect
+						.poll(() =>
+							page
+								.locator('.video-scroll-runway')
+								.evaluate((el) => el.getBoundingClientRect().height)
 						)
-					)
-					.toBeLessThanOrEqual(1);
+						.toBeGreaterThan(before);
+					await expect
+						.poll(() =>
+							page.evaluate(() => document.documentElement.scrollHeight - innerHeight - scrollY)
+						)
+						.toBeGreaterThan(9 * viewport.height);
+					expect(await offset()).toBeGreaterThan(beforeOffset + 20 * viewport.height);
+					expect(await settings.evaluate((el) => el.scrollTop)).toBe(0);
+					await pinned();
+				}
+				const grown = await page
+					.locator('.video-scroll-runway')
+					.evaluate((el) => el.getBoundingClientRect().height);
+				// Approximate toolbar-driven viewport expansion; physical Safari must
+				// confirm actual dvh updates. The complete grid must fill the new height.
+				const preferences = await page.evaluate((key) => sessionStorage.getItem(key), storageKey);
+				await page.setViewportSize({ width: viewport.width, height: viewport.height + 120 });
 				await pinned();
-				expect(await offset()).toBeGreaterThanOrEqual(root);
+				expect(await page.evaluate((key) => sessionStorage.getItem(key), storageKey)).toBe(
+					preferences
+				);
+				expect(
+					await page
+						.locator('.video-scroll-runway')
+						.evaluate((el) => el.getBoundingClientRect().height)
+				).toBeGreaterThanOrEqual(grown);
+				await page.setViewportSize(viewport);
+				await pinned();
+				await expect(settings).toHaveCSS('overscroll-behavior-y', 'none');
+
 				if (viewport.width > viewport.height) {
 					await page.getByRole('button', { name: 'Stacked', exact: true }).click();
 					await pinned();
