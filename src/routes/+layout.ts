@@ -1,1 +1,1 @@
-export const prerender = true;
+export const prerender = import.meta.env.YOULOOP_STATIC;
