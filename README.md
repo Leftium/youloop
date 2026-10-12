@@ -65,6 +65,71 @@ can use `{ notifyScroll: true, skipViewportSimulation: true }`; that explicitly
 dispatches scroll notifications and omits the viewport-resize simulation. It
 does not verify native touch scrolling or Safari chrome.
 
+## Experimental mobile page scrolling
+
+On touch viewports up to 900px wide (or landscape windows up to 500px tall),
+the editor settings offer **Page scrolling
+(experimental)**. It is off by default and lasts only for the current editor
+visit. It never enters clip URLs or session layout preferences. Side by side or
+Reset split turns it off; desktop sizing retains the normal bounded workspace.
+
+The default settings pane scrolls internally. In Chromium, adding a sticky whole
+workspace and document runway still leaves ordinary interior settings scrolling
+inside that pane. Native scroll chaining can reach the document at a pane boundary;
+that is not evidence of Safari toolbar behavior. WebKit has also documented
+[toolbar responses to nested scrolling](https://bugs.webkit.org/show_bug.cgi?id=231878),
+so it would be incorrect to assume nested scrolling always prevents collapse.
+
+The opt-in layout removes the nested settings scroller and lets finger scrolling
+over settings move the document. Video, timeline, transport, and separator stick
+above those controls. A finite invisible runway keeps short settings scrollable
+even with the browser toolbar collapsed. Unlike watch mode's long runway, it does
+not add an endless blank page. No scroll forwarding, wheel/touch interception,
+programmatic document scrolling, or Safari detection is used. The provider stays
+in its existing DOM parent.
+
+An independent `100svh` sizing budget is designed to keep toolbar-driven `dvh` changes out of
+the preview split calculation; rotation still reconciles pane minimums. Freed
+viewport space reveals more settings rather than repeatedly resizing the video.
+[WebKit describes the viewport units](https://webkit.org/blog/12445/new-webkit-features-in-safari-15-4/).
+Focus scroll margins keep settings actions below the sticky preview. Keyboard,
+safe-area, and toolbar behavior on a physical device remain unverified.
+
+### Required physical iPhone Safari comparison
+
+Use Safari in a normal tab, not an installed home-screen app, and record the
+phone model, iOS version, address-bar position, orientation, and starting toolbar
+state. Browser emulation and Chromium cannot establish toolbar collapse.
+
+1. Open `/?v=dt-SqNL4z3w&t=5-50&mute`, wait for the paused frame, and expand
+   Safari's bars. With the experiment off, swipe upward inside settings several
+   times, first away from a scroll boundary and then at its end. Record whether
+   the toolbar collapses and whether the document moves. Compare the unchanged
+   video-first `/dt-SqNL4z3w?t=5-50&mute` with an ordinary finger scroll.
+2. Enable Page scrolling in settings. Expand Safari's bars again, then swipe
+   inside settings with ordinary finger gestures. Record whether the toolbar
+   collapses, the preview/timeline stay pinned, all settings remain reachable,
+   and the split remains stable. Reverse the gesture to restore browser bars;
+   repeat near the start and end of the finite runway.
+3. Play the muted clip. Repeat scrolling, drag/cancel the splitter, edit A/B,
+   change Fit/Fill, and rotate portrait/landscape. Check that playback continues
+   without a restart, source reload, lost clip settings, or accidental play/pause
+   from swiping the picture. Test once while paused too.
+4. Tab/focus settings with an external keyboard if available; ensure actions
+   are not concealed by the sticky preview. Exercise Safari's address-bar
+   keyboard and closing it, toolbar changes, and safe-area edges. The current
+   editor has no text-entry source field; future text inputs will require their
+   own on-screen-keyboard check.
+5. Turn the checkbox off, use Reset split, and select Side by side where it fits.
+   Confirm ordinary pane scrolling returns and clip/share URLs are unchanged.
+   Reload: the experiment must start off. Compare editor/watch Back/Forward.
+
+**Physical Safari result: pending.** Keep this opt-in. If ordinary pane scrolling
+already collapses chrome, prefer the default layout. If native scrolling fails
+repeatedly, causes toolbar oscillation, conceals settings under the keyboard, or
+compromises playback, defer/remove the experiment rather than add synthetic
+scroll forwarding or promise forced chrome collapse.
+
 ## Clip links and navigation
 
 `/` is the existing editor, including its demo player. Both `/?v=ID&a=...&b=...`
