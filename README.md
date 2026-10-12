@@ -83,21 +83,13 @@ With video scrolling active, the complete grid is sticky over a native document
 runway. Controls retain their own `overflow-y: auto` scroller, with
 `overscroll-behavior-y: none` to suppress boundary chaining/bouncing where supported.
 Only the document scrollbar indicator is hidden; the controls scrollbar remains.
-The experimental grid uses `100lvh`, matching watch mode's stable large viewport,
-to avoid shortening the panes during toolbar animation. This is a follow-up trial
-for the owner's report that controls were clipped above the minimized address bar.
-The owner found the expanded bars covering controls acceptable, but reported that
-the portrait bottom gap remained even before collapse (landscape has no bottom
-chrome). The editor-only cover trial also did not remove that portrait gap. The next trial scopes
-`viewport-fit=cover` to the editor, allowing Safari to render to the screen edges
-while retaining safe-area padding on controls. Physical Safari must verify the
-provider framing; neither `lvh` nor viewport cover fixed the reported gap. The bounded editor
-still uses `100dvh`. In portrait, the experimental settings pane adds a scrollable
-bottom reserve of `100lvh - 100svh` plus its normal safe-area padding, so the last
-controls can be raised above expanded bars without changing the grid height.
-The owner confirmed this portrait reserve lets the very bottom controls scroll
-above the chrome. The remaining visual gap is unresolved; existing split ratios
-and provider identity remain unchanged.
+The controls pane uses Nimble's `--nc-surface-2` to distinguish it from the
+surrounding page in both light and dark themes.
+The experimental grid uses `100lvh` to limit resizing during toolbar animation.
+Expanded Safari bars can cover its bottom edge; the owner accepted this landscape
+tradeoff. The bounded editor uses `100dvh`. In portrait, settings add a scrollable
+`100lvh - 100svh` bottom reserve plus normal safe-area padding. The owner confirmed
+that this lets the final controls scroll above expanded chrome.
 
 The runway starts at 25 small viewports and freezes its height in pixels. Passive
 scroll/resize listeners add 25 current viewports before fewer than nine remain.
@@ -111,7 +103,9 @@ not implemented. The temporary scroll-offset overlay was removed after testing.
 ### Owner-reported physical Safari results
 
 These observations came from the owner's iPhone Safari testing. The iOS version
-and exact viewport were not recorded; timings and offsets are approximate.
+was not recorded; timings and offsets are approximate. Later portrait diagnostics
+reported a screen height of 812 CSS pixels and viewport heights of 664/704 pixels
+before/after toolbar collapse.
 
 | Comparison                                                        | Observed result                                                                                                                                             |
 | ----------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -161,27 +155,16 @@ not actual Safari toolbar collapse, momentum handoff, or native resize animation
    or session layout preferences. Compare editor/watch Back/Forward and the
    unchanged video-first `/dt-SqNL4z3w?t=5-50&mute`.
 
-A 60px portrait pane extension was tested and removed: the owner confirmed the
-larger measured bottom but the visible cutoff did not move. The normal portrait
-scroll reserve remains, since it makes the final controls reachable.
-
-The next candidate moves sticky positioning to a permanent outer shell while the
-grid remains unpositioned and controls retain independent scrolling. Repeat the
-60px portrait pane extension with matching scroll reserve under this shell to
-test painting past the old cutoff. The readout reports the shell's pin mode.
-This trial is awaiting physical Safari confirmation.
-
-For the unresolved portrait clipping boundary, append `&viewportDebug=1` to an
-editor URL with an existing query (or `?viewportDebug=1` on the bare root).
-A noninteractive readout reports CSS-pixel viewport, grid/pane bottom, padding,
-and scroll offsets. Capture it immediately after load and after toolbar collapse.
-Compare the reported pane bottom with the visible cutoff; geometry alone cannot
-prove Safari's compositor clipping. The owner confirmed disabling the controls scroller alone did not move the cutoff.
-The debug-only **Use document flow** checkbox now also removes grid stickiness,
-letting the preview and controls scroll with the document. This compares ordinary
-document painting with the sticky workspace. It disables independent controls
-scrolling and the pinned preview while checked; uncheck to restore normal behavior. It defaults off and is not saved. Without the URL flag
-no diagnostic listeners run.
+The remaining portrait gap above the floating toolbar is accepted to preserve
+independent controls scrolling. Diagnostics measured grid/pane bottom at 704px
+while the visible viewport grew from 664px to 704px after collapse. Neither editor
+viewport cover, a 60px pane extension, disabling controls overflow, nor moving
+stickiness to an outer shell removed the visible cutoff. Ordinary document flow
+painted behind the toolbar but scrolled the video away and sacrificed independent
+controls scrolling. These findings identify a rendering difference; they do not
+prove its internal WebKit cause. The failed variants, geometry readout, and debug
+switches were removed. Further investigation should use a minimal Safari
+reproduction rather than adding scroll-following workarounds to the editor.
 
 **Remaining device verification:** detailed safe-area/keyboard coverage, viewport
 resize smoothness, and broader iOS versions remain manual. The owner confirmed the
@@ -276,8 +259,8 @@ confirmed this with a landscape screenshot. Removing the iframe translation
 had not fixed it. DOM canvas/frame centers could agree even while the visible
 provider picture was clipped, so headless geometry tests alone missed this.
 
-The watch route retains one `width=device-width, initial-scale=1` viewport.
-The editor now trials `viewport-fit=cover` for its separate bottom-gap report. It preserves the editor's viewport, native zoom,
+The shared layout declares one `width=device-width, initial-scale=1` viewport
+for both routes. It preserves the editor's viewport, native zoom,
 `100lvh` watch stage, explicit canvas centering, 16000px iframe crop and existing
 visible-viewport intersection. No touch cancellation or horizontal clipping is
 added. The viewport regression guards this exact declaration. Temporary

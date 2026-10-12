@@ -677,11 +677,6 @@ test.describe('pinned workspace with independent settings experiment', () => {
 				const snapOption = page.getByRole('checkbox', {
 					name: 'Snap document scrolling (experimental)'
 				});
-				await expect(page.locator('meta[name="viewport"]')).toHaveCount(1);
-				await expect(page.locator('meta[name="viewport"]')).toHaveAttribute(
-					'content',
-					'width=device-width, initial-scale=1, viewport-fit=cover'
-				);
 				await expect(option).toBeChecked();
 				await expect(snapOption).toBeChecked();
 				await expect(snapOption).toBeInViewport({ ratio: 1 });
@@ -717,8 +712,7 @@ test.describe('pinned workspace with independent settings experiment', () => {
 									timeline.top >= preview.top &&
 									timeline.bottom <= preview.bottom &&
 									pane.top >= 0 &&
-									Math.abs(pane.bottom - grid.bottom - (innerHeight > innerWidth ? 60 : 0)) <=
-										1 &&
+									pane.bottom <= innerHeight + 1 &&
 									getComputedStyle(settings).overflowY === 'auto' &&
 									document.documentElement.scrollWidth <= innerWidth
 								);

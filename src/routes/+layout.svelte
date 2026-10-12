@@ -9,14 +9,8 @@
 </script>
 
 <svelte:head>
-	<!-- Cover is an editor-only trial for Safari's bottom inset. Keep watch mode's
-	     default fit: cover previously clipped its provider on physical iPhone. -->
-	<meta
-		name="viewport"
-		content={page.route.id === '/'
-			? 'width=device-width, initial-scale=1, viewport-fit=cover'
-			: 'width=device-width, initial-scale=1'}
-	/>
+	<!-- viewport-fit=cover clipped the centered YouTube iframe on physical iPhone Safari. -->
+	<meta name="viewport" content="width=device-width, initial-scale=1" />
 </svelte:head>
 
 {#if data.social}

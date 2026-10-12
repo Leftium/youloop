@@ -11,9 +11,6 @@
 	let runway: HTMLDivElement;
 	let runwayHeight = $state<number>();
 	let mobile = $state(false);
-	let viewportDebug = $state(false);
-	let debugFlow = $state(false);
-	let viewportReadout = $state('');
 	let videoScrollRequested = $state(true);
 	let snapRequested = $state(true);
 	const snapSpacing = 20;
@@ -35,7 +32,6 @@
 	let drag: { id: number; target: HTMLElement; origin: number; size: number } | undefined;
 
 	onMount(() => {
-		viewportDebug = new URLSearchParams(location.search).get('viewportDebug') === '1';
 		try {
 			const saved = JSON.parse(sessionStorage.getItem(storageKey) ?? 'null');
 			if (saved?.layout === 'columns' || saved?.layout === 'rows') preference = saved.layout;
@@ -63,47 +59,6 @@
 			query.removeEventListener('change', updateMobile);
 			observer.disconnect();
 			endDrag();
-		};
-	});
-
-	$effect(() => {
-		if (!viewportDebug) return;
-		void debugFlow;
-		const pane = grid.querySelector<HTMLElement>('#editor-settings')!;
-		const viewport = window.visualViewport;
-		let frame = 0;
-		const update = () => {
-			frame = 0;
-			const bounds = pane.getBoundingClientRect();
-			const round = (value: number) => Math.round(value);
-			viewportReadout = [
-				`inner ${innerHeight} / screen ${screen.height}`,
-				`visual ${round(viewport?.height ?? innerHeight)} + ${round(viewport?.offsetTop ?? 0)}`,
-				`grid ${round(grid.getBoundingClientRect().bottom)} / pane ${round(bounds.bottom)}`,
-				`pane h ${pane.clientHeight} / pad ${round(parseFloat(getComputedStyle(pane).paddingBottom))}`,
-				`doc y ${round(scrollY)} / pane y ${round(pane.scrollTop)}`,
-				`overflow ${getComputedStyle(pane).overflowY} / pin ${getComputedStyle(grid.parentElement!).position}`
-			].join('\n');
-		};
-		const schedule = () => {
-			if (!frame) frame = requestAnimationFrame(update);
-		};
-		const observer = new ResizeObserver(schedule);
-		observer.observe(grid);
-		window.addEventListener('scroll', schedule, { passive: true });
-		window.addEventListener('resize', schedule, { passive: true });
-		pane.addEventListener('scroll', schedule, { passive: true });
-		viewport?.addEventListener('resize', schedule);
-		viewport?.addEventListener('scroll', schedule);
-		schedule();
-		return () => {
-			cancelAnimationFrame(frame);
-			observer.disconnect();
-			window.removeEventListener('scroll', schedule);
-			window.removeEventListener('resize', schedule);
-			pane.removeEventListener('scroll', schedule);
-			viewport?.removeEventListener('resize', schedule);
-			viewport?.removeEventListener('scroll', schedule);
 		};
 	});
 
@@ -218,10 +173,6 @@
 	}
 </script>
 
-{#if viewportDebug}
-	<output class="viewport-debug" aria-label="Viewport geometry diagnostics">{viewportReadout}</output>
-{/if}
-
 {#snippet layoutControls()}
 	<div class="workspace-layout" role="group" aria-label="Workspace layout">
 		<div class="nc-join layout-modes">
@@ -253,71 +204,62 @@
 	class="editor-workspace"
 	class:video-scroll={videoScroll}
 	class:document-snap={documentSnap}
-	class:debug-flow={viewportDebug && debugFlow}
 	aria-label="Editor workspace"
 >
-	<div class="workspace-shell">
+	<div
+		class="workspace-grid"
+		class:dragging
+		data-layout={layout}
+		bind:this={grid}
+		style:--preview-size={`${size}px`}
+		style:--divider-size={`${dividerSize}px`}
+	>
+		<div id="editor-preview" class="preview-pane" role="region" aria-label="Video preview">
+			{@render preview(layoutControls)}
+		</div>
+		<!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
 		<div
-			class="workspace-grid"
-			class:dragging
-			data-layout={layout}
-			bind:this={grid}
-			style:--preview-size={`${size}px`}
-			style:--divider-size={`${dividerSize}px`}
+			class="splitter"
+			role="separator"
+			aria-label="Resize video preview"
+			aria-controls="editor-preview editor-settings"
+			aria-orientation={layout === 'columns' ? 'vertical' : 'horizontal'}
+			aria-valuemin={Math.round(minimum)}
+			aria-valuemax={Math.round(maximum)}
+			aria-valuenow={Math.round(size)}
+			aria-valuetext={`${Math.round(available ? (size / available) * 100 : 0)}% preview`}
+			tabindex="0"
+			onkeydown={resizeWithKeyboard}
+			onpointerdown={startDrag}
+			onpointermove={moveDrag}
+			onpointerup={endDrag}
+			onpointercancel={endDrag}
+			onlostpointercapture={endDrag}
+		></div>
+		<!-- The scroll region must be reachable for keyboard scrolling. -->
+		<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+		<div
+			id="editor-settings"
+			class="settings-pane"
+			role="region"
+			aria-label="Clip settings"
+			tabindex="0"
 		>
-			<div id="editor-preview" class="preview-pane" role="region" aria-label="Video preview">
-				{@render preview(layoutControls)}
-			</div>
-			<!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
-			<div
-				class="splitter"
-				role="separator"
-				aria-label="Resize video preview"
-				aria-controls="editor-preview editor-settings"
-				aria-orientation={layout === 'columns' ? 'vertical' : 'horizontal'}
-				aria-valuemin={Math.round(minimum)}
-				aria-valuemax={Math.round(maximum)}
-				aria-valuenow={Math.round(size)}
-				aria-valuetext={`${Math.round(available ? (size / available) * 100 : 0)}% preview`}
-				tabindex="0"
-				onkeydown={resizeWithKeyboard}
-				onpointerdown={startDrag}
-				onpointermove={moveDrag}
-				onpointerup={endDrag}
-				onpointercancel={endDrag}
-				onlostpointercapture={endDrag}
-			></div>
-			<!-- The scroll region must be reachable for keyboard scrolling. -->
-			<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
-			<div
-				id="editor-settings"
-				class="settings-pane"
-				role="region"
-				aria-label="Clip settings"
-				tabindex="0"
-			>
-				{#if viewportDebug}
-					<label class="video-scroll-option">
-						<input type="checkbox" bind:checked={debugFlow} />
-						Use document flow (diagnostic)
-					</label>
-				{/if}
-				{#if mobile}
-					<label class="video-scroll-option">
-						<input type="checkbox" bind:checked={videoScrollRequested} />
-						Video swipe scrolling (experimental)
-					</label>
-					<label class="video-scroll-option">
-						<input type="checkbox" bind:checked={snapRequested} disabled={!videoScroll} />
-						Snap document scrolling (experimental)
-					</label>
-					<p class="scroll-hint">
-						Swipe upward on the picture to try minimizing Safari's toolbar. Controls scroll
-						separately. Safari owns toolbar visibility; Reset split exits the experiment.
-					</p>
-				{/if}
-				{@render settings()}
-			</div>
+			{#if mobile}
+				<label class="video-scroll-option">
+					<input type="checkbox" bind:checked={videoScrollRequested} />
+					Video swipe scrolling (experimental)
+				</label>
+				<label class="video-scroll-option">
+					<input type="checkbox" bind:checked={snapRequested} disabled={!videoScroll} />
+					Snap document scrolling (experimental)
+				</label>
+				<p class="scroll-hint">
+					Swipe upward on the picture to try minimizing Safari's toolbar. Controls scroll
+					separately. Safari owns toolbar visibility; Reset split exits the experiment.
+				</p>
+			{/if}
+			{@render settings()}
 		</div>
 	</div>
 	<div
@@ -336,19 +278,6 @@
 </section>
 
 <style>
-	.viewport-debug {
-		position: fixed;
-		z-index: 100;
-		top: max(1rem, env(safe-area-inset-top));
-		right: max(0.5rem, env(safe-area-inset-right));
-		padding: 0.5rem;
-		background: #fff;
-		color: #000;
-		font: 11px/1.4 monospace;
-		white-space: pre;
-		pointer-events: none;
-	}
-
 	.editor-workspace {
 		height: 100dvh;
 		min-height: 0;
@@ -388,7 +317,7 @@
 		height: auto;
 		overflow-anchor: none;
 	}
-	.video-scroll .workspace-shell {
+	.video-scroll .workspace-grid {
 		position: sticky;
 		top: 0;
 		/* Keep the experimental canvas at the collapsed-toolbar height to avoid
@@ -444,10 +373,6 @@
 	.workspace-layout button[aria-pressed='false'] :global(svg) {
 		opacity: 0.4;
 	}
-	.workspace-shell {
-		height: 100%;
-		min-width: 0;
-	}
 	.workspace-grid {
 		display: grid;
 		height: 100%;
@@ -466,6 +391,7 @@
 		min-height: 0;
 	}
 	.settings-pane {
+		background: var(--nc-surface-2);
 		/* Keep pane boundary gestures from chaining into the document where supported. */
 		overscroll-behavior-y: contain;
 		overflow-y: auto;
@@ -477,24 +403,11 @@
 	}
 	@media (orientation: portrait) {
 		.video-scroll .settings-pane {
-			/* Repeat the overdraw test under the sticky shell, keeping the preview
-			   height unchanged and matching the extension with scroll reserve. */
-			--controls-overdraw: 60px;
-			box-sizing: border-box;
-			height: calc(100% + var(--controls-overdraw));
+			/* lvh extends behind expanded bars. A scrollable reserve lifts the
+			   final controls clear of them without resizing the preview. */
 			--browser-chrome-reserve: max(0px, calc(100lvh - 100svh));
-			padding-bottom: calc(
-				max(1rem, env(safe-area-inset-bottom)) + var(--browser-chrome-reserve) +
-					var(--controls-overdraw)
-			);
+			padding-bottom: calc(max(1rem, env(safe-area-inset-bottom)) + var(--browser-chrome-reserve));
 		}
-	}
-	.editor-workspace.debug-flow .workspace-shell {
-		/* Diagnostic only: compare ordinary document painting with the sticky grid. */
-		position: static;
-	}
-	.editor-workspace.debug-flow .settings-pane {
-		overflow: visible;
 	}
 	.settings-pane > :global(:last-child) {
 		/* The pane owns its safe-area spacing; do not stack a trailing block margin. */
