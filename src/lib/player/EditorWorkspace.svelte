@@ -244,6 +244,11 @@
 			<div class="settings-content">{@render settings()}</div>
 		</div>
 	</div>
+	<span
+		class="settings-edge"
+		aria-hidden="true"
+		style:left={layout === 'columns' ? `${size + dividerSize}px` : '0px'}
+	></span>
 	<div
 		class="video-scroll-runway"
 		aria-hidden="true"
@@ -365,7 +370,7 @@
 		background: var(--nc-surface-1);
 	}
 	.settings-pane {
-		background: var(--nc-surface-2);
+		background: var(--nc-surface-1);
 		/* Keep pane boundary gestures from chaining into the document where supported. */
 		overscroll-behavior-y: contain;
 		overflow-y: auto;
@@ -375,9 +380,22 @@
 		overflow-wrap: anywhere;
 		scrollbar-gutter: stable;
 	}
+	.settings-edge {
+		display: none;
+		position: fixed;
+		/* Follow the visible viewport, while the workspace keeps its lvh size. */
+		top: calc(100dvh - 1px);
+		right: 0;
+		height: 1px;
+		background: var(--nc-border);
+		pointer-events: none;
+		z-index: 3;
+	}
 	@media (orientation: portrait) {
+		.video-scroll .settings-edge {
+			display: block;
+		}
 		.video-scroll .settings-pane {
-			border-bottom: 1px solid var(--nc-border);
 			/* lvh extends behind expanded bars. A scrollable reserve lifts the
 			   final controls clear of them without resizing the preview. */
 			--browser-chrome-reserve: max(0px, calc(100lvh - 100svh));
