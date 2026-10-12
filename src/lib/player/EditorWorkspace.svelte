@@ -12,6 +12,7 @@
 	let runwayHeight = $state<number>();
 	let mobile = $state(false);
 	let viewportDebug = $state(false);
+	let debugOverflow = $state(false);
 	let viewportReadout = $state('');
 	let videoScrollRequested = $state(true);
 	let snapRequested = $state(true);
@@ -67,6 +68,7 @@
 
 	$effect(() => {
 		if (!viewportDebug) return;
+		void debugOverflow;
 		const pane = grid.querySelector<HTMLElement>('#editor-settings')!;
 		const viewport = window.visualViewport;
 		let frame = 0;
@@ -79,7 +81,8 @@
 				`visual ${round(viewport?.height ?? innerHeight)} + ${round(viewport?.offsetTop ?? 0)}`,
 				`grid ${round(grid.getBoundingClientRect().bottom)} / pane ${round(bounds.bottom)}`,
 				`pane h ${pane.clientHeight} / pad ${round(parseFloat(getComputedStyle(pane).paddingBottom))}`,
-				`doc y ${round(scrollY)} / pane y ${round(pane.scrollTop)}`
+				`doc y ${round(scrollY)} / pane y ${round(pane.scrollTop)}`,
+				`overflow ${getComputedStyle(pane).overflowY}`
 			].join('\n');
 		};
 		const schedule = () => {
@@ -287,10 +290,17 @@
 		<div
 			id="editor-settings"
 			class="settings-pane"
+			class:debug-overflow={viewportDebug && debugOverflow}
 			role="region"
 			aria-label="Clip settings"
 			tabindex="0"
 		>
+			{#if viewportDebug}
+				<label class="video-scroll-option">
+					<input type="checkbox" bind:checked={debugOverflow} />
+					Disable controls scroller (diagnostic)
+				</label>
+			{/if}
 			{#if mobile}
 				<label class="video-scroll-option">
 					<input type="checkbox" bind:checked={videoScrollRequested} />
@@ -461,17 +471,16 @@
 	}
 	@media (orientation: portrait) {
 		.video-scroll .settings-pane {
-			/* Trial painting below Safari's reported viewport without growing the
-			   preview. Match the extra pane height with a scrollable bottom reserve. */
-			--controls-overdraw: 60px;
-			box-sizing: border-box;
-			height: calc(100% + var(--controls-overdraw));
+			/* Keep final controls reachable above expanded bars without resizing the grid. */
 			--browser-chrome-reserve: max(0px, calc(100lvh - 100svh));
 			padding-bottom: calc(
-				max(1rem, env(safe-area-inset-bottom)) + var(--browser-chrome-reserve) +
-					var(--controls-overdraw)
+				max(1rem, env(safe-area-inset-bottom)) + var(--browser-chrome-reserve)
 			);
 		}
+	}
+	.settings-pane.debug-overflow {
+		/* Diagnostic only: isolate nested overflow clipping from viewport clipping. */
+		overflow: visible;
 	}
 	.settings-pane > :global(:last-child) {
 		/* The pane owns its safe-area spacing; do not stack a trailing block margin. */

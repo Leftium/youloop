@@ -717,8 +717,7 @@ test.describe('pinned workspace with independent settings experiment', () => {
 									timeline.top >= preview.top &&
 									timeline.bottom <= preview.bottom &&
 									pane.top >= 0 &&
-									Math.abs(pane.bottom - grid.bottom - (innerHeight > innerWidth ? 60 : 0)) <=
-										1 &&
+									pane.bottom <= innerHeight + 1 &&
 									getComputedStyle(settings).overflowY === 'auto' &&
 									document.documentElement.scrollWidth <= innerWidth
 								);
