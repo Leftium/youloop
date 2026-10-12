@@ -110,7 +110,14 @@ In the experiment, controls use `overscroll-behavior-y: none` to suppress bounda
 chaining and rubber-band affordances where supported. This cannot guarantee that
 Safari ignores nested gestures: toolbar reactions may occur even when root
 `scrollY` does not change. The owner reported intermittent nested-control coupling
-with the earlier pinned version. Check the root offset in remote Web Inspector
+with the sticky version. Only controls drags started immediately after a video
+flick coupled; waiting for momentum to stop or interrupting it with a separate tap
+avoided coupling. This supports a momentum/scroll-latching hypothesis without
+proving its mechanism. A fixed-overlay comparison preserved native video scrolling
+when enabled, but the owner confirmed the first controls gesture still coupled.
+Fixed positioning was therefore rejected, and the sticky implementation retained.
+No momentum-cancellation or root scroll-lock workaround has been introduced.
+Check the root offset in remote Web Inspector
 while reproducing it, and distinguish actual document motion from Safari-owned
 chrome changes. No global touch interception is introduced. Video-first mode
 remains unchanged.
@@ -142,7 +149,12 @@ ownership and playback continuity, not Safari's actual toolbar behavior.
    confirm it extends without a jump or playback reset. Verify the workspace grows
    to fill newly freed height, and video, timeline, splitter, and every setting
    remain usable. Note any toolbar jitter, browser-owned expansion, or accidental playback.
-5. Turn the option off, use Reset split, and reload. Confirm the default bounded
+5. Recheck the handoff in portrait and landscape: flick the video, then immediately
+   drag controls; compare with waiting for momentum to stop and with a separate
+   tap-and-release before dragging. Record the controls scrollbar, document
+   `scrollY`, controls `scrollTop`, and toolbar behavior. Immediate coupling remains
+   a known physical Safari limitation of this opt-in mode.
+6. Turn the option off, use Reset split, and reload. Confirm the default bounded
    workspace returns, the option starts off, and clip/layout state is preserved.
    Check safe-area edges, Safari's address-bar keyboard opening/closing, external
    keyboard focus, and all settings' reachability. Reset/reload and editor/watch
