@@ -244,8 +244,8 @@ not establish physical-device behavior.
 Production runs on the [Git-connected `team-leftium/youloop` Vercel project](https://vercel.com/team-leftium/youloop)
 at [youloop.leftium.com](https://youloop.leftium.com). Pushes to `main` trigger
 Vercel builds using `vercel.json` and the SvelteKit 3 Vercel adapter. The owner
-moved the custom-domain DNS from GitHub Pages to Vercel on 2026-10-12, after
-[PR #25](https://github.com/Leftium/youloop/pull/25) merged. All routes serve
+moved the custom-domain DNS from GitHub Pages to Vercel on 2026-10-12,
+before [PR #25](https://github.com/Leftium/youloop/pull/25) merged. All routes serve
 from the domain root; no SvelteKit base path is configured.
 
 The former GitHub Pages publish workflow has been retired. The GitHub Pages
@@ -308,8 +308,9 @@ Staging authentication protection was disabled only on `youloop-staging`,
 allowing public HTTP and browser review.
 
 `DEPLOY_TARGET` defaults to `vercel`; `static` selects the static adapter and
-prerenders the existing routes for optional rollback. Unknown targets fail the build. This is a
-build-time setting, not an environment switch on an already built artifact.
+prerenders the existing routes for optional rollback. Unknown targets fail the
+build. This is a build-time setting, not an environment switch on an already
+built artifact.
 The Vercel build renders the existing shell per request. Video source creation,
 URL parsing, and playback remain in browser mount handlers; this does not
 choose the eventual social metadata design or add new share paths.
