@@ -130,6 +130,48 @@ test('invalid resolved and collapsed clips pause without rewriting their identit
 	}
 });
 
+for (const flags of ['mute', 'once&mute&speed=1.5&vertical=0&fill=0']) {
+	test(`invalid watch clips retain Edit and can be repaired: ${flags}`, async ({
+		page,
+		context
+	}) => {
+		await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+		const watch = `/${id}/60~-30?${flags}`;
+		const editor = `/?v=${id}&t=60~-30&${flags}`;
+		await page.goto(watch);
+		await expect(page.getByRole('alert')).toContainText('Invalid clip');
+		await expect.poll(async () => (await state(page)).paused).toBe(true);
+		await expect(page.getByRole('button', { name: 'Play video', exact: true })).toBeDisabled();
+		await expect(page).toHaveURL('http://localhost:5173' + watch);
+		const edit = page.getByRole('link', { name: 'Edit', exact: true });
+		await expect(edit).toBeVisible();
+		await expect(edit).toHaveAttribute('href', editor);
+		await edit.click();
+		await expect(page).toHaveURL('http://localhost:5173' + editor);
+		await expect(page.getByRole('alert')).toContainText('Invalid clip');
+		await expect(page.getByRole('button', { name: 'Copy Link', exact: true })).toBeDisabled();
+		await expect(page.locator('nav[aria-label="Clip navigation"] a')).not.toHaveAttribute('href');
+		await page.getByRole('slider', { name: 'Repeat start', exact: true }).fill('5');
+		const repaired = `/${id}/5~-30?${flags}`;
+		await expect(page.getByRole('alert')).toHaveCount(0);
+		await expect(page.getByRole('link', { name: 'Open video', exact: true })).toHaveAttribute(
+			'href',
+			repaired
+		);
+		const copy = page.getByRole('button', { name: 'Copy Link', exact: true });
+		await expect(copy).toBeEnabled();
+		await copy.click();
+		expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
+			'http://localhost:5173' + repaired
+		);
+		await page.getByRole('link', { name: 'Open video', exact: true }).click();
+		await settled(page);
+		await expect(page).toHaveURL('http://localhost:5173' + repaired);
+		await expect(page.getByRole('button', { name: 'Play video', exact: true })).toBeEnabled();
+		await expect(page.getByRole('alert')).toHaveCount(0);
+	});
+}
+
 test('same-source range navigation preserves provider and restores bounds on Back', async ({
 	page
 }) => {

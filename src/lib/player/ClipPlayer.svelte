@@ -68,9 +68,7 @@
 	let sharePath = $derived(
 		normalized.ok && !clipInvalid ? serializeShareUrl(normalized.value) : undefined
 	);
-	let editorPath = $derived(
-		normalized.ok && !clipInvalid ? serializeEditorUrl(normalized.value) : undefined
-	);
+	let editorPath = $derived(normalized.ok ? serializeEditorUrl(normalized.value) : undefined);
 
 	onMount(() => {
 		controller = createOrientationController((frame, _override, source) => {
