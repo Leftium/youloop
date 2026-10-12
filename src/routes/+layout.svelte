@@ -55,6 +55,13 @@
 		background: var(--nc-surface-1);
 	}
 
+	:global(html:has(.editor-page .video-scroll)),
+	:global(body:has(.editor-page .video-scroll)) {
+		/* Match native scroll room to controls so Safari UI transitions do not
+		   expose a contrasting document strip below the pinned workspace. */
+		background: var(--nc-surface-2);
+	}
+
 	.editor-page {
 		width: 100%;
 		max-width: none;

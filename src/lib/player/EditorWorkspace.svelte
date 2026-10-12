@@ -361,6 +361,9 @@
 		min-width: 0;
 		min-height: 0;
 	}
+	.preview-pane {
+		background: var(--nc-surface-1);
+	}
 	.settings-pane {
 		background: var(--nc-surface-2);
 		/* Keep pane boundary gestures from chaining into the document where supported. */
