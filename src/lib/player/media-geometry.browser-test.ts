@@ -67,7 +67,8 @@ export async function run() {
 						Math.abs(bounds.width / bounds.height - ratio) > 0.002 ||
 						bounds.width > outer.width + 1 ||
 						bounds.height > outer.height + 1 ||
-						Math.abs(outer.width / outer.height - 16 / 9) > 0.002 ||
+						(!container.classList.contains('workspace') &&
+							Math.abs(outer.width / outer.height - 16 / 9) > 0.002) ||
 						Math.abs(bounds.left + bounds.width / 2 - outer.left - outer.width / 2) > 1 ||
 						Math.abs(bounds.top + bounds.height / 2 - outer.top - outer.height / 2) > 1 ||
 						getComputedStyle(canvas).contain !== 'size layout' ||

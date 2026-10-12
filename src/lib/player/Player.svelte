@@ -1,7 +1,8 @@
 <script lang="ts">
 	import type { WatchControlsPlayer } from './watch-controls';
 	import type { YouTubeVideoElement } from '@videojs/html/media/youtube-video';
-	import { onMount, untrack } from 'svelte';
+	import { onMount, untrack, type Snippet } from 'svelte';
+	import EditorWorkspace from './EditorWorkspace.svelte';
 	import { clampClipBounds } from './clip-bounds';
 	import { excludeYouTubeProviderFocus } from './youtube-provider-focus';
 	import { calculateFrameVideoWidth } from './video-framing';
@@ -68,6 +69,7 @@
 		sourceAspectRatio?: number;
 		minimal?: boolean;
 		editorPath?: string;
+		editorActions?: Snippet;
 		once?: boolean;
 		mute?: boolean;
 		speed?: number;
@@ -92,6 +94,7 @@
 		sourceAspectRatio = 16 / 9,
 		minimal = false,
 		editorPath,
+		editorActions,
 		once = false,
 		mute,
 		speed,
@@ -767,360 +770,374 @@
 	}
 </script>
 
-<div
-	class="player"
-	class:minimal
-	style:--media-ratio={orientation === 'portrait' ? 9 / 16 : 16 / 9}
-	style:--video-width={frameVideoWidth === null ? '100%' : `${frameVideoWidth}px`}
-	style:--video-source-ratio={sourceAspectRatio}
-	bind:this={playerContainer}
->
+{#snippet preview()}
 	<div
-		class="media-canvas"
-		bind:this={mediaCanvas}
-		bind:clientWidth={canvasWidth}
-		bind:clientHeight={canvasHeight}
+		class="player"
+		class:workspace={!minimal}
+		class:minimal
+		style:--media-ratio={orientation === 'portrait' ? 9 / 16 : 16 / 9}
+		style:--video-width={frameVideoWidth === null ? '100%' : `${frameVideoWidth}px`}
+		style:--video-source-ratio={sourceAspectRatio}
+		bind:this={playerContainer}
 	>
-		{#if playerMounted}
-			{#key `${youtubeId}:${sourceVersion}`}
-				<youtube-video
-					{@attach excludeYouTubeProviderFocus}
-					bind:this={player}
-					src={`https://www.youtube-nocookie.com/embed/${youtubeId}`}
-					playsinline
-					onloadedmetadata={handleMetadata}
-					ondurationchange={handleMetadata}
-					ontimeupdate={handleTimeUpdate}
-					onseeked={handleSeeked}
-					onended={handleEnded}
-					onplay={() => (paused = providerStalled)}
-					onplaying={handlePlaying}
-					onpause={handlePause}
-					onvolumechange={handleVolumeChange}
-					onratechange={() => {
-						if (metadataReceived && !bootstrapMuted) {
-							playbackRate = player.playbackRate * 100;
-							if (player.playbackRate !== (speed ?? 1)) onspeedchange?.(player.playbackRate);
-						}
-					}}
-					onerror={handleError}
-				></youtube-video>
-			{/key}
-		{/if}
-	</div>
+		<div
+			class="media-canvas"
+			bind:this={mediaCanvas}
+			bind:clientWidth={canvasWidth}
+			bind:clientHeight={canvasHeight}
+		>
+			{#if playerMounted}
+				{#key `${youtubeId}:${sourceVersion}`}
+					<youtube-video
+						{@attach excludeYouTubeProviderFocus}
+						bind:this={player}
+						src={`https://www.youtube-nocookie.com/embed/${youtubeId}`}
+						playsinline
+						onloadedmetadata={handleMetadata}
+						ondurationchange={handleMetadata}
+						ontimeupdate={handleTimeUpdate}
+						onseeked={handleSeeked}
+						onended={handleEnded}
+						onplay={() => (paused = providerStalled)}
+						onplaying={handlePlaying}
+						onpause={handlePause}
+						onvolumechange={handleVolumeChange}
+						onratechange={() => {
+							if (metadataReceived && !bootstrapMuted) {
+								playbackRate = player.playbackRate * 100;
+								if (player.playbackRate !== (speed ?? 1)) onspeedchange?.(player.playbackRate);
+							}
+						}}
+						onerror={handleError}
+					></youtube-video>
+				{/key}
+			{/if}
+		</div>
 
-	{#if minimal}
-		<div class="video-surface" aria-hidden="true" bind:this={videoSurface}></div>
-		<!-- Separate keyboard/AT activation from pointer recognition so scroll-generated clicks cannot play. -->
-		<button
-			class="video-toggle watch-playback"
-			aria-label={paused ? 'Play video' : 'Pause video'}
-			aria-keyshortcuts="Space Enter"
-			disabled={!metadataReceived}
-			onclick={togglePaused}
-		></button>
-		{#if controlsModule}
-			<youloop-controls-player bind:this={controlsPlayer}>
-				<div
-					class="watch-overlay"
-					class:theater
-					style:left={`${visibleBounds.left}px`}
-					style:top={`${visibleBounds.top}px`}
-					style:width={`${visibleBounds.width}px`}
-					style:height={`${visibleBounds.height}px`}
-				>
-					{#if !theater}
-						<div
-							class="watch-timeline"
-							class:clip={clipTimeline}
-							data-mode={clipTimeline ? 'clip' : 'video'}
-							role="progressbar"
-							aria-label={clipTimeline ? 'A:B progress' : 'Video progress'}
-							aria-valuemin="0"
-							aria-valuemax={timelineDuration}
-							aria-valuenow={timelineTime}
-							aria-valuetext={`${range.valid ? formatVideoTime(timelineTime) : '?:??'} / ${range.valid ? formatVideoTime(timelineDuration) : '?:??'}`}
-						>
-							{#if clipTimeline && range.leftTail}<div
-									class="timeline-tail left"
-									aria-hidden="true"
-								></div>{/if}
-							<div class="timeline-track">
-								{#if !clipTimeline && range.restricted}
-									<div
-										class="timeline-selection"
-										style:left={`${range.selectionStart * 100}%`}
-										style:width={`${range.selectionWidth * 100}%`}
-									>
-										<div
-											class="timeline-overlap"
-											style:width={`${range.clipProgress * 100}%`}
-										></div>
-									</div>
-								{/if}
-								<div
-									class="timeline-fill"
-									style:width={`${(clipTimeline ? range.clipProgress : range.videoProgress) * 100}%`}
-								></div>
-							</div>
-							{#if clipTimeline && range.rightTail}<div
-									class="timeline-tail right"
-									aria-hidden="true"
-								></div>{/if}
-						</div>
-					{/if}
-				</div>
-				<div
-					class="watch-controls-region"
-					bind:this={controlsRegion}
-					style:left={`${controlsBounds.left}px`}
-					style:top={`${controlsBounds.top}px`}
-					style:width={`${controlsBounds.width}px`}
-					style:height={`${controlsBounds.height}px`}
-				>
-					{#if paused && videoTitle && !theater && !controlPageVisible}
-						<h1
-							class="video-title"
-							bind:this={watchTitle}
-							data-placement={titlePlacement.mode}
-							style:left={`${titlePlacement.left}px`}
-							style:top={`${titlePlacement.top}px`}
-							style:width={`${titlePlacement.width}px`}
-							style:max-height={`${titlePlacement.maxHeight}px`}
-						>
-							{videoTitle}
-						</h1>
-					{/if}
-					<media-controls
-						class="watch-controls"
-						class:paused
-						class:suppressed={theater || controlPageVisible}
-						inert={theater || controlPageVisible}
-						bind:this={watchControls}
-						data-placement={controlsPlacement.mode}
-						style:left={`${controlsPlacement.left}px`}
-						style:top={`${controlsPlacement.top}px`}
-						style:width={`${controlsPlacement.width}px`}
-						style:height={`${controlsPlacement.height}px`}
+		{#if minimal}
+			<div class="video-surface" aria-hidden="true" bind:this={videoSurface}></div>
+			<!-- Separate keyboard/AT activation from pointer recognition so scroll-generated clicks cannot play. -->
+			<button
+				class="video-toggle watch-playback"
+				aria-label={paused ? 'Play video' : 'Pause video'}
+				aria-keyshortcuts="Space Enter"
+				disabled={!metadataReceived}
+				onclick={togglePaused}
+			></button>
+			{#if controlsModule}
+				<youloop-controls-player bind:this={controlsPlayer}>
+					<div
+						class="watch-overlay"
+						class:theater
+						style:left={`${visibleBounds.left}px`}
+						style:top={`${visibleBounds.top}px`}
+						style:width={`${visibleBounds.width}px`}
+						style:height={`${visibleBounds.height}px`}
 					>
-						<button
-							class="watch-time"
-							class:clip={clipTimeline}
-							disabled={!range.restricted}
-							aria-label={range.restricted
-								? `${clipTimeline ? 'A:B' : 'VIDEO'} progress, switch to ${clipTimeline ? 'full-video' : 'A:B'} progress`
-								: 'VIDEO progress, full video selected'}
-							onclick={toggleTimeline}
+						{#if !theater}
+							<div
+								class="watch-timeline"
+								class:clip={clipTimeline}
+								data-mode={clipTimeline ? 'clip' : 'video'}
+								role="progressbar"
+								aria-label={clipTimeline ? 'A:B progress' : 'Video progress'}
+								aria-valuemin="0"
+								aria-valuemax={timelineDuration}
+								aria-valuenow={timelineTime}
+								aria-valuetext={`${range.valid ? formatVideoTime(timelineTime) : '?:??'} / ${range.valid ? formatVideoTime(timelineDuration) : '?:??'}`}
+							>
+								{#if clipTimeline && range.leftTail}<div
+										class="timeline-tail left"
+										aria-hidden="true"
+									></div>{/if}
+								<div class="timeline-track">
+									{#if !clipTimeline && range.restricted}
+										<div
+											class="timeline-selection"
+											style:left={`${range.selectionStart * 100}%`}
+											style:width={`${range.selectionWidth * 100}%`}
+										>
+											<div
+												class="timeline-overlap"
+												style:width={`${range.clipProgress * 100}%`}
+											></div>
+										</div>
+									{/if}
+									<div
+										class="timeline-fill"
+										style:width={`${(clipTimeline ? range.clipProgress : range.videoProgress) * 100}%`}
+									></div>
+								</div>
+								{#if clipTimeline && range.rightTail}<div
+										class="timeline-tail right"
+										aria-hidden="true"
+									></div>{/if}
+							</div>
+						{/if}
+					</div>
+					<div
+						class="watch-controls-region"
+						bind:this={controlsRegion}
+						style:left={`${controlsBounds.left}px`}
+						style:top={`${controlsBounds.top}px`}
+						style:width={`${controlsBounds.width}px`}
+						style:height={`${controlsBounds.height}px`}
+					>
+						{#if paused && videoTitle && !theater && !controlPageVisible}
+							<h1
+								class="video-title"
+								bind:this={watchTitle}
+								data-placement={titlePlacement.mode}
+								style:left={`${titlePlacement.left}px`}
+								style:top={`${titlePlacement.top}px`}
+								style:width={`${titlePlacement.width}px`}
+								style:max-height={`${titlePlacement.maxHeight}px`}
+							>
+								{videoTitle}
+							</h1>
+						{/if}
+						<media-controls
+							class="watch-controls"
+							class:paused
+							class:suppressed={theater || controlPageVisible}
+							inert={theater || controlPageVisible}
+							bind:this={watchControls}
+							data-placement={controlsPlacement.mode}
+							style:left={`${controlsPlacement.left}px`}
+							style:top={`${controlsPlacement.top}px`}
+							style:width={`${controlsPlacement.width}px`}
+							style:height={`${controlsPlacement.height}px`}
 						>
-							<span class="time-value"
-								><span>{range.valid ? formatVideoTime(timelineTime) : '?:??'}</span><span
-									>/ {range.valid ? formatVideoTime(timelineDuration) : '?:??'}</span
-								></span
-							>
-							{#if clipTimeline}<span class="time-label">A:B</span>{/if}
-						</button>
-						<div class="watch-actions">
 							<button
-								aria-label={muted ? 'Unmute video' : 'Mute video'}
-								disabled={!metadataReceived}
-								onclick={toggleMute}
+								class="watch-time"
+								class:clip={clipTimeline}
+								disabled={!range.restricted}
+								aria-label={range.restricted
+									? `${clipTimeline ? 'A:B' : 'VIDEO'} progress, switch to ${clipTimeline ? 'full-video' : 'A:B'} progress`
+									: 'VIDEO progress, full video selected'}
+								onclick={toggleTimeline}
 							>
-								{#if muted}<IcRoundVolumeOff />{:else}<IcRoundVolumeUp />{/if}
-							</button>
-							{#if editorPath}
-								<a href={editorPath} aria-label="Edit" title="Edit"><IcRoundEdit /></a>
-							{/if}
-							<button aria-label="Theater mode" disabled={fullscreen} onclick={ontheater}
-								><IcRoundCropLandscape /></button
-							>
-							{#if nativeFullscreen}
-								<button
-									aria-label={fullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
-									onclick={toggleFullscreen}
+								<span class="time-value"
+									><span>{range.valid ? formatVideoTime(timelineTime) : '?:??'}</span><span
+										>/ {range.valid ? formatVideoTime(timelineDuration) : '?:??'}</span
+									></span
 								>
-									{#if fullscreen}<IcRoundFullscreenExit />{:else}<IcRoundFullscreen />{/if}
+								{#if clipTimeline}<span class="time-label">A:B</span>{/if}
+							</button>
+							<div class="watch-actions">
+								<button
+									aria-label={muted ? 'Unmute video' : 'Mute video'}
+									disabled={!metadataReceived}
+									onclick={toggleMute}
+								>
+									{#if muted}<IcRoundVolumeOff />{:else}<IcRoundVolumeUp />{/if}
 								</button>
-							{/if}
-						</div>
-					</media-controls>
-				</div>
-			</youloop-controls-player>
+								{#if editorPath}
+									<a href={editorPath} aria-label="Edit" title="Edit"><IcRoundEdit /></a>
+								{/if}
+								<button aria-label="Theater mode" disabled={fullscreen} onclick={ontheater}
+									><IcRoundCropLandscape /></button
+								>
+								{#if nativeFullscreen}
+									<button
+										aria-label={fullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
+										onclick={toggleFullscreen}
+									>
+										{#if fullscreen}<IcRoundFullscreenExit />{:else}<IcRoundFullscreen />{/if}
+									</button>
+								{/if}
+							</div>
+						</media-controls>
+					</div>
+				</youloop-controls-player>
+			{/if}
+		{:else}
+			<button
+				class="video-toggle"
+				aria-label={paused ? 'Play video' : 'Pause video'}
+				onclick={togglePaused}
+			></button>
 		{/if}
-	{:else}
-		<button
-			class="video-toggle"
-			aria-label={paused ? 'Play video' : 'Pause video'}
-			onclick={togglePaused}
-		></button>
-	{/if}
+		{#if !minimal}
+			<button
+				class="fullscreen"
+				aria-label={fullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
+				onclick={toggleFullscreen}
+			>
+				{#if fullscreen}<IcRoundFullscreenExit />{:else}<IcRoundFullscreen />{/if}
+			</button>
+		{/if}
+		{#if minimal && playerError}
+			<p class="player-error" role="alert">{playerError}</p>
+		{/if}
+	</div>
+{/snippet}
+
+{#snippet settings()}
+	{#if !minimal && playerError}<p role="alert">{playerError}</p>{/if}
+
 	{#if !minimal}
-		<button
-			class="fullscreen"
-			aria-label={fullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
-			onclick={toggleFullscreen}
-		>
-			{#if fullscreen}<IcRoundFullscreenExit />{:else}<IcRoundFullscreen />{/if}
-		</button>
-	{/if}
-	{#if minimal && playerError}
-		<p class="player-error" role="alert">{playerError}</p>
-	{/if}
-</div>
-{#if !minimal && playerError}<p role="alert">{playerError}</p>{/if}
-
-{#if !minimal}
-	<div class="timestamps">
-		<div>{formatVideoTime(currentTime)} / {formatVideoTime(duration)}</div>
-		<div>{formatVideoTime(repeatA)}A - {formatVideoTime(repeatB)}B</div>
-	</div>
-
-	<div class="wrap-sliders">
-		<input type="range" />
-
-		<div class="wrap-connector">
-			<div class="connector" style:left={percentA} style:right={percentB}></div>
+		<div class="timestamps">
+			<div>{formatVideoTime(currentTime)} / {formatVideoTime(duration)}</div>
+			<div>{formatVideoTime(repeatA)}A - {formatVideoTime(repeatB)}B</div>
 		</div>
 
-		{#if duration}
-			<input
-				type="range"
-				aria-label="Current time"
-				class="current-time"
-				min="0"
-				step="0.1"
-				oninput={handleInputCurrentTime}
-				bind:value={currentTime}
-				max={duration}
-			/>
+		<div class="wrap-sliders">
+			<input type="range" />
 
-			<input
-				type="range"
-				aria-label="Repeat start"
-				class="repeat-a"
-				min="0"
-				step="0.1"
-				oninput={handleInputRepeatA}
-				bind:value={repeatA}
-				max={duration}
-			/>
-
-			<input
-				type="range"
-				aria-label="Repeat end"
-				class="repeat-b"
-				min="0"
-				step="0.1"
-				oninput={handleInputRepeatB}
-				bind:value={repeatB}
-				max={duration}
-			/>
-		{/if}
-	</div>
-
-	<center>
-		<div class="controls" inert={!metadataReceived}>
-			<div class="nc-join" role="group">
-				{#key paused}
-					<button aria-label={paused ? 'Play' : 'Pause'} onclick={togglePaused}>
-						{#if paused}
-							<IcRoundPlayArrow />
-						{:else}
-							<IcRoundPause />
-						{/if}
-					</button>
-				{/key}
-
-				<button aria-label="Previous frame" onclick={makeStepFrame(-1)}
-					><IcRoundSkipPrevious /></button
-				>
-				<button aria-label="Next frame" onclick={makeStepFrame(1)}><IcRoundSkipNext /></button>
+			<div class="wrap-connector">
+				<div class="connector" style:left={percentA} style:right={percentB}></div>
 			</div>
 
-			<div class="ab-buttons nc-join" role="group">
-				<button class="a-button" onclick={setRepeatA}>A</button>
-				<button class="b-button" onclick={setRepeatB}>B</button>
-			</div>
+			{#if duration}
+				<input
+					type="range"
+					aria-label="Current time"
+					class="current-time"
+					min="0"
+					step="0.1"
+					oninput={handleInputCurrentTime}
+					bind:value={currentTime}
+					max={duration}
+				/>
 
-			<div class="nc-join" role="group">
-				{#key loop}
-					<button aria-label="Loop" aria-pressed={loop} onclick={toggleLoop}>
-						{#if loop}
-							<FluentArrowRepeat />
-						{:else}
-							<FluentArrowRepeatOff />
-						{/if}
-					</button>
-				{/key}
-			</div>
+				<input
+					type="range"
+					aria-label="Repeat start"
+					class="repeat-a"
+					min="0"
+					step="0.1"
+					oninput={handleInputRepeatA}
+					bind:value={repeatA}
+					max={duration}
+				/>
 
-			<div class="nc-join" role="group">
-				{#key muted}
-					<button aria-label="Mute" aria-pressed={muted} onclick={toggleMute}>
-						{#if muted}
-							<IcRoundVolumeOff />
-						{:else}
-							<IcRoundVolumeUp />
-						{/if}
-					</button>
-				{/key}
-			</div>
-
-			<div class="speed-buttons nc-join" role="group">
-				<button onclick={makeTogglePlaybackRate()}><IcRoundSpeed /></button>
-
-				<button onclick={makeTogglePlaybackRate(200)}>
-					<span class:active={playbackRate === 200}>2</span>
-				</button>
-				<button onclick={makeTogglePlaybackRate(100)}>
-					<span class:active={playbackRate === 100}>1</span>
-				</button>
-				<button onclick={makeTogglePlaybackRate(50)}>
-					<span class:active={playbackRate === 50}>&frac12;</span>
-				</button>
-				<button onclick={makeTogglePlaybackRate(25)}>
-					<span class:active={playbackRate === 25}>&frac14;</span>
-				</button>
-			</div>
-
-			<div class="nc-join" role="group" aria-label="Media orientation">
-				<button
-					aria-label="Landscape"
-					aria-pressed={orientation === 'landscape'}
-					onclick={() => {
-						orientation = 'landscape';
-						onorientationchange?.('landscape');
-					}}
-				>
-					<span class:active={orientation === 'landscape'}><IcRoundCropLandscape /></span>
-				</button>
-				<button
-					aria-label="Portrait"
-					aria-pressed={orientation === 'portrait'}
-					onclick={() => {
-						orientation = 'portrait';
-						onorientationchange?.('portrait');
-					}}
-				>
-					<span class:active={orientation === 'portrait'}><IcRoundCropPortrait /></span>
-				</button>
-			</div>
-			<div class="nc-join" role="group" aria-label="Video framing">
-				<button
-					aria-label="Crop to fill"
-					aria-pressed={fillFrame}
-					title="Zoom into the center to fill the frame (crops edges)"
-					onclick={() => onfillchange?.(!fillFrame)}
-				>
-					<span class:active={fillFrame}>Fill</span>
-				</button>
-			</div>
+				<input
+					type="range"
+					aria-label="Repeat end"
+					class="repeat-b"
+					min="0"
+					step="0.1"
+					oninput={handleInputRepeatB}
+					bind:value={repeatB}
+					max={duration}
+				/>
+			{/if}
 		</div>
 
-		<button class="outline paste-button" onclick={pasteYoutubeId}
-			>Load YouTube URL/ID from clipboard</button
-		>
-		<div>{youtubeIdResultMessage}</div>
-	</center>
+		<center>
+			<div class="controls" inert={!metadataReceived}>
+				<div class="nc-join" role="group">
+					{#key paused}
+						<button aria-label={paused ? 'Play' : 'Pause'} onclick={togglePaused}>
+							{#if paused}
+								<IcRoundPlayArrow />
+							{:else}
+								<IcRoundPause />
+							{/if}
+						</button>
+					{/key}
+
+					<button aria-label="Previous frame" onclick={makeStepFrame(-1)}
+						><IcRoundSkipPrevious /></button
+					>
+					<button aria-label="Next frame" onclick={makeStepFrame(1)}><IcRoundSkipNext /></button>
+				</div>
+
+				<div class="ab-buttons nc-join" role="group">
+					<button class="a-button" onclick={setRepeatA}>A</button>
+					<button class="b-button" onclick={setRepeatB}>B</button>
+				</div>
+
+				<div class="nc-join" role="group">
+					{#key loop}
+						<button aria-label="Loop" aria-pressed={loop} onclick={toggleLoop}>
+							{#if loop}
+								<FluentArrowRepeat />
+							{:else}
+								<FluentArrowRepeatOff />
+							{/if}
+						</button>
+					{/key}
+				</div>
+
+				<div class="nc-join" role="group">
+					{#key muted}
+						<button aria-label="Mute" aria-pressed={muted} onclick={toggleMute}>
+							{#if muted}
+								<IcRoundVolumeOff />
+							{:else}
+								<IcRoundVolumeUp />
+							{/if}
+						</button>
+					{/key}
+				</div>
+
+				<div class="speed-buttons nc-join" role="group">
+					<button onclick={makeTogglePlaybackRate()}><IcRoundSpeed /></button>
+
+					<button onclick={makeTogglePlaybackRate(200)}>
+						<span class:active={playbackRate === 200}>2</span>
+					</button>
+					<button onclick={makeTogglePlaybackRate(100)}>
+						<span class:active={playbackRate === 100}>1</span>
+					</button>
+					<button onclick={makeTogglePlaybackRate(50)}>
+						<span class:active={playbackRate === 50}>&frac12;</span>
+					</button>
+					<button onclick={makeTogglePlaybackRate(25)}>
+						<span class:active={playbackRate === 25}>&frac14;</span>
+					</button>
+				</div>
+
+				<div class="nc-join" role="group" aria-label="Media orientation">
+					<button
+						aria-label="Landscape"
+						aria-pressed={orientation === 'landscape'}
+						onclick={() => {
+							orientation = 'landscape';
+							onorientationchange?.('landscape');
+						}}
+					>
+						<span class:active={orientation === 'landscape'}><IcRoundCropLandscape /></span>
+					</button>
+					<button
+						aria-label="Portrait"
+						aria-pressed={orientation === 'portrait'}
+						onclick={() => {
+							orientation = 'portrait';
+							onorientationchange?.('portrait');
+						}}
+					>
+						<span class:active={orientation === 'portrait'}><IcRoundCropPortrait /></span>
+					</button>
+				</div>
+				<div class="nc-join" role="group" aria-label="Video framing">
+					<button
+						aria-label="Crop to fill"
+						aria-pressed={fillFrame}
+						title="Zoom into the center to fill the frame (crops edges)"
+						onclick={() => onfillchange?.(!fillFrame)}
+					>
+						<span class:active={fillFrame}>Fill</span>
+					</button>
+				</div>
+			</div>
+
+			<button class="outline paste-button" onclick={pasteYoutubeId}
+				>Load YouTube URL/ID from clipboard</button
+			>
+			<div>{youtubeIdResultMessage}</div>
+		</center>
+	{/if}
+
+	{@render editorActions?.()}
+{/snippet}
+
+{#if minimal}
+	{@render preview()}
+{:else}
+	<EditorWorkspace {preview} {settings} />
 {/if}
 
 <style lang="scss">
@@ -1147,13 +1164,15 @@
 		overflow: hidden;
 	}
 
-	.player.minimal {
+	.player.minimal,
+	.player.workspace {
 		height: 100%;
 		aspect-ratio: auto;
 		container-type: size;
 	}
 
-	.player.minimal .media-canvas {
+	.player.minimal .media-canvas,
+	.player.workspace .media-canvas {
 		// Source detection can resize this absolute child after first paint.
 		// Anchor its center independently of flex static-position recalculation.
 		left: 50%;
