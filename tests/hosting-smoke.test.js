@@ -4,7 +4,12 @@ import { test } from 'node:test';
 const origin = process.env.HOSTING_URL;
 assert.ok(origin, 'Set HOSTING_URL to a proof-enabled local server or staging deployment');
 
-for (const path of ['/', '/s?v=dt-SqNL4z3w&a=31&b=38']) {
+for (const path of [
+	'/',
+	'/?v=dt-SqNL4z3w&t=31-38',
+	'/s?v=dt-SqNL4z3w&a=31&b=38',
+	'/dt-SqNL4z3w?t=31-38'
+]) {
 	test(`direct request and reload: ${path}`, async () => {
 		const ids = new Set();
 		for (let attempt = 0; attempt < 2; attempt++) {

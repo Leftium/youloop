@@ -258,3 +258,34 @@ test('deterministic state matrix round trips and canonicalization is idempotent'
 		}
 	}
 });
+
+test('legacy 99999 sentinel is open-ended, whereas canonical endpoints stay literal', () => {
+	for (const route of ['/', '/s', path]) {
+		assert.deepEqual(parse(`${route}?v=${videoId}&a=24.5&b=99999`), { videoId, start: 24.5 });
+	}
+	assert.deepEqual(parse(`${path}?t=24-99999&b=0`), { videoId, start: 24, end: 99999 });
+});
+
+test('editor links preserve route intent and all canonical state', async () => {
+	const { serializeEditorUrl } = await import('../src/lib/share-url.ts');
+	for (const [, state] of examples) {
+		const editor = serializeEditorUrl(state);
+		assert.ok(editor.startsWith(`/?v=${videoId}`));
+		assert.deepEqual(parse(editor), state);
+	}
+});
+
+test('player demo accepts unrelated root queries without masking invalid selected parameters', async () => {
+	const { parsePlayerUrl } = await import('../src/lib/share-url.ts');
+	for (const route of ['/', '/s']) {
+		for (const query of ['', '?utm_source=test', '?foo=1&foo=2']) {
+			assert.deepEqual(parsePlayerUrl(new URL(`https://example.com${route}${query}`)), {
+				ok: true,
+				value: { videoId: 'dt-SqNL4z3w', start: 31, end: 38 }
+			});
+		}
+		for (const query of ['v=bad', 'v=', 't=bad', 'mute=bad', 'a=1&a=2', 'speed=3']) {
+			assert.equal(parsePlayerUrl(new URL(`https://example.com${route}?${query}`)).ok, false);
+		}
+	}
+});

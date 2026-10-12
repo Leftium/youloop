@@ -21,6 +21,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm check
       - run: pnpm lint
+      - run: pnpm test:clip
       - run: pnpm test:share-url
       - run: pnpm test:metadata
       - run: pnpm build

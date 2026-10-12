@@ -42,7 +42,9 @@ export async function run() {
 		const controls = target.querySelector<HTMLElement>('media-controls')!;
 		const media = target.querySelector('youtube-video')!;
 		const iframe = media.shadowRoot?.querySelector('iframe');
-		const buttons = [...controls.querySelectorAll<HTMLButtonElement>('button')];
+		const buttons = [
+			...controls.querySelectorAll<HTMLButtonElement | HTMLAnchorElement>('button, a')
+		];
 		const time = buttons[0];
 		const actions = controls.querySelector<HTMLElement>('.watch-actions')!;
 		function geometry(label: string, mode: string) {
@@ -81,7 +83,9 @@ export async function run() {
 				`${label}: timeline stays on picture`
 			);
 			check(
-				buttons.every((button, index) => controls.querySelectorAll('button')[index] === button) &&
+				buttons.every(
+					(button, index) => controls.querySelectorAll('button, a')[index] === button
+				) &&
 					target.querySelector('youtube-video') === media &&
 					media.shadowRoot?.querySelector('iframe') === iframe,
 				`${label}: controls and provider retain identity`

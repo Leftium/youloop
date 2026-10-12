@@ -1,3 +1,4 @@
+import { parseShareUrl, serializeShareUrl } from '../share-url.ts';
 import { resolveNativeThumbnail } from './youtube-thumbnail.ts';
 
 const siteOrigin = 'https://youloop.leftium.com';
@@ -132,36 +133,23 @@ export function createVideoMetadataResolver({
 
 const resolveVideo = createVideoMetadataResolver();
 
-/** Keep legacy playable routes and clip bounds; UI flags do not define preview identity. */
+/** Metadata shares playback's validated URL contract and canonical video identity. */
 export async function resolveSocialMetadata(
 	requestUrl: URL,
 	resolve = resolveVideo
 ): Promise<SocialMetadata> {
-	const url = new URL(requestUrl.pathname, siteOrigin);
 	const result: SocialMetadata = {
 		title: 'YouLoop',
 		description: defaultDescription,
 		image: `${siteOrigin}/icon-512.png`,
-		url: url.href,
+		url: new URL(requestUrl.pathname, siteOrigin).href,
 		type: 'website'
 	};
-	if (!['/', '/s'].includes(requestUrl.pathname)) return result;
-	const ids = requestUrl.searchParams.getAll('v');
-	if (ids.length !== 1 || !videoIdPattern.test(ids[0])) return result;
-	const videoId = ids[0];
-	url.searchParams.set('v', videoId);
-	const seconds = (key: string) => {
-		const values = requestUrl.searchParams.getAll(key);
-		if (values.length !== 1 || !/^\d+(?:\.\d+)?$/.test(values[0])) return undefined;
-		const value = Number(values[0]);
-		return Number.isFinite(value) ? value : undefined;
-	};
-	const start = seconds('a');
-	const end = seconds('b');
-	if (start !== undefined && start > 0) url.searchParams.set('a', String(start));
-	if (end !== undefined && end !== 99999 && end > (start ?? 0))
-		url.searchParams.set('b', String(end));
-	result.url = url.href;
+	const parsed = parseShareUrl(requestUrl);
+	if (!parsed.ok) return result;
+	const { videoId, start, end } = parsed.value;
+	// Framing/playback controls do not define the social card's clip identity.
+	result.url = new URL(serializeShareUrl({ videoId, start, end }), siteOrigin).href;
 	const video = await resolve(videoId);
 	if (video) {
 		result.title = `${video.title} - YouLoop`;

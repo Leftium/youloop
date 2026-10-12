@@ -24,3 +24,7 @@ vite.config.ts.timestamp-*
 
 # Local physical-device investigation artifacts
 /.watch-bisect
+
+# Browser regression artifacts
+/test-results
+/playwright-report

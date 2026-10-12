@@ -1,11 +1,14 @@
 <script lang="ts">
 	import type { WatchControlsPlayer } from './watch-controls';
 	import type { YouTubeVideoElement } from '@videojs/html/media/youtube-video';
-	import { onMount } from 'svelte';
+	import { onMount, untrack } from 'svelte';
+	import { clampClipBounds } from './clip-bounds';
 	import { excludeYouTubeProviderFocus } from './youtube-provider-focus';
 	import { calculateFrameVideoWidth } from './video-framing';
 	import { placeWatchControls, placeWatchTitle } from './watch-controls-placement';
 	import { createTimelineMode, timelineRange, type TimelineMode } from './watch-timeline';
+
+	import IcRoundEdit from '~icons/ic/round-edit';
 
 	import IcRoundPlayArrow from '~icons/ic/round-play-arrow';
 	import IcRoundPause from '~icons/ic/round-pause';
@@ -49,7 +52,7 @@
 		/^.*(?:(?:youtu\.be\/|v\/|vi\/|u\/\w\/|embed\/|shorts\/)|(?:(?:watch)?\?v(?:i)?=|&v(?:i)?=))([^#&?]*).*/;
 
 	// https://webapps.stackexchange.com/a/101153/1530
-	const YOUTUBE_ID_REGEX = /[0-9A-Za-z_-]{10}[048AEIMQUYcgkosw]/;
+	const YOUTUBE_ID_REGEX = /^[0-9A-Za-z_-]{11}$/;
 
 	const YOUTUBE_ORIGINS = ['https://www.youtube-nocookie.com', 'https://www.youtube.com'];
 	const YOUTUBE_STATE_UNSTARTED = -1;
@@ -64,6 +67,14 @@
 		fillFrame?: boolean;
 		sourceAspectRatio?: number;
 		minimal?: boolean;
+		editorPath?: string;
+		once?: boolean;
+		mute?: boolean;
+		speed?: number;
+		ononcechange?: (once: boolean) => void;
+		onmutechange?: (mute: boolean) => void;
+		onspeedchange?: (speed: number) => void;
+		onendchange?: () => void;
 		theater?: boolean;
 		controlPageVisible?: boolean;
 		ontheater?: () => void;
@@ -80,6 +91,14 @@
 		fillFrame = false,
 		sourceAspectRatio = 16 / 9,
 		minimal = false,
+		editorPath,
+		once = false,
+		mute,
+		speed,
+		ononcechange,
+		onmutechange,
+		onspeedchange,
+		onendchange,
 		theater = false,
 		controlPageVisible = false,
 		ontheater,
@@ -115,7 +134,7 @@
 	let requestedPaused = true;
 	let providerStalled = false;
 	let muted = $state(false);
-	let loop = $state(false);
+	let loop = $derived(!once);
 	let playbackRate = $state(100);
 
 	let youtubeIdResultMessage = $state('');
@@ -139,6 +158,36 @@
 	let retrySeekTime: number | undefined;
 	let sourceVersion = $state(0);
 	let playerMounted = $state(false);
+
+	$effect(() => {
+		const requested = mute ?? false;
+		untrack(() => {
+			muted = requested;
+			if (player) player.muted = bootstrapMuted || requested;
+		});
+	});
+	$effect(() => {
+		const requested = speed ?? 1;
+		untrack(() => {
+			playbackRate = requested * 100;
+			if (player && metadataReceived) player.playbackRate = requested;
+		});
+	});
+	$effect(() => {
+		void youtubeId;
+		void sourceVersion;
+		// Reset on URL/history source changes as well as clipboard selection.
+		untrack(resetSource);
+	});
+	$effect(() => {
+		void repeatA;
+		void repeatB;
+		untrack(() => {
+			if (!metadataReceived || !player) return;
+			if (duration !== undefined) validateBounds();
+			if (player.currentTime < repeatA || player.currentTime > repeatB) seek(repeatA);
+		});
+	});
 
 	$effect(() => {
 		// Source identity, not time/range updates, resets the viewer's visual choice.
@@ -405,9 +454,16 @@
 		const nextDuration = player.engine?.getDuration() ?? player.duration;
 		if (!Number.isFinite(nextDuration) || nextDuration <= 0) return;
 		duration = nextDuration;
-		repeatB = Math.min(repeatB, nextDuration);
-		repeatA = Math.max(0, Math.min(repeatA, repeatB));
+		validateBounds();
+		if (player.currentTime < repeatA || player.currentTime > repeatB) seek(repeatA);
 		if (minimal) timelineMode = timelineChoice.choose(nextDuration, repeatA, repeatB);
+	}
+
+	function validateBounds() {
+		if (duration === undefined) return;
+		const bounds = clampClipBounds(repeatA, repeatB, duration);
+		repeatA = bounds.start;
+		repeatB = bounds.end;
 	}
 
 	function scheduleDuration() {
@@ -438,7 +494,10 @@
 	}
 
 	function handleVolumeChange() {
-		if (!bootstrapMuted) muted = player.muted;
+		if (!bootstrapMuted && muted !== player.muted) {
+			muted = player.muted;
+			onmutechange?.(muted);
+		}
 	}
 
 	function handleMetadata() {
@@ -454,7 +513,14 @@
 		player.muted = true;
 		player.playbackRate = playbackRate / 100;
 		// YouTube needs playback to render a sought frame. Pause once that frame is ready.
-		seek(Math.max(repeatA, Math.min(1, repeatB)), true);
+		// An out-of-duration A cannot render a first frame. Bootstrap inside the
+		// provider first; settled duration then clamps the requested range.
+		pauseAfterSeek = true;
+		currentTime =
+			repeatA >= player.duration - 1
+				? Math.min(1, player.duration / 2)
+				: Math.max(repeatA, Math.min(1, repeatB));
+		player.currentTime = currentTime;
 		const version = sourceVersion;
 		void player.play().catch((error) => {
 			if (version !== sourceVersion) return;
@@ -510,21 +576,27 @@
 		if (!videoTitle) readVideoTitle();
 		if (duration === undefined || player.seeking) return;
 		currentTime = player.currentTime;
-		if (
-			currentTime < repeatA ||
-			currentTime > repeatB ||
-			(!player.paused && currentTime >= repeatB)
-		) {
-			if (!loop) pause();
-			seek(repeatA, !loop);
+		if (currentTime < repeatA) seek(repeatA);
+		else if (currentTime > repeatB || (!player.paused && currentTime >= repeatB)) {
+			if (loop) seek(repeatA, false);
+			else {
+				pause();
+				if (currentTime > repeatB) seek(repeatB, true);
+			}
 		}
 	}
 
-	// Seeking from YouTube's ended state can resume playback even with loop disabled.
 	function handleEnded() {
+		if (initialFramePending) {
+			firstFrameReady = true;
+			pause();
+			return;
+		}
 		if (!loop) pause();
-		seek(repeatA, !loop);
-		if (loop) void play();
+		else {
+			seek(repeatA, false);
+			void play();
+		}
 	}
 
 	async function play() {
@@ -567,19 +639,25 @@
 
 	function toggleMute() {
 		muted = !muted;
+		onmutechange?.(muted);
 		player.muted = bootstrapMuted || muted;
 	}
 
 	function toggleLoop() {
 		loop = !loop;
+		ononcechange?.(!loop);
 	}
 
 	function setRepeatA() {
 		repeatA = currentTime;
-		if (repeatA > repeatB) repeatB = repeatA;
+		if (repeatA > repeatB) {
+			onendchange?.();
+			repeatB = repeatA;
+		}
 	}
 
 	function setRepeatB() {
+		onendchange?.();
 		repeatB = currentTime;
 		if (repeatB < repeatA) repeatA = repeatB;
 	}
@@ -588,6 +666,7 @@
 		if (rate) {
 			return function () {
 				playbackRate = rate;
+				onspeedchange?.(playbackRate / 100);
 				player.playbackRate = playbackRate / 100;
 			};
 		} else {
@@ -596,6 +675,7 @@
 				if (playbackRate < 25) {
 					playbackRate = 200;
 				}
+				onspeedchange?.(playbackRate / 100);
 				player.playbackRate = playbackRate / 100;
 			};
 		}
@@ -614,6 +694,7 @@
 			repeatA = currentTime;
 		}
 		if (currentTime > repeatB) {
+			onendchange?.();
 			repeatB = currentTime;
 		}
 		seek(currentTime);
@@ -622,12 +703,14 @@
 	function handleInputRepeatA(event: Event) {
 		repeatA = Number((event.currentTarget as HTMLInputElement).value);
 		if (repeatA > repeatB) {
+			onendchange?.();
 			repeatB = repeatA;
 		}
 		seek(repeatA);
 	}
 
 	function handleInputRepeatB(event: Event) {
+		onendchange?.();
 		repeatB = Number((event.currentTarget as HTMLInputElement).value);
 		if (repeatB < repeatA) {
 			repeatA = repeatB;
@@ -644,10 +727,11 @@
 			return;
 		}
 
+		clipboardText = clipboardText.trim();
 		const matchesUrl = clipboardText.match(YOUTUBE_URL_ID_REGEX);
 		const matchesId = clipboardText.match(YOUTUBE_ID_REGEX);
 
-		if (matchesUrl?.[1]) {
+		if (matchesUrl?.[1] && YOUTUBE_ID_REGEX.test(matchesUrl[1])) {
 			youtubeId = matchesUrl[1];
 			youtubeIdResultMessage = `Found from URL: ${youtubeId}`;
 		} else if (matchesId?.[0]) {
@@ -658,27 +742,28 @@
 			return;
 		}
 
-		// Reset before the keyed media element loads the new source.
-		orientation = 'landscape';
 		onsourcechange?.(youtubeId);
+		repeatA = 0;
+		repeatB = 99999;
+		sourceVersion += 1;
+	}
+
+	function resetSource() {
 		clearTimeout(durationTimer);
 		metadataReceived = false;
 		firstFrameReady = false;
 		bootstrapMuted = false;
 		duration = undefined;
-		repeatA = 0;
-		repeatB = 99999;
-		currentTime = 1;
+		currentTime = repeatA;
 		paused = true;
 		requestedPaused = true;
 		providerStalled = false;
-		playbackRate = 100;
+		playbackRate = (speed ?? 1) * 100;
 		playerError = '';
 		videoTitle = '';
 		pauseAfterSeek = false;
 		initialFramePending = false;
 		retrySeekTime = undefined;
-		sourceVersion += 1;
 	}
 </script>
 
@@ -712,7 +797,12 @@
 					onplaying={handlePlaying}
 					onpause={handlePause}
 					onvolumechange={handleVolumeChange}
-					onratechange={() => (playbackRate = player.playbackRate * 100)}
+					onratechange={() => {
+						if (metadataReceived && !bootstrapMuted) {
+							playbackRate = player.playbackRate * 100;
+							if (player.playbackRate !== (speed ?? 1)) onspeedchange?.(player.playbackRate);
+						}
+					}}
 					onerror={handleError}
 				></youtube-video>
 			{/key}
@@ -837,6 +927,9 @@
 							>
 								{#if muted}<IcRoundVolumeOff />{:else}<IcRoundVolumeUp />{/if}
 							</button>
+							{#if editorPath}
+								<a href={editorPath} aria-label="Edit" title="Edit"><IcRoundEdit /></a>
+							{/if}
 							<button aria-label="Theater mode" disabled={fullscreen} onclick={ontheater}
 								><IcRoundCropLandscape /></button
 							>
@@ -1182,10 +1275,12 @@
 	.watch-controls:has(:focus-visible) {
 		opacity: 1;
 	}
-	.watch-controls button {
+	.watch-controls :is(button, a) {
 		display: inline-flex;
 		align-items: center;
 		justify-content: center;
+		box-sizing: border-box;
+		text-decoration: none;
 		width: 44px;
 		min-width: 44px;
 		flex-shrink: 0;
@@ -1199,7 +1294,8 @@
 		cursor: pointer;
 		pointer-events: auto;
 	}
-	.watch-controls:not(:global([data-visible])):not(.paused):not(:has(:focus-visible)) button {
+	.watch-controls:not(:global([data-visible])):not(.paused):not(:has(:focus-visible))
+		:is(button, a) {
 		pointer-events: none;
 	}
 	.watch-actions {
@@ -1255,13 +1351,15 @@
 		}
 		.watch-actions {
 			flex-shrink: 0;
+			flex-wrap: wrap;
+			max-width: 96px;
 		}
 	}
-	.watch-controls button:focus-visible {
+	.watch-controls :is(button, a):focus-visible {
 		outline: 2px solid white;
 		outline-offset: 3px;
 	}
-	.watch-controls button:hover {
+	.watch-controls :is(button, a):hover {
 		background: rgb(120 120 120 / 80%);
 	}
 	.watch-controls button:disabled {

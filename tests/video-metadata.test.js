@@ -49,7 +49,7 @@ test('fixed oEmbed endpoint, concurrent deduplication, cache reuse and expiry', 
 	assert.equal(calls, 2);
 });
 
-test('both legacy routes preserve clip identity while ignoring UI flags and request host', async () => {
+test('legacy and canonical routes preserve clip identity while ignoring UI flags and request host', async () => {
 	let calls = 0;
 	const resolve = createVideoMetadataResolver({
 		fetcher: async () => {
@@ -57,18 +57,18 @@ test('both legacy routes preserve clip identity while ignoring UI flags and requ
 			return reply();
 		}
 	});
-	for (const route of ['/', '/s']) {
+	for (const route of ['/', '/s', `/${id}`]) {
 		const result = await resolveSocialMetadata(
 			url(`fit=cover&v=${id}&a=031&b=038&orientation=portrait&tracking=x`, route),
 			resolve
 		);
-		assert.equal(result.url, `https://youloop.leftium.com${route}?v=${id}&a=31&b=38`);
+		assert.equal(result.url, `https://youloop.leftium.com/${id}?t=31-38`);
 		assert.equal(result.title, 'Test video - YouLoop');
 		assert.match(result.description, /Creator/);
 		assert.equal(result.image, payload.thumbnail_url);
 		assert.equal(result.type, 'video.other');
 		const zero = await resolveSocialMetadata(url(`v=${id}&a=0&b=0`, route), resolve);
-		assert.equal(zero.url, `https://youloop.leftium.com${route}?v=${id}`);
+		assert.equal(zero.url, `https://youloop.leftium.com/${id}`);
 	}
 	assert.equal(calls, 1);
 });
@@ -95,16 +95,16 @@ test('missing, invalid, duplicate and injection IDs never fetch; unrelated route
 		assert.equal(result.image, 'https://youloop.leftium.com/icon-512.png');
 	}
 	await resolveSocialMetadata(url(`v=${id}`, '/about'), resolve);
-	await resolveSocialMetadata(url('', `/${id}`), resolve);
+
 	assert.equal(await resolve('bad'), null);
 	assert.equal(calls, 0);
 });
 
-test('invalid clip values are omitted without suppressing valid video metadata', async () => {
+test('invalid clips use a safe generic card matching playback validation', async () => {
 	const resolve = createVideoMetadataResolver({ fetcher: async () => reply() });
 	for (const bounds of ['a=bad&b=bad', 'a=-3&b=0', 'a=31&b=20', 'a=31&a=32&b=0']) {
 		const result = await resolveSocialMetadata(url(`v=${id}&${bounds}`), resolve);
-		assert.equal(result.title, 'Test video - YouLoop');
+		assert.equal(result.title, 'YouLoop');
 		assert.ok(!result.url.includes('bad'));
 		assert.ok(!result.url.includes('b='));
 	}
@@ -132,7 +132,7 @@ test('upstream failures and malformed metadata use negative cache and retry afte
 		});
 		const result = await resolveSocialMetadata(url(`v=${id}`), resolve);
 		assert.equal(result.title, 'YouLoop');
-		assert.equal(result.url, `https://youloop.leftium.com/?v=${id}`);
+		assert.equal(result.url, `https://youloop.leftium.com/${id}`);
 		assert.equal(await resolve(id), null);
 		assert.equal(calls, 1);
 		time = 11;
@@ -251,7 +251,7 @@ test('Svelte renders escaped OG and Twitter tags in server head, with no upstrea
 
 test('editor full-video sentinel does not change OG URL identity on either route', async () => {
 	const resolve = createVideoMetadataResolver({ fetcher: async () => reply() });
-	for (const route of ['/', '/s']) {
+	for (const route of ['/', '/s', `/${id}`]) {
 		for (const start of ['', '&a=31']) {
 			const base = await resolveSocialMetadata(url(`v=${id}${start}`, route), resolve);
 			for (const end of ['99999', '099999', '99999.00']) {
@@ -262,5 +262,20 @@ test('editor full-video sentinel does not change OG URL identity on either route
 				assert.equal(sentinel.url, base.url);
 			}
 		}
+	}
+});
+
+test('canonical path and new range precedence also govern SSR identity', async () => {
+	const resolve = createVideoMetadataResolver({ fetcher: async () => reply() });
+	const result = await resolveSocialMetadata(
+		url(`v=bad&t=24.5:32.75&a=1&b=99999&vertical=0&fill=0`, `/${id}`),
+		resolve
+	);
+	assert.equal(result.url, `https://youloop.leftium.com/${id}?t=24.5-32.75`);
+	assert.equal(result.title, 'Test video - YouLoop');
+	const editor = await resolveSocialMetadata(url(`v=${id}&t=24-32&once&mute=0`), resolve);
+	assert.equal(editor.url, `https://youloop.leftium.com/${id}?t=24-32`);
+	for (const query of [`v=${id}&t=bad`, `v=${id}&mute&mute=0`, `v=${id}&vertical=bad`]) {
+		assert.equal((await resolveSocialMetadata(url(query), resolve)).type, 'website');
 	}
 });

@@ -15,7 +15,9 @@
 		"format": "prettier --write .",
 		"lint": "prettier --check . && eslint .",
 		"test:metadata": "node --test tests/video-metadata.test.js tests/youtube-thumbnail.test.js",
-		"test:social": "node --test tests/social-smoke.test.js"
+		"test:social": "node --test tests/social-smoke.test.js",
+		"test:browser": "playwright test",
+		"test:clip": "node --test tests/clip-bounds.test.js"
 	},
 	"devDependencies": {
 		"@eslint/compat": "^2.1.1",
@@ -23,6 +25,7 @@
 		"@iconify-json/fluent": "^1.2.59",
 		"@iconify-json/ic": "^1.2.4",
 		"@leftium/nimble.css": "^0.24.1",
+		"@playwright/test": "^1.64.0",
 		"@sveltejs/adapter-vercel": "^7.0.0",
 		"@sveltejs/kit": "^3.0.1",
 		"@sveltejs/vite-plugin-svelte": "^7.3.1",
