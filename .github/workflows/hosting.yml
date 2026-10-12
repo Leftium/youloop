@@ -32,7 +32,7 @@ jobs:
           preview_pid=$!
           trap 'kill "$preview_pid"' EXIT
           for attempt in $(seq 1 30); do
-            if curl --fail --silent http://127.0.0.1:4173/about > /dev/null; then break; fi
+            if curl --fail --silent http://127.0.0.1:4173/ > /dev/null; then break; fi
             sleep 1
           done
           HOSTING_URL=http://127.0.0.1:4173 pnpm test:hosting

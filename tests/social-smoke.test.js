@@ -54,3 +54,16 @@ for (const route of ['/', '/s']) {
 		assert.match(head, /property="og:image" content="https:\/\/youloop.leftium.com\/icon-512.png"/);
 	});
 }
+
+test('full-video sentinel is omitted from server-rendered OG URLs', async () => {
+	for (const route of ['/', '/s']) {
+		const response = await fetch(new URL(`${route}?v=${id}&a=31&b=99999`, origin));
+		assert.equal(response.status, 200);
+		const head = (await response.text()).split('</head>')[0];
+		assert.ok(
+			head.includes(
+				`property="og:url" content="https://youloop.leftium.com${route}?v=${id}&amp;a=31"`
+			)
+		);
+	}
+});

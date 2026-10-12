@@ -4,9 +4,13 @@ import { readFile } from 'node:fs/promises';
 import { compile } from 'svelte/compiler';
 import { render } from 'svelte/server';
 import {
-	createVideoMetadataResolver,
+	createVideoMetadataResolver as createResolver,
 	resolveSocialMetadata
 } from '../src/lib/server/video-metadata.ts';
+
+// Existing resolver tests isolate oEmbed; native discovery has its own network tests.
+const createVideoMetadataResolver = (options) =>
+	createResolver({ ...options, discoverThumbnail: async () => null });
 
 const id = 'dt-SqNL4z3w';
 const other = 'dQw4w9WgXcQ';
@@ -243,4 +247,20 @@ test('Svelte renders escaped OG and Twitter tags in server head, with no upstrea
 	assert.ok(!head.includes('<script>'));
 	assert.ok(!head.includes('upstream()'));
 	assert.equal((head.match(/<title>/g) ?? []).length, 1);
+});
+
+test('editor full-video sentinel does not change OG URL identity on either route', async () => {
+	const resolve = createVideoMetadataResolver({ fetcher: async () => reply() });
+	for (const route of ['/', '/s']) {
+		for (const start of ['', '&a=31']) {
+			const base = await resolveSocialMetadata(url(`v=${id}${start}`, route), resolve);
+			for (const end of ['99999', '099999', '99999.00']) {
+				const sentinel = await resolveSocialMetadata(
+					url(`v=${id}${start}&b=${end}`, route),
+					resolve
+				);
+				assert.equal(sentinel.url, base.url);
+			}
+		}
+	}
 });

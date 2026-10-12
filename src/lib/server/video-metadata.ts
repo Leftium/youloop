@@ -1,3 +1,5 @@
+import { resolveNativeThumbnail } from './youtube-thumbnail.ts';
+
 const siteOrigin = 'https://youloop.leftium.com';
 const defaultDescription = 'Watch and repeat YouTube segments with YouLoop.';
 const videoIdPattern = /^[A-Za-z0-9_-]{11}$/;
@@ -52,7 +54,8 @@ export function createVideoMetadataResolver({
 	failureTtlMs = 60 * 1000,
 	maxEntries = 1000,
 	maxConcurrent = 8,
-	maxLookupsPerMinute = 60
+	maxLookupsPerMinute = 60,
+	discoverThumbnail = resolveNativeThumbnail
 } = {}) {
 	const cache = new Map<string, { value: VideoMetadata | null; expires: number }>();
 	const pending = new Map<string, Promise<VideoMetadata | null>>();
@@ -63,9 +66,10 @@ export function createVideoMetadataResolver({
 		const endpoint = new URL('https://www.youtube.com/oembed');
 		endpoint.searchParams.set('url', `https://www.youtube.com/watch?v=${videoId}`);
 		endpoint.searchParams.set('format', 'json');
+		const signal = AbortSignal.timeout(timeoutMs);
 		try {
 			const response = await fetcher(endpoint, {
-				signal: AbortSignal.timeout(timeoutMs),
+				signal,
 				redirect: 'error',
 				headers: { accept: 'application/json' }
 			});
@@ -84,7 +88,9 @@ export function createVideoMetadataResolver({
 					(author
 						? `Watch ${title} by ${author} and repeat segments with YouLoop.`
 						: defaultDescription),
-				image: thumbnail(fields.thumbnail_url, videoId)
+				image:
+					(await discoverThumbnail(videoId, fetcher, signal)) ??
+					thumbnail(fields.thumbnail_url, videoId)
 			};
 		} catch {
 			return null;
@@ -153,7 +159,8 @@ export async function resolveSocialMetadata(
 	const start = seconds('a');
 	const end = seconds('b');
 	if (start !== undefined && start > 0) url.searchParams.set('a', String(start));
-	if (end !== undefined && end > (start ?? 0)) url.searchParams.set('b', String(end));
+	if (end !== undefined && end !== 99999 && end > (start ?? 0))
+		url.searchParams.set('b', String(end));
 	result.url = url.href;
 	const video = await resolve(videoId);
 	if (video) {

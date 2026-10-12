@@ -320,8 +320,9 @@ passes plain data to `SocialHead.svelte`; Svelte escapes it during rendering.
 The Video.js custom element and watch controls still load inside browser mount.
 The future `/<videoId>?t=A-B` grammar remains tracked by issue #21.
 
-YouTube's fixed HTTPS oEmbed endpoint supplies the title and thumbnail without
-an API key. oEmbed normally has no video description, so the preview uses title
+YouTube's fixed HTTPS oEmbed endpoint supplies the title and fallback thumbnail
+without an API key. The resolver optionally discovers YouTube's own social image
+from a bounded crawler-style watch-page prefix and validates its JPEG dimensions. oEmbed normally has no video description, so the preview uses title
 and creator attribution plus YouLoop's segment-repeat description. Upstream
 embed HTML is ignored. IDs must contain exactly 11 ASCII letters, digits,
 hyphens, or underscores; duplicate IDs and malformed values cause no lookup.
@@ -329,15 +330,19 @@ Thumbnail URLs must use a known YouTube image host and the requested video path.
 Missing or unavailable metadata uses the YouLoop title and PNG icon.
 
 `og:url` uses `https://youloop.leftium.com`, the requested legacy route, and
-normalized `v`, `a`, and `b` parameters. Zero/default or invalid bounds are
-omitted; unrelated UI flags and tracking parameters do not change preview
+normalized `v`, `a`, and `b` parameters. Zero/default or invalid bounds, including the editor's `b=99999` full-video
+sentinel, are omitted; unrelated UI flags and tracking parameters do not change preview
 identity. `/` and `/s` retain their separate playable routes but share metadata
 for the same video. Preview deployments also emit the production origin.
 
 Each warm server instance keeps at most 1,000 cached videos: successful lookups
 last one hour and failures one minute. Concurrent requests for the same video
-share a pending lookup. Each lookup has a two-second timeout, including body
-consumption, with redirects disabled. At most eight lookups run at once and
+share a pending lookup. One two-second deadline covers oEmbed, optional native
+image discovery, and JPEG-header validation; redirects are disabled throughout.
+There are at most three outbound requests per cache miss (180/minute per
+instance at the lookup budget), rather than three separate timeout windows.
+Native discovery parses at most 32 KiB of HTML and 32 KiB of JPEG headers and
+cancels the remaining streams. At most eight lookups run at once and
 60 new lookups start per minute per instance; excess requests render defaults
 without queueing. Cold starts and multiple instances have independent caches
 and budgets. These limits reduce upstream traffic but are not a distributed
@@ -396,6 +401,61 @@ and played after a gesture. At 390px width the watch document had no horizontal
 overflow and retained its native scroll runway. Physical-device Safari and
 platform cache refresh behavior remain unverified.
 
+### Native YouTube thumbnail investigation for PR #27
+
+The placeholder `/about` route and its navigation link were removed at the
+owner's request during review. Existing smoke checks no longer request it;
+no regression tests were added for its removal.
+
+On 2026-10-12, direct YouTube watch-page fetches with Facebook crawler, Twitter
+crawler, and desktop user agents exposed the same social image for each sample.
+The native `og:image` and `twitter:image` agree. Downloaded JPEG pixels explain
+the reported differences without requiring messaging-app-specific processing:
+
+| Video         | Plain `hqdefault`                                  | Native social image                                                       | Other variants                                                                                                                                                                  |
+| ------------- | -------------------------------------------------- | ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `dt-SqNL4z3w` | 480x360 with black top/bottom strips               | Signed `maxresdefault`, 1280x720, no strips                               | `mqdefault` 320x180 and plain `maxresdefault` 1280x720 also lack strips; `sddefault` 640x480 has strips; `oar2` returns 404 and a 120x90 placeholder                            |
+| `IF_7SLHdreQ` | 480x360 with dark enlarged side imagery            | Signed `hqdefault`, 480x360, with brown side fill already in the pixels   | `mqdefault` 320x180 keeps dark side imagery; `sddefault` 640x480 has black side bars; `maxresdefault`/`hq720` return 404 and a 120x90 placeholder; `oar2` is 1080x1920 portrait |
+| `PVVA-_wvKks` | 480x360 with top/bottom padding in the source file | Plain `maxresdefault`, 1280x720, same native artwork at higher resolution | `mqdefault` 320x180 and `maxresdefault`/`hq720` 1280x720 are unpadded; `sddefault` 640x480 is padded; `oar2` returns 404 and a 120x90 placeholder                               |
+
+For BFX, the top tenth of plain `hqdefault` is effectively black, while the
+native image contains the room scene. For Grace & Nick, the native image's
+left-side average RGB is approximately (112, 69, 52), versus (35, 25, 20) for
+plain `hqdefault` and (0, 0, 0) for `sddefault`. The acceptable video's native
+image and plain `maxresdefault` are byte-identical. These are image observations,
+not proof of how any messaging app renders its cards.
+
+Native-image discovery preserves YouTube's signed `sqp`/`rs` query exactly;
+these parameters affect composition, not merely size. It requests only a
+fixed YouTube watch URL and an allowlisted HTTPS, same-video JPEG variant.
+It rejects redirects, missing variants, incorrect MIME, unparseable JPEG
+headers, and dimensions below 320x180 (including 120x90 placeholders). The
+oEmbed thumbnail remains the fallback if this optional step fails. No URLs
+are guessed, signed transforms synthesized, video-specific exceptions added,
+or images generated by our server.
+
+YouTube's HTML is not a supported metadata API contract and can change or be
+blocked. That trade-off buys a close match to native portrait fill as well as
+landscape framing; blindly preferring max resolution or medium resolution
+does not solve both cases. Supported oEmbed still owns video metadata. The
+selected image, including an oEmbed fallback after failed discovery, shares
+the existing one-hour successful-metadata cache. A transient discovery failure
+can therefore keep the old image until that entry expires. YouTube's own
+[thumbnail documentation](https://developers.google.com/youtube/v3/docs/thumbnails)
+also cautions that variants and resolutions vary and fitting may add bars.
+
+For physical messaging-app verification, send fresh links from the latest public
+PR preview for `/?v=ID` and `/s?v=ID` for each of these three IDs, next to
+`https://youtu.be/ID`, in the same conversation. If the app caches cards, use
+a fresh preview hostname or add an ignored `preview_check` query value and
+confirm the app actually refetched it; `og:url` stays on the production origin.
+Check that BFX has no source top/bottom strips, Grace & Nick retains the whole
+portrait with brown side fill, and the chess image retains its composition and
+readable text. Open each YouLoop link to confirm the player still works.
+Record the app/version, device, screenshots, and whether a new unfurl occurred.
+A reused cached card is inconclusive. Actual cards and physical Safari remain
+unverified until this check is performed.
+
 ### Runtime verification
 
 `YOULOOP_RUNTIME_PROOF=1` opts into fresh UUID/time response headers and
@@ -413,8 +473,7 @@ HOSTING_URL=http://127.0.0.1:4173 pnpm test:hosting
 HOSTING_URL=https://YOUR-PROOF-ENABLED-DEPLOYMENT.vercel.app pnpm test:hosting
 ```
 
-The smoke suite requests `/`, `/s?v=dt-SqNL4z3w&a=31&b=38`, and `/about`
-twice, checks route-specific HTML and distinct server-generated headers, and
+The smoke suite requests `/` and `/s?v=dt-SqNL4z3w&a=31&b=38` twice, checks route-specific HTML and distinct server-generated headers, and
 checks an SVG asset and a missing-route 404. This distinguishes runtime SSR
 from a static SPA fallback. `vite preview` runs the production-built Kit server
 locally; hosted checks exercise the actual Vercel function. Browser reload and
@@ -433,8 +492,8 @@ creates Preview deployments for pull requests and other branches.
 
 1. For a release, confirm the production deployment's SHA, branch, domain
    assignment, and HTTPS certificate in the Vercel dashboard. Check direct loads
-   and reloads of `/`, `/s?v=dt-SqNL4z3w&a=31&b=38`, and `/about`, along
-   with assets, playback, and mobile scrolling.
+   and reloads of `/` and `/s?v=dt-SqNL4z3w&a=31&b=38`, along with assets,
+   playback, and mobile scrolling.
 2. For an application regression, promote or redeploy a known-good version in
    the original `youloop` Vercel project, then recheck the domain and routes.
    This rollback normally needs no DNS change.

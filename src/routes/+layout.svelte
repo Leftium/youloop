@@ -29,7 +29,6 @@
 					><img src="/logo.svg" alt="" class="brand-logo" /><span class="title-text">YouLoop</span
 					></a
 				>
-				<small><a class="secondary" href="/about">About</a></small>
 			</h1>
 		</nav>
 	</main>
@@ -59,10 +58,5 @@
 
 	.brand:hover {
 		color: #4d535e; /* Pico $zinc-650 */
-	}
-
-	small {
-		font-size: 42%;
-		font-weight: normal;
 	}
 </style>
