@@ -5,7 +5,7 @@
 	import Player from './Player.svelte';
 	import { createOrientationController, type Orientation } from './youtube-orientation';
 	import {
-		parseShareUrl,
+		parsePlayerUrl,
 		normalizeShareUrl,
 		serializeShareUrl,
 		serializeEditorUrl,
@@ -22,12 +22,7 @@
 		ontheater?: () => void;
 	} = $props();
 
-	const initial = untrack(() => {
-		const url = page.url;
-		return ['/', '/s'].includes(url.pathname) && !url.search
-			? normalizeShareUrl({ videoId: 'dt-SqNL4z3w', start: 31, end: 38 })
-			: parseShareUrl(url.href);
-	});
+	const initial = untrack(() => parsePlayerUrl(new URL(page.url.href)));
 	const initialClip = initial.ok ? initial.value : { videoId: 'dt-SqNL4z3w' };
 
 	let youtubeId = $state(initialClip.videoId);
@@ -83,10 +78,8 @@
 
 	function loadUrl(url: URL) {
 		loadedHref = url.href;
-		bareDemo = ['/', '/s'].includes(url.pathname) && !url.searchParams.has('v') && !url.search;
-		const result = bareDemo
-			? normalizeShareUrl({ videoId: 'dt-SqNL4z3w', start: 31, end: 38 })
-			: parseShareUrl(url);
+		bareDemo = ['/', '/s'].includes(url.pathname) && !url.searchParams.has('v');
+		const result = parsePlayerUrl(url);
 		if (!result.ok) {
 			error = `Invalid link: ${result.errors.map((item) => item.parameter).join(', ')}`;
 			loaded = false;
@@ -114,8 +107,12 @@
 	}
 
 	$effect(() => {
-		const url = page.url;
-		if (ready && url.href !== loadedHref) untrack(() => loadUrl(new URL(url.href)));
+		void page.url;
+		if (!ready) return;
+		// Back can reuse data from before a shallow edit. The restored browser URL
+		// owns live clip state, rather than the cached server request's URL.
+		const url = new URL(window.location.href);
+		if (url.href !== loadedHref) untrack(() => loadUrl(url));
 	});
 
 	$effect(() => {
@@ -164,6 +161,7 @@
 			{fillFrame}
 			{sourceAspectRatio}
 			{minimal}
+			{editorPath}
 			{theater}
 			{ontheater}
 			ononcechange={(value) => (once = value)}
@@ -185,14 +183,16 @@
 			}}
 		/>
 	{/if}
-	<nav class:watch-navigation={minimal} hidden={minimal && theater} aria-label="Clip navigation">
-		{#if minimal}<a href={editorPath}>Edit</a>{:else}<a href={sharePath}>Open video</a>{/if}
-		<button onclick={copyLink} disabled={!sharePath}>Copy Link</button>
-		{#if copyMessage}
-			<span role="status">{copyMessage}</span>
-			{#if copyMessage.startsWith('Clipboard')}<a href={sharePath}>{sharePath}</a>{/if}
-		{/if}
-	</nav>
+	{#if !minimal}
+		<nav aria-label="Clip navigation">
+			<a href={sharePath}>Open video</a>
+			<button onclick={copyLink} disabled={!sharePath}>Copy Link</button>
+			{#if copyMessage}
+				<span role="status">{copyMessage}</span>
+				{#if copyMessage.startsWith('Clipboard')}<a href={sharePath}>{sharePath}</a>{/if}
+			{/if}
+		</nav>
+	{/if}
 	{#if !normalized.ok}<p role="alert">Choose an end after the start to share this clip.</p>{/if}
 {/if}
 
@@ -205,21 +205,5 @@
 	}
 	button {
 		margin: 0;
-	}
-	.watch-navigation {
-		position: absolute;
-		top: 12px;
-		right: 12px;
-		z-index: 2;
-		padding: 6px;
-		background: rgb(0 0 0 / 65%);
-		border-radius: 8px;
-		font-size: 0.875rem;
-	}
-	.watch-navigation a {
-		color: white;
-	}
-	nav[hidden] {
-		display: none;
 	}
 </style>

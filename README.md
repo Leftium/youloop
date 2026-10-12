@@ -68,7 +68,9 @@ does not verify native touch scrolling or Safari chrome.
 `/` is the existing editor, including its demo player. Both `/?v=ID&a=...&b=...`
 and `/?v=ID&t=A-B` open that editor. `/<videoId>?t=A-B` opens the immersive watch
 view; `/s?v=...` still works and remains a watch route during migration.
-Open video, Edit, and Copy Link use current clip state. Copy Link emits canonical
+Open video and Copy Link in the editor use current clip state. The watch view
+provides an icon-only Edit link within the existing Mute/Theater/Fullscreen
+action group; it has no Copy Link control. Edit preserves current clip state. Copy Link emits canonical
 video paths. Local edits replace the current history entry through SvelteKit;
 view navigation adds entries for Back/Forward. Loading bare `/` leaves its URL
 and generic social metadata intact.

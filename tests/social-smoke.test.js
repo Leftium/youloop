@@ -96,3 +96,21 @@ test('reserved paths and invalid video paths remain 404s', async () => {
 		assert.equal((await fetch(new URL(path, origin))).status, 404);
 	}
 });
+
+test('unrelated root query keys keep generic SSR and the demo editor', async () => {
+	for (const query of ['?utm_source=test', '?foo=1&foo=2']) {
+		const response = await fetch(new URL('/' + query, origin));
+		assert.equal(response.status, 200);
+		const html = await response.text();
+		const head = html.split('</head>')[0];
+		assert.match(head, /property="og:title" content="YouLoop"/);
+		assert.match(head, /property="og:url" content="https:\/\/youloop.leftium.com\/"/);
+		assert.match(html, /media-canvas/);
+		assert.ok(!html.includes('Invalid link'));
+	}
+	for (const query of ['?v=bad', '?utm_source=test&t=bad']) {
+		const html = await (await fetch(new URL('/' + query, origin))).text();
+		assert.match(html, /Invalid link/);
+		assert.doesNotMatch(html, /class="media-canvas(?: |")/);
+	}
+});

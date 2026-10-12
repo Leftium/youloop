@@ -186,3 +186,15 @@ export function serializeEditorUrl(state: ShareUrlState): string {
 	const query = canonical.split('?')[1];
 	return `/?v=${state.videoId}${query ? `&${query}` : ''}`;
 }
+
+/** The player supplies a demo only when legacy editor/watch URLs omit v entirely. */
+export function parsePlayerUrl(url: URL): ShareUrlResult {
+	if (!['/', '/s'].includes(url.pathname) || url.searchParams.has('v')) return parseShareUrl(url);
+	const demo = new URL(url);
+	demo.searchParams.set('v', 'dt-SqNL4z3w');
+	if (!['t', 'a', 'b'].some((key) => demo.searchParams.has(key))) {
+		demo.searchParams.set('a', '31');
+		demo.searchParams.set('b', '38');
+	}
+	return parseShareUrl(demo);
+}

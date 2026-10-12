@@ -8,6 +8,8 @@
 	import { placeWatchControls, placeWatchTitle } from './watch-controls-placement';
 	import { createTimelineMode, timelineRange, type TimelineMode } from './watch-timeline';
 
+	import IcRoundEdit from '~icons/ic/round-edit';
+
 	import IcRoundPlayArrow from '~icons/ic/round-play-arrow';
 	import IcRoundPause from '~icons/ic/round-pause';
 
@@ -65,6 +67,7 @@
 		fillFrame?: boolean;
 		sourceAspectRatio?: number;
 		minimal?: boolean;
+		editorPath?: string;
 		once?: boolean;
 		mute?: boolean;
 		speed?: number;
@@ -88,6 +91,7 @@
 		fillFrame = false,
 		sourceAspectRatio = 16 / 9,
 		minimal = false,
+		editorPath,
 		once = false,
 		mute,
 		speed,
@@ -926,6 +930,9 @@
 							<button aria-label="Theater mode" disabled={fullscreen} onclick={ontheater}
 								><IcRoundCropLandscape /></button
 							>
+							{#if editorPath}
+								<a href={editorPath} aria-label="Edit" title="Edit"><IcRoundEdit /></a>
+							{/if}
 							{#if nativeFullscreen}
 								<button
 									aria-label={fullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
@@ -1268,10 +1275,12 @@
 	.watch-controls:has(:focus-visible) {
 		opacity: 1;
 	}
-	.watch-controls button {
+	.watch-controls :is(button, a) {
 		display: inline-flex;
 		align-items: center;
 		justify-content: center;
+		box-sizing: border-box;
+		text-decoration: none;
 		width: 44px;
 		min-width: 44px;
 		flex-shrink: 0;
@@ -1285,7 +1294,8 @@
 		cursor: pointer;
 		pointer-events: auto;
 	}
-	.watch-controls:not(:global([data-visible])):not(.paused):not(:has(:focus-visible)) button {
+	.watch-controls:not(:global([data-visible])):not(.paused):not(:has(:focus-visible))
+		:is(button, a) {
 		pointer-events: none;
 	}
 	.watch-actions {
@@ -1341,13 +1351,15 @@
 		}
 		.watch-actions {
 			flex-shrink: 0;
+			flex-wrap: wrap;
+			max-width: 96px;
 		}
 	}
-	.watch-controls button:focus-visible {
+	.watch-controls :is(button, a):focus-visible {
 		outline: 2px solid white;
 		outline-offset: 3px;
 	}
-	.watch-controls button:hover {
+	.watch-controls :is(button, a):hover {
 		background: rgb(120 120 120 / 80%);
 	}
 	.watch-controls button:disabled {

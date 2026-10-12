@@ -285,3 +285,116 @@ for (const viewport of [
 		expect((await runModule(page, 'watch-source-geometry')).length).toBeGreaterThan(0);
 	});
 }
+
+test('benign root queries retain the demo/editor and generic metadata', async ({ page }) => {
+	for (const query of ['?utm_source=test', '?foo=1&foo=2']) {
+		await page.goto('/' + query);
+		await settled(page);
+		await expect(page).toHaveURL('http://localhost:5173/' + query);
+		await expect(page.getByRole('alert')).toHaveCount(0);
+		await expect(page.getByRole('button', { name: 'Copy Link', exact: true })).toBeVisible();
+		await expect(page.locator('meta[property="og:type"]')).toHaveAttribute('content', 'website');
+		await expect(page.locator('meta[property="og:url"]')).toHaveAttribute(
+			'content',
+			'https://youloop.leftium.com/'
+		);
+	}
+	for (const query of ['?utm_source=test&v=bad', '?utm_source=test&t=bad', '?mute=bad']) {
+		await page.goto('/' + query);
+		await expect(page.getByRole('alert')).toContainText('Invalid link');
+		await expect(page.locator('youtube-video')).toHaveCount(0);
+	}
+});
+
+for (const viewport of [
+	{ width: 320, height: 568 },
+	{ width: 375, height: 667 },
+	{ width: 1280, height: 800 }
+]) {
+	for (const nativeFullscreen of [true, false]) {
+		test(`Edit is a measured watch action at ${viewport.width}px, fullscreen=${nativeFullscreen}`, async ({
+			page,
+			context
+		}) => {
+			await page.setViewportSize(viewport);
+			if (!nativeFullscreen)
+				await page.addInitScript(() => {
+					Object.defineProperty(document, 'fullscreenEnabled', { get: () => false });
+				});
+			await page.goto(`/${id}?t=31-38&once&mute&speed=1.5&vertical=0&fill=0`);
+			await settled(page);
+			await expect(page.getByRole('button', { name: 'Copy Link', exact: true })).toHaveCount(0);
+			await expect(page.locator('.watch-navigation')).toHaveCount(0);
+			const edit = page.locator('media-controls .watch-actions a[aria-label="Edit"]');
+			await expect(edit).toHaveCount(1);
+			await expect(edit).toHaveAttribute('title', 'Edit');
+			await expect(edit).toHaveText('');
+			await expect(page.locator('.watch-actions :is(button,a)')).toHaveCount(
+				nativeFullscreen ? 4 : 3
+			);
+			await page.getByRole('button', { name: 'Unmute video', exact: true }).click();
+			const editorPath = `/?v=${id}&t=31-38&once&mute=0&speed=1.5&vertical=0&fill=0`;
+			await expect(edit).toHaveAttribute('href', editorPath);
+			expect(
+				await page.evaluate(() => {
+					const targets = [...document.querySelectorAll('media-controls :is(button,a)')].map((el) =>
+						el.getBoundingClientRect()
+					);
+					const groups = [...document.querySelectorAll('.watch-time,.watch-actions')].map((el) =>
+						el.getBoundingClientRect()
+					);
+					return (
+						targets.every(
+							(r) =>
+								r.width >= 44 &&
+								r.height >= 44 &&
+								r.left >= 0 &&
+								r.right <= innerWidth &&
+								r.top >= 0 &&
+								r.bottom <= innerHeight
+						) &&
+						groups[0].right <= groups[1].left &&
+						document.documentElement.scrollWidth <= innerWidth
+					);
+				})
+			).toBe(true);
+			// Cancel one click to observe its media effects without leaving the player.
+			await edit.evaluate((link) => {
+				(window as unknown as { savedMedia: Element | null }).savedMedia =
+					document.querySelector('youtube-video');
+				link.addEventListener('click', (event) => event.preventDefault(), { once: true });
+			});
+			await edit.click();
+			expect((await mediaState(page)).paused).toBe(true);
+			expect(
+				await page.evaluate(
+					() =>
+						(window as unknown as { savedMedia: Element }).savedMedia ===
+						document.querySelector('youtube-video')
+				)
+			).toBe(true);
+			await page.evaluate(() => window.scrollTo(0, 100));
+			await expect(page.locator('.share-prototype')).toHaveAttribute('data-mode', 'theater');
+			await expect(edit).toBeHidden();
+			await page.evaluate(() => window.scrollTo(0, 0));
+			await expect(edit).toBeVisible();
+			await page.keyboard.press('Tab');
+			await edit.focus();
+			expect(await edit.evaluate((el) => getComputedStyle(el).outlineStyle)).toBe('solid');
+			// Standard link navigation also supports opening an independent browser tab.
+			const opened = context.waitForEvent('page');
+			await edit.click({ modifiers: ['ControlOrMeta'] });
+			const tab = await opened;
+			await tab.waitForLoadState();
+			await expect(tab).toHaveURL('http://localhost:5173' + editorPath);
+			await tab.close();
+			await edit.press('Enter');
+			await settled(page);
+			await expect(page.getByRole('button', { name: 'Next frame' })).toBeVisible();
+			await expect(page.getByRole('button', { name: 'Copy Link', exact: true })).toBeVisible();
+			await page.goBack();
+			await settled(page);
+			await expect(edit).toHaveAttribute('href', editorPath);
+		});
+	}
+}
