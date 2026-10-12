@@ -165,6 +165,12 @@ A 60px portrait pane extension was tested and removed: the owner confirmed the
 larger measured bottom but the visible cutoff did not move. The normal portrait
 scroll reserve remains, since it makes the final controls reachable.
 
+The next candidate moves sticky positioning to a permanent outer shell while the
+grid remains unpositioned and controls retain independent scrolling. Repeat the
+60px portrait pane extension with matching scroll reserve under this shell to
+test painting past the old cutoff. The readout reports the shell's pin mode.
+This trial is awaiting physical Safari confirmation.
+
 For the unresolved portrait clipping boundary, append `&viewportDebug=1` to an
 editor URL with an existing query (or `?viewportDebug=1` on the bare root).
 A noninteractive readout reports CSS-pixel viewport, grid/pane bottom, padding,
