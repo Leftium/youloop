@@ -369,6 +369,33 @@ verification should also use `REQUIRE_VIDEO_METADATA=1` on the public preview.
 Real social platforms cache unfurls independently; a successful HTTP check
 does not prove that a platform has refreshed its preview.
 
+### Social-preview verification recorded for PR #27
+
+On 2026-10-12, `pnpm check`, `pnpm lint`, 20 URL tests, nine metadata tests,
+and the Vercel build passed. Four hosting smoke tests and four social smoke
+tests passed against the production-built local server, with live YouTube
+metadata required for the social checks. GitHub hosting CI passed too.
+
+The public [Vercel preview](https://youloop-82wwdiy08-team-leftium.vercel.app)
+for implementation commit `1bdfe3cbca8b57f4bf6e1a8fe4d3a145c04eb85a` passed all
+four social smoke tests with `REQUIRE_VIDEO_METADATA=1`. Both legacy routes
+returned the requested video's title, description, thumbnail, and clip URL in
+initial HTML on direct fetch and reload. About, SVG assets, and missing-route
+404 behavior also passed on that deployment.
+
+[OpenGraph.xyz's external validator](https://www.opengraph.xyz/url/https%3A%2F%2Fyouloop-82wwdiy08-team-leftium.vercel.app%2Fs%3Fv%3Ddt-SqNL4z3w%26a%3D31%26b%3D38)
+retrieved the video title and creator description, loaded the YouTube thumbnail,
+and recognized the Twitter large-image card. It flagged the sample's 73-character
+title and 480x360 thumbnail as possible truncation/crop issues. These are display
+recommendations; custom social artwork remains a follow-up. Actual Facebook,
+X, LinkedIn, Discord, and messaging-app unfurls were not tested.
+
+T3 Chromium loaded the public watch and editor routes. The watch player created
+the real YouTube iframe, reported the 65-second duration, sought to 31 seconds,
+and played after a gesture. At 390px width the watch document had no horizontal
+overflow and retained its native scroll runway. Physical-device Safari and
+platform cache refresh behavior remain unverified.
+
 ### Runtime verification
 
 `YOULOOP_RUNTIME_PROOF=1` opts into fresh UUID/time response headers and
