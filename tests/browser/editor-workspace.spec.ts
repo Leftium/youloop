@@ -318,6 +318,7 @@ test('touch capture and cancellation clean up without changing provider identity
 	try {
 		const page = await context.newPage();
 		await openEditor(page);
+		await page.getByRole('checkbox', { name: 'Video swipe scrolling (experimental)' }).uncheck();
 		const before = await value(page);
 		const box = (await divider(page).boundingBox())!;
 		const cdp = await context.newCDPSession(page);
@@ -507,6 +508,12 @@ test.describe('mobile pane scrolling', () => {
 				context
 			}) => {
 				await openEditor(page);
+				await page
+					.getByRole('checkbox', { name: 'Video swipe scrolling (experimental)' })
+					.uncheck();
+				await expect(
+					page.getByRole('checkbox', { name: 'Video swipe scrolling (experimental)' })
+				).toBeInViewport({ ratio: 1 });
 				await geometry(page);
 				const url = page.url();
 				await page.getByRole('button', { name: 'Play', exact: true }).click();
@@ -575,6 +582,9 @@ test.describe('mobile pane scrolling', () => {
 				context
 			}) => {
 				await openEditor(page);
+				await page
+					.getByRole('checkbox', { name: 'Video swipe scrolling (experimental)' })
+					.uncheck();
 				await expect(
 					page.getByRole('checkbox', { name: 'Page scrolling (experimental)' })
 				).toHaveCount(0);
@@ -664,8 +674,25 @@ test.describe('pinned workspace with independent settings experiment', () => {
 			}) => {
 				await openEditor(page);
 				const option = page.getByRole('checkbox', { name: 'Video swipe scrolling (experimental)' });
-				await expect(option).not.toBeChecked();
-				await option.check();
+				const snapOption = page.getByRole('checkbox', {
+					name: 'Snap document scrolling (experimental)'
+				});
+				await expect(option).toBeChecked();
+				await expect(snapOption).toBeChecked();
+				await expect(snapOption).toBeInViewport({ ratio: 1 });
+				await expect(page.locator('html')).toHaveCSS('scroll-snap-type', 'y mandatory');
+				await expect(page.locator('#editor-settings')).toHaveCSS('scroll-snap-type', 'none');
+				expect(
+					await page
+						.locator('.document-snap-point')
+						.nth(1)
+						.evaluate(
+							(el) =>
+								el.getBoundingClientRect().top -
+								document.querySelector('.document-snap-point')!.getBoundingClientRect().top
+						)
+				).toBe(20);
+				await expect(page.locator('.scroll-debug')).toHaveCount(0);
 				const url = page.url();
 				const offset = () => page.evaluate(() => scrollY);
 				async function pinned() {
@@ -778,6 +805,10 @@ test.describe('pinned workspace with independent settings experiment', () => {
 					await expect(page.locator('.workspace-grid')).not.toHaveClass(/dragging/);
 					await pinned();
 				}
+				// Test runway extension independently of the snap-stop distance limit.
+				await snapOption.uncheck();
+				await expect(page.locator('.document-snap-point')).toHaveCount(0);
+				const settingsBeforeExtensions = await settings.evaluate((el) => el.scrollTop);
 				// Native wheel input over the picture approaches the current runway
 				// threshold repeatedly without directly assigning document scroll offsets.
 				await page.mouse.move(picture.x + picture.width / 4, picture.y + 20);
@@ -800,7 +831,7 @@ test.describe('pinned workspace with independent settings experiment', () => {
 						)
 						.toBeGreaterThan(9 * viewport.height);
 					expect(await offset()).toBeGreaterThan(beforeOffset + 20 * viewport.height);
-					expect(await settings.evaluate((el) => el.scrollTop)).toBe(0);
+					expect(await settings.evaluate((el) => el.scrollTop)).toBe(settingsBeforeExtensions);
 					await pinned();
 				}
 				const grown = await page
@@ -848,10 +879,13 @@ test.describe('pinned workspace with independent settings experiment', () => {
 				expect(page.url()).toBe(url);
 				await page.getByRole('button', { name: 'Reset split', exact: true }).click();
 				await expect(option).not.toBeChecked();
+				await expect(snapOption).not.toBeChecked();
+				await expect(snapOption).toBeDisabled();
 				await geometry(page);
 				await identity(page);
 				await page.reload();
-				await expect(option).not.toBeChecked();
+				await expect(option).toBeChecked();
+				await expect(snapOption).toBeChecked();
 			});
 		});
 	}

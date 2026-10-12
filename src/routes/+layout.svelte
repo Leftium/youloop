@@ -51,6 +51,8 @@
 
 	:global(body:has(.editor-page)) {
 		display: block;
+		/* Keep exposed document edges in the editor's theme during Safari UI changes. */
+		background: var(--nc-surface-1);
 	}
 
 	.editor-page {

@@ -65,107 +65,95 @@ can use `{ notifyScroll: true, skipViewportSimulation: true }`; that explicitly
 dispatches scroll notifications and omits the viewport-resize simulation. It
 does not verify native touch scrolling or Safari chrome.
 
-## Editor scrolling and Safari
+## Editor workspace and mobile Safari
 
-The editor has a bounded two-pane workspace. Only the controls pane scrolls;
-the video, timeline, transport, and splitter stay stationary. Both splitter
-orientations resize in either direction. Layout preferences, playback, clip
-state, and the mounted YouTube provider remain independent of scrolling.
-Settings boundary gestures are contained where supported, and splitter focus
-uses `preventScroll`.
+The editor keeps video, timeline, transport, and splitter in the preview while
+controls scroll in their own pane. Layout and scrolling never replace the mounted
+YouTube provider or reset playback/clip state. Video-first mode is unchanged.
 
-The first native page-scrolling experiment was removed after physical-device
-feedback: video and settings gestures moved the same document scroller, Safari's
-chrome responded in both directions, and splitter drags never minimized it. The
-owner confirmed the restored bounded workspace did not shrink chrome.
+On small touch viewports, the top of settings offers **Video swipe scrolling
+(experimental)** and **Snap document scrolling (experimental)**. Both start checked
+on mobile at the owner's request. Unchecking Video swipe scrolling restores the
+bounded editor; unchecking snapping keeps native document scrolling without snap
+points. Reset split disables both for the current visit. Reload starts both checked
+again. These switches never enter URLs or session layout preferences; desktop
+uses the bounded workspace.
 
-### Pinned workspace experiment with independent controls
+With video scrolling active, the complete grid is sticky over a native document
+runway. Controls retain their own `overflow-y: auto` scroller, with
+`overscroll-behavior-y: none` to suppress boundary chaining/bouncing where supported.
+Only the document scrollbar indicator is hidden; the controls scrollbar remains.
+The grid uses `100dvh` so it fills space freed by browser chrome and keeps transport
+visible with expanded bars. Using `100lvh` for the entire editor would reserve the
+hidden-toolbar height even with bars open, potentially concealing interactive
+controls. Watch mode can crop its video stage that way; the editor retains dynamic
+viewport sizing and its existing split ratios.
 
-On small touch viewports, **Video swipe scrolling (experimental)** enables a
-second experiment, off by default and scoped to the current visit. Unlike the
-removed variant, the entire two-pane grid is sticky over an extending native document
-runway. The controls pane retains `overflow-y: auto` and boundary containment.
-An upward video swipe can scroll the root document while controls gestures stay
-inside their own pane. Both layouts use the same DOM and provider; desktop sizing
-falls back to the bounded workspace. Reset split exits the experiment; reload
-starts it off. The option never enters URLs or session layout preferences.
+The runway starts at 25 small viewports and freezes its height in pixels. Passive
+scroll/resize listeners add 25 current viewports before fewer than nine remain.
+Rotation never shrinks the runway. Snapping uses invisible 20px-spaced document
+points with `scroll-snap-stop: always`; points extend with the runway. Controls
+have no snap rules. There is no programmatic scrolling, synthetic gesture, global
+touch interception, or momentum lock. Splitters own their resize gestures with
+pointer capture and `touch-action: none`; splitter-triggered chrome collapse is
+not implemented. The temporary scroll-offset overlay was removed after testing.
 
-Only the document's scrollbar indicator is hidden; the controls pane retains its
-own scrollbar. The root still has genuine native scroll range. Nothing forwards
-scroll deltas, synthesizes gestures, programmatically scrolls the document, or
-tries to detect/lock Safari's toolbar. Splitters retain `touch-action: none` and
-capture their resize gestures, so splitter-triggered minimization is still deferred.
-Reverse document scrolling may expand chrome; use Safari's native toolbar to
-restore it deliberately.
+### Owner-reported physical Safari results
 
-The complete grid uses `100dvh` to fill height freed by Safari's toolbar. The
-existing split ratio reconciles viewport changes without remounting the provider.
-The runway starts at 25 small viewports, freezes that height in pixels, and grows
-by 25 current viewports when fewer than nine remain, following watch mode's
-technique. Resize also checks remaining room; rotation never shrinks the runway.
-Only the document height grows: there is no scroll-position reset or synthetic
-scrolling. The effect's passive listeners exist only while the experiment is active.
+These observations came from the owner's iPhone Safari testing. The iOS version
+and exact viewport were not recorded; timings and offsets are approximate.
 
-In the experiment, controls use `overscroll-behavior-y: none` to suppress boundary
-chaining and rubber-band affordances where supported. This cannot guarantee that
-Safari ignores nested gestures: toolbar reactions may occur even when root
-`scrollY` does not change. The owner reported intermittent nested-control coupling
-with the sticky version. Only controls drags started immediately after a video
-flick coupled; waiting for momentum to stop or interrupting it with a separate tap
-avoided coupling. This supports a momentum/scroll-latching hypothesis without
-proving its mechanism. A fixed-overlay comparison preserved native video scrolling
-when enabled, but the owner confirmed the first controls gesture still coupled.
-Fixed positioning was therefore rejected, and the sticky implementation retained.
-No momentum-cancellation or root scroll-lock workaround has been introduced.
-Check the root offset in remote Web Inspector
-while reproducing it, and distinguish actual document motion from Safari-owned
-chrome changes. No global touch interception is introduced. Video-first mode
-remains unchanged.
+| Comparison                                                        | Observed result                                                                                                                                             |
+| ----------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Bounded editor                                                    | Chrome did not shrink.                                                                                                                                      |
+| First native-page variant                                         | Video and controls shared a document scrollbar; chrome reacted in both directions. Rejected.                                                                |
+| Sticky whole workspace with nested controls                       | Video scrolling could minimize chrome. Runway extension worked and landscape regions grew to fill newly freed height.                                       |
+| Immediate controls drag after a video flick                       | First gesture could remain coupled to the document until finger release; the controls scrollbar did not appear.                                             |
+| Wait for coasting to stop, or stop it with a separate tap/release | Controls scrolled independently. This supports a momentum/latching hypothesis without proving its mechanism.                                                |
+| Fixed workspace instead of sticky                                 | Coupling persisted. Rejected.                                                                                                                               |
+| Brief root overflow lock after video swipe                        | Coupling persisted with the trial on or off. Rejected and removed.                                                                                          |
+| No snapping vs 160px snapping                                     | Document offset kept changing for about 3 seconds without snapping, versus about 1 second or less with snapping. Coupling followed the moving offset.       |
+| 80px and 40px snapping                                            | Further improvement at 80px; 40px increments worked.                                                                                                        |
+| 20px snapping                                                     | Worked; stronger swipes could cross multiple points. Selected for the final candidate.                                                                      |
+| 10px snapping                                                     | Worked inconsistently; returned to 20px.                                                                                                                    |
+| Slow video drag                                                   | Chrome animated toward collapse around 30-40px of travel and could settle partially collapsed around 30px. A strict velocity threshold was not established. |
 
-### Required physical iPhone Safari check
+Snapping mitigates coasting and the coupling window; it does not guarantee gesture
+handoff or full toolbar collapse. Safari owns snap physics and toolbar visibility.
+A small/slow gesture can leave bars partially collapsed, and reverse scrolling or
+snapping backward may reveal them. Waiting for document momentum to stop or using
+a separate tap/release remains the confirmed workaround. More snap points also
+add DOM elements as the runway grows; 20px is a device-tested compromise, not a
+universal optimum.
 
-Use a normal Safari tab and record the phone model, iOS version, address-bar
-position, orientation, and starting toolbar state. Chromium verifies scroll
-ownership and playback continuity, not Safari's actual toolbar behavior.
+### Remaining physical iPhone Safari checks
 
-1. Open `/?v=dt-SqNL4z3w&t=5-50&mute`. Confirm there is no shared document
-   scrollbar: settings scroll independently, while the preview and timeline stay
-   visible. Scroll settings both ways and at both boundaries; note any browser-owned
-   toolbar changes.
-2. In portrait, resize the stacked splitter up and down repeatedly. In landscape
-   with sufficient width, resize the side-by-side splitter left and right, then
-   select Stacked and repeat. Test with Safari's bars expanded and minimized.
-   Restore the bars using Safari's native toolbar. Splitter-triggered collapse is
-   not implemented; resizing must work regardless of toolbar state.
-3. Swipe the picture both ways while paused and playing. Verify there is no
-   accidental playback toggle, page scroll, or movement of the controls pane.
-   Play the clip and repeat settings scrolling, resizing, layout changes, Fit/Fill,
-   and rotation; check for provider reloads, playback resets, or lost A/B state.
-4. Enable Video swipe scrolling in settings. Swipe upward on the picture:
-   record whether chrome collapses while the complete workspace stays pinned and
-   controls retain their scroll position. Scroll controls in both directions and
-   at both boundaries: the document should not move. Repeat resizing in both
-   directions, both layouts, and after collapse. Continue many upward picture swipes and approach the current runway end;
-   confirm it extends without a jump or playback reset. Verify the workspace grows
-   to fill newly freed height, and video, timeline, splitter, and every setting
-   remain usable. Note any toolbar jitter, browser-owned expansion, or accidental playback.
-5. Recheck the handoff in portrait and landscape: flick the video, then immediately
-   drag controls; compare with waiting for momentum to stop and with a separate
-   tap-and-release before dragging. Record the controls scrollbar, document
-   `scrollY`, controls `scrollTop`, and toolbar behavior. Immediate coupling remains
-   a known physical Safari limitation of this opt-in mode.
-6. Turn the option off, use Reset split, and reload. Confirm the default bounded
-   workspace returns, the option starts off, and clip/layout state is preserved.
-   Check safe-area edges, Safari's address-bar keyboard opening/closing, external
-   keyboard focus, and all settings' reachability. Reset/reload and editor/watch
-   Back/Forward must preserve the existing URL behavior. Compare the unchanged
-   video-first `/dt-SqNL4z3w?t=5-50&mute`.
+Use a normal Safari tab, record phone/iOS version, address-bar position, orientation,
+and starting toolbar state. Chromium verifies geometry and provider identity,
+not actual Safari toolbar collapse, momentum handoff, or native resize animation.
 
-**Physical Safari recheck: pending.** The owner's feedback establishes the removed
-experiment's limitations and the bounded baseline's lack of collapse. The new
-pinned-workspace variant still needs physical verification.
-Safari owns toolbar visibility, and independent pane scrolling cannot promise
-that chrome will remain minimized.
+1. Reload `/?v=dt-SqNL4z3w&t=5-50&mute`; confirm both switches start checked at
+   the top of controls. Uncheck both for the bounded baseline, then re-enable them.
+   The controls scrollbar should belong only to its pane.
+2. Compare strong/weak and slow/fast video swipes, including similar travel at
+   different speeds. Check partial/full collapse, reverse gestures, and the
+   immediate/wait/separate-tap controls handoff. Compare snapping on/off.
+3. Repeat both splitter directions in portrait and landscape, both layouts, with
+   bars expanded and minimized. Keep preview, timeline, and all actions reachable;
+   watch for viewport jitter and unwanted page movement.
+4. Keep playing the muted clip while scrolling controls at both boundaries,
+   extending the runway repeatedly, resizing, switching layouts, changing Fit/Fill,
+   and rotating. Repeat while paused; swipes must not toggle playback or reload
+   the provider. Inspect root `scrollY` and pane `scrollTop` remotely if needed.
+5. Check bottom spacing, safe areas, Safari's address-bar keyboard opening/closing,
+   external-keyboard focus, and all settings' reachability. Reset disables both
+   switches for this visit; reload restores mobile defaults without changing URLs
+   or session layout preferences. Compare editor/watch Back/Forward and the
+   unchanged video-first `/dt-SqNL4z3w?t=5-50&mute`.
+
+**Remaining device verification:** detailed safe-area/keyboard coverage, viewport
+resize smoothness, and broader iOS versions remain manual. The owner confirmed the
+observations above; a completely uncoupled first gesture is not claimed.
 
 ## Clip links and navigation
 

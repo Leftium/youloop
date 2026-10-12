@@ -11,10 +11,16 @@
 	let runway: HTMLDivElement;
 	let runwayHeight = $state<number>();
 	let mobile = $state(false);
-	let videoScrollRequested = $state(false);
+	let videoScrollRequested = $state(true);
+	let snapRequested = $state(true);
+	const snapSpacing = 20;
 	let videoScroll = $derived(mobile && videoScrollRequested);
+	let documentSnap = $derived(videoScroll && snapRequested);
 	let width = $state(0);
 	let height = $state(0);
+	let snapPointCount = $derived(
+		documentSnap ? Math.floor(((runwayHeight ?? 0) + height) / snapSpacing) + 1 : 0
+	);
 	let preference = $state<Layout | null>(null);
 	let ratios = $state({ columns: 0.62, rows: 0.55 });
 	let layout = $derived(width >= 660 ? (preference ?? 'columns') : 'rows');
@@ -160,6 +166,7 @@
 	function reset() {
 		endDrag();
 		videoScrollRequested = false;
+		snapRequested = false;
 		preference = null;
 		ratios = { columns: 0.62, rows: 0.55 };
 		remember();
@@ -193,7 +200,12 @@
 	</div>
 {/snippet}
 
-<section class="editor-workspace" class:video-scroll={videoScroll} aria-label="Editor workspace">
+<section
+	class="editor-workspace"
+	class:video-scroll={videoScroll}
+	class:document-snap={documentSnap}
+	aria-label="Editor workspace"
+>
 	<div
 		class="workspace-grid"
 		class:dragging
@@ -233,17 +245,21 @@
 			aria-label="Clip settings"
 			tabindex="0"
 		>
-			{@render settings()}
 			{#if mobile}
 				<label class="video-scroll-option">
 					<input type="checkbox" bind:checked={videoScrollRequested} />
 					Video swipe scrolling (experimental)
+				</label>
+				<label class="video-scroll-option">
+					<input type="checkbox" bind:checked={snapRequested} disabled={!videoScroll} />
+					Snap document scrolling (experimental)
 				</label>
 				<p class="scroll-hint">
 					Swipe upward on the picture to try minimizing Safari's toolbar. Controls scroll
 					separately. Safari owns toolbar visibility; Reset split exits the experiment.
 				</p>
 			{/if}
+			{@render settings()}
 		</div>
 	</div>
 	<div
@@ -252,6 +268,13 @@
 		bind:this={runway}
 		style:height={runwayHeight === undefined ? undefined : `${runwayHeight}px`}
 	></div>
+	{#if documentSnap}
+		<div class="document-snap-points" aria-hidden="true">
+			{#each Array.from({ length: snapPointCount }, (_, index) => index) as index (index)}
+				<span class="document-snap-point" style:top={`${index * snapSpacing}px`}></span>
+			{/each}
+		</div>
+	{/if}
 </section>
 
 <style>
@@ -259,21 +282,38 @@
 		height: 100dvh;
 		min-height: 0;
 	}
+	:global(html:has(.document-snap)) {
+		scroll-snap-type: y mandatory;
+	}
+	.document-snap-points {
+		position: absolute;
+		inset: 0;
+		pointer-events: none;
+	}
+	.document-snap-point {
+		position: absolute;
+		left: 0;
+		width: 1px;
+		height: 1px;
+		scroll-snap-align: start;
+		scroll-snap-stop: always;
+	}
 	.video-scroll-option {
 		display: flex;
 		align-items: center;
 		gap: 0.5rem;
 		min-height: 44px;
-		margin-top: 1rem;
+		margin: 0;
 	}
 	.scroll-hint {
 		font-size: 0.8rem;
-		margin: 0;
+		margin: 0 0 1rem;
 	}
 	.video-scroll-runway {
 		display: none;
 	}
 	.video-scroll {
+		position: relative;
 		height: auto;
 		overflow-anchor: none;
 	}
@@ -358,6 +398,10 @@
 			max(1rem, env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-left));
 		overflow-wrap: anywhere;
 		scrollbar-gutter: stable;
+	}
+	.settings-pane > :global(:last-child) {
+		/* The pane owns its safe-area spacing; do not stack a trailing block margin. */
+		margin-bottom: 0;
 	}
 	.splitter {
 		position: relative;
