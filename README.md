@@ -292,9 +292,12 @@ vercel deploy --yes --build-env DEPLOY_TARGET=vercel --build-env YOULOOP_RUNTIME
 Use the resulting immutable deployment URL for review. Do not pass `--prod`.
 Vercel assigns a new project's first deployment to its production environment;
 in this isolated project that affects only staging aliases. Later CLI uploads
-are previews. Automatic Git deployments are disabled to prevent accidental
-promotion on a `main` push. Staging authentication protection was disabled only
-on `youloop-staging`, allowing public HTTP and browser review.
+are previews. `youloop-staging` is not Git-connected, so it is deployed only
+through the CLI. The original `team-leftium/youloop` project was reconnected to
+Git and unpaused after the initial staging deployment; this shared
+`vercel.json` deliberately does not disable its automatic Git deployments.
+Staging authentication protection was disabled only on `youloop-staging`,
+allowing public HTTP and browser review.
 
 `DEPLOY_TARGET` defaults to `vercel`; `static` selects the Pages adapter and
 prerenders the existing routes. Unknown targets fail the build. This is a
