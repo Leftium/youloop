@@ -30,7 +30,7 @@ export function timelineRange(duration: number | undefined, a: number, b: number
 	};
 }
 
-/** Call choose only with settled duration. Reset on each loaded source, never on range updates. */
+/** Call choose only with settled duration. Reset on each loaded source, never on range updates. This choice also owns watch playback. */
 export function createTimelineMode() {
 	let decided = false;
 	let mode: TimelineMode = 'video';
@@ -42,7 +42,7 @@ export function createTimelineMode() {
 		choose(duration: number | undefined, a: number, b: number): TimelineMode {
 			const range = timelineRange(duration, a, b, 0);
 			if (!decided && range.valid) {
-				mode = range.restricted && range.length / range.total < 0.25 ? 'clip' : 'video';
+				mode = range.restricted ? 'clip' : 'video';
 				decided = true;
 			}
 			return mode;

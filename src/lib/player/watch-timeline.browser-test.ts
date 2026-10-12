@@ -8,8 +8,8 @@ export function run() {
 	};
 	for (const [a, b, expected] of [
 		[0, 24, 'clip'],
-		[0, 25, 'video'],
-		[0, 26, 'video'],
+		[0, 25, 'clip'],
+		[0, 26, 'clip'],
 		[0, 99999, 'video']
 	] as const) {
 		const choice = createTimelineMode();
@@ -101,8 +101,8 @@ export async function runView() {
 	const params = new URLSearchParams(location.search);
 	const range = timelineRange(total, Number(params.get('a')), Number(params.get('b')) || 99999, 0);
 	check(
-		initial === (range.restricted && range.length / total < 0.25 ? 'clip' : 'video'),
-		'Rendered initial mode uses settled range ratio'
+		initial === (range.restricted ? 'clip' : 'video'),
+		'Rendered initial mode uses settled clip restrictions'
 	);
 	check(button.disabled === !range.restricted, 'Only meaningful ranges enable time toggle');
 	const selection = document.querySelector<HTMLElement>('.timeline-selection');
