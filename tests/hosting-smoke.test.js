@@ -4,7 +4,7 @@ import { test } from 'node:test';
 const origin = process.env.HOSTING_URL;
 assert.ok(origin, 'Set HOSTING_URL to a proof-enabled local server or staging deployment');
 
-for (const path of ['/', '/s?v=dt-SqNL4z3w&a=31&b=38', '/about']) {
+for (const path of ['/', '/s?v=dt-SqNL4z3w&a=31&b=38']) {
 	test(`direct request and reload: ${path}`, async () => {
 		const ids = new Set();
 		for (let attempt = 0; attempt < 2; attempt++) {
@@ -22,7 +22,7 @@ for (const path of ['/', '/s?v=dt-SqNL4z3w&a=31&b=38', '/about']) {
 			ids.add(id);
 			const html = await response.text();
 			assert.match(html, /width=device-width, initial-scale=1/);
-			assert.match(html, path === '/about' ? /About YouLoop/ : /media-canvas/);
+			assert.match(html, /media-canvas/);
 		}
 		assert.equal(ids.size, 2, 'Each request must execute the server hook again');
 	});

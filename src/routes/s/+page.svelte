@@ -89,10 +89,6 @@
 	});
 </script>
 
-<svelte:head>
-	<title>YouLoop - Watch</title>
-</svelte:head>
-
 <div class="share-prototype" data-mode={theater ? 'theater' : 'default'}>
 	<div class="stage">
 		<Player
