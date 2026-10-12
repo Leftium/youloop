@@ -62,11 +62,6 @@
 		overflow: hidden;
 	}
 
-	.editor-page:has(:global(.native-scroll)) {
-		height: auto;
-		overflow: visible;
-	}
-
 	nav h1 {
 		font-size: 1.75rem;
 		margin: 0;

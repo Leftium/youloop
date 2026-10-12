@@ -493,144 +493,74 @@ for (const viewport of [
 	});
 }
 
-test.describe('mobile native page-scroll experiment', () => {
+test.describe('mobile pane scrolling', () => {
 	test.use({ hasTouch: true, isMobile: true, viewport: { width: 390, height: 844 } });
-	const option = (page: Page) =>
-		page.getByRole('checkbox', { name: 'Page scrolling (experimental)' });
 	const rootOffset = (page: Page) => page.evaluate(() => scrollY);
-
-	async function stickyGeometry(page: Page) {
-		await expect
-			.poll(() =>
-				page.evaluate(() => {
-					const preview = document.querySelector('#editor-preview')!.getBoundingClientRect();
-					const separator = document.querySelector('.splitter')!.getBoundingClientRect();
-					const picture = document.querySelector('.player')!.getBoundingClientRect();
-					const timeline = document.querySelector('.wrap-sliders')!.getBoundingClientRect();
-					const settings = document.querySelector('#editor-settings')!;
-					const columns =
-						document.querySelector('.workspace-grid')!.getAttribute('data-layout') === 'columns';
-					return (
-						Math.abs(preview.top) <= 1 &&
-						(columns
-							? preview.bottom <= innerHeight + 1 &&
-								Math.abs(separator.top) <= 1 &&
-								Math.abs(separator.bottom - preview.bottom) <= 1 &&
-								Math.abs(separator.left - preview.right) <= 1
-							: preview.bottom <= innerHeight - 100 &&
-								Math.abs(separator.top - preview.bottom) <= 1) &&
-						picture.height >= 100 &&
-						timeline.top >= picture.bottom &&
-						timeline.bottom <= preview.bottom &&
-						getComputedStyle(settings).overflowY === 'visible' &&
-						settings.scrollTop === 0 &&
-						document.documentElement.scrollWidth <= innerWidth
-					);
-				})
-			)
-			.toBe(true);
-	}
-
-	test('a sticky workspace/runway alone does not turn interior nested settings scroll into document scroll', async ({
-		page
-	}) => {
-		await openEditor(page);
-		await page.locator('#editor-settings').evaluate((el) => {
-			const tall = document.createElement('div');
-			tall.style.height = '1800px';
-			el.prepend(tall);
-		});
-		// Compare the watch-style stage/runway hypothesis without shipping another mode.
-		await page.addStyleTag({
-			content:
-				'.editor-page { height: auto !important; overflow: visible !important; } .editor-workspace { position: sticky; top: 0; }'
-		});
-		await page.locator('.editor-page').evaluate((el) => {
-			const runway = document.createElement('div');
-			runway.style.height = '200vh';
-			el.append(runway);
-		});
-		expect(
-			await page.evaluate(() => document.documentElement.scrollHeight - innerHeight)
-		).toBeGreaterThan(800);
-		await page.locator('#editor-settings').hover();
-		await page.mouse.wheel(0, 200);
-		await expect
-			.poll(() => page.locator('#editor-settings').evaluate((el) => el.scrollTop))
-			.toBeGreaterThan(100);
-		expect(await rootOffset(page)).toBe(0);
-		await page.locator('#editor-settings').evaluate((el) => {
-			el.scrollTop = el.scrollHeight;
-		});
-		await page.mouse.wheel(0, 250);
-		await page.waitForTimeout(250);
-		expect(await rootOffset(page)).toBe(0);
-		await expect(page.locator('#editor-settings')).toHaveCSS('overscroll-behavior-y', 'contain');
-		await identity(page);
-	});
-
 	for (const viewport of [
-		{ width: 320, height: 568 },
-		{ width: 568, height: 320 },
-		{ width: 568, height: 232 },
 		{ width: 390, height: 844 },
-		{ width: 844, height: 390 },
-		{ width: 932, height: 430 }
+		{ width: 844, height: 390 }
 	]) {
-		test(`settings scroll the document beneath the sticky preview at ${viewport.width}x${viewport.height}`, async ({
-			page
-		}) => {
-			await page.setViewportSize(viewport);
-			await openEditor(page);
-			const url = page.url();
-			await option(page).check();
-			await expect(page.locator('.editor-workspace')).toHaveClass(/native-scroll/);
-			await page.locator('#editor-settings').evaluate((el) => {
-				const tall = document.createElement('div');
-				tall.style.height = '1200px';
-				el.append(tall);
+		test.describe(`${viewport.width}x${viewport.height}`, () => {
+			test.use({ viewport, screen: viewport });
+			test(`touch splitter owns both drag directions without document scrolling at ${viewport.width}x${viewport.height}`, async ({
+				page,
+				context
+			}) => {
+				await openEditor(page);
+				await geometry(page);
+				const url = page.url();
+				await page.getByRole('button', { name: 'Play', exact: true }).click();
+				await page.waitForFunction(
+					() =>
+						(
+							document.querySelector('youtube-video') as HTMLElement & {
+								engine: { getPlayerState(): number };
+							}
+						).engine.getPlayerState() === 1
+				);
+				const time = await page
+					.locator('youtube-video')
+					.evaluate((el) => (el as HTMLElement & { currentTime: number }).currentTime);
+				const cdp = await context.newCDPSession(page);
+				await expect(divider(page)).toHaveCSS('touch-action', 'none');
+				for (const delta of [25, -25, 25, -25]) {
+					const before = await value(page);
+					const offset = await rootOffset(page);
+					const box = (await divider(page).boundingBox())!;
+					const columns = viewport.width > viewport.height;
+					const start = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+					await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [start] });
+					await expect(page.locator('.workspace-grid')).toHaveClass(/dragging/);
+					for (let step = 1; step <= 6; step++) {
+						await cdp.send('Input.dispatchTouchEvent', {
+							type: 'touchMove',
+							touchPoints: [
+								{
+									x: start.x + (columns ? (delta * step) / 6 : 0),
+									y: start.y + (columns ? 0 : (delta * step) / 6)
+								}
+							]
+						});
+					}
+					await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+					await expect(page.locator('.workspace-grid')).not.toHaveClass(/dragging/);
+					expect(Math.abs((await value(page)) - before - delta)).toBeLessThanOrEqual(1);
+					expect(await rootOffset(page)).toBe(offset);
+					await geometry(page);
+					await identity(page);
+				}
+				expect(
+					await page.locator('youtube-video').evaluate((el) => {
+						const media = el as HTMLElement & {
+							paused: boolean;
+							playbackRate: number;
+							currentTime: number;
+						};
+						return !media.paused && media.playbackRate === 1.5 && media.currentTime;
+					})
+				).toBeGreaterThanOrEqual(time);
+				expect(page.url()).toBe(url);
 			});
-			await stickyGeometry(page);
-			const preview = await page.locator('#editor-preview').boundingBox();
-			await page.mouse.move(viewport.width * 0.7, viewport.height - 35);
-			const before = await rootOffset(page);
-			await page.mouse.wheel(0, 200);
-			await expect.poll(() => rootOffset(page)).toBeGreaterThan(before + 100);
-			await stickyGeometry(page);
-			expect(await page.locator('#editor-preview').boundingBox()).toEqual(preview);
-			await page.getByRole('slider', { name: 'Repeat start', exact: true }).focus();
-			await page.keyboard.press('ArrowRight');
-			await expect(page.getByRole('slider', { name: 'Repeat start', exact: true })).toHaveValue(
-				'5.1'
-			);
-			const afterEdit = page.url();
-			await divider(page).press(viewport.width >= 568 ? 'ArrowRight' : 'ArrowDown');
-			await stickyGeometry(page);
-			if (viewport.width >= 568) {
-				await expect(
-					page.getByRole('button', { name: 'Side by side', exact: true })
-				).toHaveAttribute('aria-pressed', 'true');
-				await page.mouse.move(viewport.width * 0.8, viewport.height - 40);
-				await page.mouse.wheel(0, 10000);
-				await expect
-					.poll(() =>
-						page.evaluate(() =>
-							Math.abs(scrollY - (document.documentElement.scrollHeight - innerHeight))
-						)
-					)
-					.toBeLessThanOrEqual(1);
-				await stickyGeometry(page);
-			}
-			await identity(page);
-			expect(page.url()).toBe(afterEdit);
-			await page.getByRole('button', { name: 'Reset split' }).click();
-			await expect(page.locator('.editor-workspace')).not.toHaveClass(/native-scroll/);
-			await expect.poll(() => rootOffset(page)).toBe(0);
-			// Restore portrait before checking the unchanged bounded workspace on a short phone.
-			if (viewport.height < 390) await page.setViewportSize({ width: 320, height: 568 });
-			await geometry(page);
-			await identity(page);
-			expect(page.url()).not.toBe(url); // Only the intentional A edit changed the URL.
 		});
 	}
 
@@ -638,219 +568,85 @@ test.describe('mobile native page-scroll experiment', () => {
 		{ width: 390, height: 844 },
 		{ width: 844, height: 390 }
 	]) {
-		test(`touch splitter owns both drag directions without document scrolling at ${viewport.width}x${viewport.height}`, async ({
-			page,
-			context
-		}) => {
-			await page.setViewportSize(viewport);
-			await openEditor(page);
-			await option(page).check();
-			await page.locator('#editor-settings').hover();
-			await page.mouse.wheel(0, 100);
-			await expect.poll(() => rootOffset(page)).toBeGreaterThan(0);
-			await stickyGeometry(page);
-			const url = page.url();
-			await page.getByRole('button', { name: 'Play', exact: true }).click();
-			await page.waitForFunction(
-				() =>
-					(
-						document.querySelector('youtube-video') as HTMLElement & {
-							engine: { getPlayerState(): number };
-						}
-					).engine.getPlayerState() === 1
-			);
-			const time = await page
-				.locator('youtube-video')
-				.evaluate((el) => (el as HTMLElement & { currentTime: number }).currentTime);
-			const cdp = await context.newCDPSession(page);
-			await expect(divider(page)).toHaveCSS('touch-action', 'none');
-			for (const delta of [25, -25, 25, -25]) {
-				const before = await value(page);
-				const offset = await rootOffset(page);
-				const box = (await divider(page).boundingBox())!;
-				const columns = viewport.width > viewport.height;
-				const start = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
-				await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [start] });
-				await expect(page.locator('.workspace-grid')).toHaveClass(/dragging/);
-				for (let step = 1; step <= 6; step++) {
+		test.describe(`${viewport.width}x${viewport.height}`, () => {
+			test.use({ viewport, screen: viewport });
+			test(`only settings scroll; picture swipes leave playback and pane position unchanged at ${viewport.width}x${viewport.height}`, async ({
+				page,
+				context
+			}) => {
+				await openEditor(page);
+				await expect(
+					page.getByRole('checkbox', { name: 'Page scrolling (experimental)' })
+				).toHaveCount(0);
+				await expect(page.locator('.editor-scroll-runway')).toHaveCount(0);
+				await page.locator('#editor-settings').evaluate((el) => {
+					const tall = document.createElement('div');
+					tall.style.height = '1200px';
+					el.prepend(tall);
+					el.scrollTop = 0;
+				});
+				const cdp = await context.newCDPSession(page);
+				async function swipe(x: number, from: number, to: number) {
 					await cdp.send('Input.dispatchTouchEvent', {
-						type: 'touchMove',
-						touchPoints: [
-							{
-								x: start.x + (columns ? (delta * step) / 6 : 0),
-								y: start.y + (columns ? 0 : (delta * step) / 6)
-							}
-						]
+						type: 'touchStart',
+						touchPoints: [{ x, y: from }]
 					});
+					await page.waitForTimeout(50);
+					for (let step = 1; step <= 6; step++) {
+						await cdp.send('Input.dispatchTouchEvent', {
+							type: 'touchMove',
+							touchPoints: [{ x, y: from + ((to - from) * step) / 6 }]
+						});
+						await page.waitForTimeout(30);
+					}
+					await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+					await page.waitForTimeout(300); // Let native scroll momentum settle before comparing ownership.
 				}
-				await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
-				await expect(page.locator('.workspace-grid')).not.toHaveClass(/dragging/);
-				expect(Math.abs((await value(page)) - before - delta)).toBeLessThanOrEqual(1);
-				expect(await rootOffset(page)).toBe(offset);
-				await stickyGeometry(page);
-				await identity(page);
-			}
-			expect(
-				await page.locator('youtube-video').evaluate((el) => {
-					const media = el as HTMLElement & {
-						paused: boolean;
-						playbackRate: number;
-						currentTime: number;
-					};
-					return !media.paused && media.playbackRate === 1.5 && media.currentTime;
-				})
-			).toBeGreaterThanOrEqual(time);
-			expect(page.url()).toBe(url);
+				const settings = page.locator('#editor-settings');
+				await geometry(page);
+				const box = (await settings.boundingBox())!;
+				await swipe(box.x + box.width / 2, box.y + box.height - 20, box.y + 20);
+				await expect.poll(() => settings.evaluate((el) => el.scrollTop)).toBeGreaterThan(0);
+				await expect(settings).toHaveCSS('overflow-y', 'auto');
+				for (const bottom of [true, false]) {
+					await settings.evaluate((el, bottom) => {
+						el.scrollTop = bottom ? el.scrollHeight : 0;
+					}, bottom);
+					await swipe(
+						box.x + box.width / 2,
+						bottom ? box.y + box.height - 20 : box.y + 20,
+						bottom ? box.y + 20 : box.y + box.height - 20
+					);
+					expect(await rootOffset(page)).toBe(0);
+					await geometry(page);
+				}
+				const picture = (await page.locator('.player').boundingBox())!;
+				const paneOffset = await settings.evaluate((el) => el.scrollTop);
+				for (const reverse of [false, true]) {
+					await swipe(
+						picture.x + picture.width / 2,
+						reverse ? picture.y + 20 : picture.y + picture.height - 20,
+						reverse ? picture.y + picture.height - 20 : picture.y + 20
+					);
+					expect(await rootOffset(page)).toBe(0);
+					expect(await settings.evaluate((el) => el.scrollTop)).toBe(paneOffset);
+					await expect
+						.poll(() =>
+							page
+								.locator('youtube-video')
+								.evaluate((el) => (el as HTMLElement & { paused: boolean }).paused)
+						)
+						.toBe(true);
+					await identity(page);
+				}
+				expect(
+					await page.evaluate(
+						() =>
+							document.documentElement.scrollHeight <= innerHeight &&
+							document.documentElement.scrollWidth <= innerWidth
+					)
+				).toBe(true);
+			});
 		});
 	}
-
-	test('native vertical pan candidate cancels stacked resizing rather than combining gesture ownership', async ({
-		page,
-		context
-	}) => {
-		await openEditor(page);
-		await option(page).check();
-		// Investigation only: native panning conflicts with the stacked resize axis.
-		await page.addStyleTag({ content: '.splitter { touch-action: pan-y !important; }' });
-		await divider(page).evaluate((el) =>
-			el.addEventListener('pointercancel', () => el.setAttribute('data-pan-cancelled', 'true'))
-		);
-		const box = (await divider(page).boundingBox())!;
-		const start = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
-		const cdp = await context.newCDPSession(page);
-		await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [start] });
-		await expect(page.locator('.workspace-grid')).toHaveClass(/dragging/);
-		for (let step = 1; step <= 8; step++) {
-			await cdp.send('Input.dispatchTouchEvent', {
-				type: 'touchMove',
-				touchPoints: [{ x: start.x, y: start.y - step * 15 }]
-			});
-		}
-		await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
-		await expect(divider(page)).toHaveAttribute('data-pan-cancelled', 'true');
-		await expect(page.locator('.workspace-grid')).not.toHaveClass(/dragging/);
-		await expect.poll(() => rootOffset(page)).toBeGreaterThan(0);
-		await identity(page);
-	});
-
-	test('real touch scrolling over settings and preview does not accidentally play; short controls retain a finite runway', async ({
-		page,
-		context
-	}) => {
-		await openEditor(page);
-		const url = page.url();
-		await option(page).check();
-		await stickyGeometry(page);
-		const cdp = await context.newCDPSession(page);
-		async function swipe(startY: number, endY: number) {
-			await cdp.send('Input.dispatchTouchEvent', {
-				type: 'touchStart',
-				touchPoints: [{ x: 300, y: startY }]
-			});
-			for (let step = 1; step <= 6; step++) {
-				await cdp.send('Input.dispatchTouchEvent', {
-					type: 'touchMove',
-					touchPoints: [{ x: 300, y: startY + ((endY - startY) * step) / 6 }]
-				});
-			}
-			await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
-		}
-		const before = await rootOffset(page);
-		await swipe(800, 650);
-		await expect.poll(() => rootOffset(page)).toBeGreaterThan(before);
-		await stickyGeometry(page);
-		const picture = (await page.locator('.player').boundingBox())!;
-		await swipe(picture.y + picture.height - 20, picture.y + 30);
-		await expect
-			.poll(() =>
-				page
-					.locator('youtube-video')
-					.evaluate((el) => (el as HTMLElement & { paused: boolean }).paused)
-			)
-			.toBe(true);
-		await identity(page);
-		expect(page.url()).toBe(url);
-		expect(
-			await page.evaluate(() => document.documentElement.scrollHeight - innerHeight)
-		).toBeGreaterThanOrEqual(79);
-		// End is a user keyboard action, not a toolbar-collapse API.
-		await page.locator('#editor-settings').focus();
-		await page.keyboard.press('Control+End');
-		await stickyGeometry(page);
-		await page.getByRole('button', { name: 'Copy Link', exact: true }).focus();
-		expect(
-			await page.getByRole('button', { name: 'Copy Link', exact: true }).evaluate((el) => {
-				const r = el.getBoundingClientRect();
-				return (
-					r.top >= document.querySelector('#editor-preview')!.getBoundingClientRect().bottom &&
-					r.bottom <= innerHeight
-				);
-			})
-		).toBe(true);
-	});
-
-	test('playing provider survives page scrolling, split drag, orientation, desktop fallback and layout recovery', async ({
-		page
-	}) => {
-		await openEditor(page);
-		await option(page).check();
-		const url = page.url();
-		await page.getByRole('button', { name: 'Play', exact: true }).click();
-		await page.waitForFunction(
-			() =>
-				(
-					document.querySelector('youtube-video') as HTMLElement & {
-						engine: { getPlayerState(): number };
-					}
-				).engine.getPlayerState() === 1
-		);
-		const time = () =>
-			page
-				.locator('youtube-video')
-				.evaluate((el) => (el as HTMLElement & { currentTime: number }).currentTime);
-		const started = await time();
-		await page.mouse.move(300, 780);
-		await page.mouse.wheel(0, 100);
-		await stickyGeometry(page);
-		await dragBy(page, -25);
-		await stickyGeometry(page);
-		for (const viewport of [
-			{ width: 844, height: 390 },
-			{ width: 932, height: 430 },
-			{ width: 390, height: 700 },
-			{ width: 390, height: 844 }
-		]) {
-			await page.setViewportSize(viewport);
-			await stickyGeometry(page);
-			await identity(page);
-		}
-		await page.setViewportSize({ width: 1280, height: 800 });
-		await expect(page.locator('.editor-workspace')).not.toHaveClass(/native-scroll/);
-		await expect(option(page)).toHaveCount(0);
-		await geometry(page);
-		await page.setViewportSize({ width: 844, height: 390 });
-		await expect(page.locator('.editor-workspace')).toHaveClass(/native-scroll/);
-		await page.getByRole('button', { name: 'Stacked', exact: true }).click();
-		await expect(page.locator('.editor-workspace')).toHaveClass(/native-scroll/);
-		await stickyGeometry(page);
-		await page.getByRole('button', { name: 'Side by side', exact: true }).click();
-		await expect(page.locator('.editor-workspace')).toHaveClass(/native-scroll/);
-		await stickyGeometry(page);
-		await identity(page);
-		expect(await time()).toBeGreaterThanOrEqual(started);
-		expect(
-			await page.locator('youtube-video').evaluate((el) => {
-				const m = el as HTMLElement & {
-					paused: boolean;
-					playbackRate: number;
-					engine: { getPlayerState(): number };
-				};
-				return !m.paused && m.playbackRate === 1.5 && m.engine.getPlayerState() === 1;
-			})
-		).toBe(true);
-		expect(page.url()).toBe(url);
-		await page.reload();
-		await expect(option(page)).not.toBeChecked();
-		await expect(page.locator('.editor-workspace')).not.toHaveClass(/native-scroll/);
-	});
 });

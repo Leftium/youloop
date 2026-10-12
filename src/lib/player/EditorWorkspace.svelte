@@ -7,20 +7,14 @@
 	type Layout = 'columns' | 'rows';
 	const storageKey = 'youloop.editor-workspace';
 	const dividerSize = 3;
-	let budget: HTMLDivElement;
-	let mobile = $state(false);
-	let pageScrollRequested = $state(false);
-	let pageScroll = $derived(mobile && pageScrollRequested);
+	let grid: HTMLDivElement;
 	let width = $state(0);
 	let height = $state(0);
 	let preference = $state<Layout | null>(null);
 	let ratios = $state({ columns: 0.62, rows: 0.55 });
-	let sideBySideMinimum = $derived(pageScroll ? 568 : 660);
-	let layout = $derived(width >= sideBySideMinimum ? (preference ?? 'columns') : 'rows');
+	let layout = $derived(width >= 660 ? (preference ?? 'columns') : 'rows');
 	let available = $derived(Math.max(0, (layout === 'columns' ? width : height) - dividerSize));
-	let minimum = $derived(
-		layout === 'columns' ? (pageScroll ? 285 : 320) : Math.min(240, Math.max(0, available - 110))
-	);
+	let minimum = $derived(layout === 'columns' ? 320 : Math.min(240, Math.max(0, available - 110)));
 	let maximum = $derived(Math.max(minimum, available - (layout === 'columns' ? 280 : 110)));
 	let size = $derived(Math.max(minimum, Math.min(ratios[layout] * available, maximum)));
 	let dragging = $state(false);
@@ -38,20 +32,13 @@
 		} catch {
 			// Storage restrictions must not prevent editing or resizing.
 		}
-		const query = window.matchMedia(
-			'(pointer: coarse) and (max-width: 900px), (pointer: coarse) and (max-height: 500px)'
-		);
-		const updateMobile = () => (mobile = query.matches);
-		updateMobile();
-		query.addEventListener('change', updateMobile);
 		const observer = new ResizeObserver(() => {
 			endDrag();
-			width = budget.clientWidth;
-			height = budget.clientHeight;
+			width = grid.clientWidth;
+			height = grid.clientHeight;
 		});
-		observer.observe(budget);
+		observer.observe(grid);
 		return () => {
-			query.removeEventListener('change', updateMobile);
 			observer.disconnect();
 			endDrag();
 		};
@@ -131,7 +118,6 @@
 
 	function reset() {
 		endDrag();
-		pageScrollRequested = false;
 		preference = null;
 		ratios = { columns: 0.62, rows: 0.55 };
 		remember();
@@ -142,14 +128,14 @@
 	<div class="workspace-layout" role="group" aria-label="Workspace layout">
 		<div class="nc-join layout-modes">
 			<button
-				aria-label={width < sideBySideMinimum
+				aria-label={width < 660
 					? 'Side by side (requires a wider preview workspace)'
 					: 'Side by side'}
-				title={width < sideBySideMinimum
-					? `Side by side requires a workspace at least ${sideBySideMinimum}px wide`
+				title={width < 660
+					? 'Side by side requires a workspace at least 660px wide'
 					: 'Side by side'}
 				aria-pressed={layout === 'columns'}
-				disabled={width < sideBySideMinimum}
+				disabled={width < 660}
 				onclick={() => choose('columns')}><IcRoundViewAgenda class="columns-icon" /></button
 			>
 			<button
@@ -165,16 +151,15 @@
 	</div>
 {/snippet}
 
-<section
-	class="editor-workspace"
-	class:native-scroll={pageScroll}
-	aria-label="Editor workspace"
-	style:--preview-size={`${size}px`}
-	style:--divider-size={`${dividerSize}px`}
->
-	<!-- Measure a viewport budget independently of settings content and scroll offset. -->
-	<div class="workspace-budget" aria-hidden="true" bind:this={budget}></div>
-	<div class="workspace-grid" class:dragging data-layout={layout}>
+<section class="editor-workspace" aria-label="Editor workspace">
+	<div
+		class="workspace-grid"
+		class:dragging
+		data-layout={layout}
+		bind:this={grid}
+		style:--preview-size={`${size}px`}
+		style:--divider-size={`${dividerSize}px`}
+	>
 		<div id="editor-preview" class="preview-pane" role="region" aria-label="Video preview">
 			{@render preview(layoutControls)}
 		</div>
@@ -207,114 +192,15 @@
 			tabindex="0"
 		>
 			{@render settings()}
-			{#if mobile}
-				<label class="page-scroll-option">
-					<input type="checkbox" bind:checked={pageScrollRequested} />
-					Page scrolling (experimental)
-				</label>
-				<p class="scroll-hint">
-					Keeps the preview pinned while settings scroll with the page. Swipe upward on the picture
-					to try minimizing Safari's toolbar; resizing does not scroll the page. Safari controls the
-					toolbar. Reset split returns to pane scrolling.
-				</p>
-			{/if}
 		</div>
-		<div class="editor-scroll-runway" aria-hidden="true"></div>
 	</div>
 </section>
 
 <style>
 	.editor-workspace {
-		position: relative;
 		height: 100dvh;
 		min-height: 0;
 	}
-	.workspace-budget {
-		position: absolute;
-		top: 0;
-		left: 0;
-		width: 100%;
-		height: 100dvh;
-		visibility: hidden;
-		pointer-events: none;
-	}
-	.page-scroll-option {
-		display: flex;
-		align-items: center;
-		gap: 0.5rem;
-		min-height: 44px;
-		margin-top: 1rem;
-	}
-	.scroll-hint {
-		font-size: 0.8rem;
-		margin: 0;
-	}
-	.editor-scroll-runway {
-		display: none;
-	}
-	/* Native settings scroll is opt-in until physical Safari verifies its chrome behavior. */
-	.native-scroll {
-		height: auto;
-		overflow-anchor: none;
-	}
-	.native-scroll .workspace-budget {
-		height: 100svh;
-	}
-	.native-scroll .workspace-grid {
-		height: auto;
-	}
-	.native-scroll .workspace-grid[data-layout='rows'] {
-		grid-template-rows: var(--preview-size) var(--divider-size) auto auto;
-	}
-	.native-scroll .preview-pane {
-		position: sticky;
-		top: 0;
-		align-self: start;
-		height: var(--preview-size);
-		z-index: 3;
-		background: var(--nc-surface-1, #fff);
-	}
-	.native-scroll .splitter {
-		position: sticky;
-		top: var(--preview-size);
-		align-self: start;
-		height: var(--divider-size);
-		z-index: 4;
-	}
-	.native-scroll .settings-pane {
-		min-height: calc(100svh - var(--preview-size) - var(--divider-size));
-		overflow: visible;
-		scrollbar-gutter: auto;
-	}
-	.native-scroll .settings-pane :global(:is(button, input, a)) {
-		scroll-margin-top: 16px;
-		scroll-margin-bottom: 16px;
-	}
-	.native-scroll [data-layout='rows'] .settings-pane :global(:is(button, input, a)) {
-		scroll-margin-top: calc(var(--preview-size) + var(--divider-size) + 16px);
-	}
-	.native-scroll .workspace-grid[data-layout='columns'] {
-		grid-template-rows: auto auto;
-	}
-	.native-scroll [data-layout='columns'] .preview-pane,
-	.native-scroll [data-layout='columns'] .splitter {
-		top: 0;
-		height: 100svh;
-	}
-	.native-scroll [data-layout='columns'] .settings-pane {
-		min-height: 100svh;
-	}
-	.native-scroll .editor-scroll-runway {
-		display: block;
-		grid-column: 1 / -1;
-		/* Keep the runway inside the sticky containing grid so the full-height
-		   landscape preview remains pinned at the end of the document.
-		   Retain real scroll room even after toolbar collapse enlarges the viewport.
-		   Unlike watch mode's endless runway, this keeps the final controls reachable. */
-		height: calc(100lvh - 100svh + 80px);
-		pointer-events: none;
-	}
-
 	.workspace-layout {
 		display: flex;
 		gap: 0.4rem;
@@ -382,8 +268,7 @@
 		position: relative;
 		z-index: 2;
 		cursor: col-resize;
-		/* Native panning cancels resize pointers, especially for stacked splits.
-		   Keep resizing independent of document scroll and Safari toolbar state. */
+		/* Resizing owns the gesture; native panning would cancel the resize pointers. */
 		touch-action: none;
 	}
 	.splitter::before,

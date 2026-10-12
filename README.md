@@ -65,111 +65,51 @@ can use `{ notifyScroll: true, skipViewportSimulation: true }`; that explicitly
 dispatches scroll notifications and omits the viewport-resize simulation. It
 does not verify native touch scrolling or Safari chrome.
 
-## Experimental mobile page scrolling
+## Editor scrolling and Safari
 
-On touch viewports up to 900px wide (or landscape windows up to 500px tall),
-the editor settings offer **Page scrolling
-(experimental)**. It is off by default and lasts only for the current editor
-visit. It never enters clip URLs or session layout preferences. Reset split turns it off; desktop sizing retains the normal bounded workspace.
+The editor has a bounded two-pane workspace. Only the controls pane scrolls;
+the video, timeline, transport, and splitter stay stationary. Both splitter
+orientations resize in either direction. Layout preferences, playback, clip
+state, and the mounted YouTube provider remain independent of scrolling.
+Settings boundary gestures are contained where supported, and splitter focus
+uses `preventScroll`.
 
-The default settings pane scrolls internally. In Chromium, adding a sticky whole
-workspace and document runway still leaves ordinary interior settings scrolling
-inside that pane. The default pane uses `overscroll-behavior-y: contain` to prevent boundary scroll
-chaining where supported; this does not control Safari toolbar behavior. WebKit has also documented
-[toolbar responses to nested scrolling](https://bugs.webkit.org/show_bug.cgi?id=231878),
-so it would be incorrect to assume nested scrolling always prevents collapse.
+The native page-scrolling experiment was removed after physical-device feedback:
+video and settings gestures moved the same document scroller, Safari's chrome
+responded in both directions, and splitter drags never minimized it. The shared
+scrollbar did not meet the intended editor behavior. Splitter-triggered collapse
+and the editor video-swipe fallback are deferred; no synthetic scroll forwarding
+or toolbar-lock workaround is used. Video-first mode keeps its existing native
+scrolling behavior.
 
-The opt-in layout removes the nested settings scroller and lets finger scrolling
-over settings move the document. Video, timeline, transport, and separator stay pinned above settings in stacked
-mode, or beside settings in side-by-side mode. Landscape defaults to side by side
-from 568px wide in the experiment (including 568px landscape phones); an explicit
-layout preference still wins. The normal workspace retains its 660px threshold. Both layout
-buttons work without turning off page scrolling. A finite invisible runway keeps short settings scrollable
-even with the browser toolbar collapsed. Unlike watch mode's long runway, it does
-not add an endless blank page. No scroll forwarding, wheel/touch interception,
-programmatic document scrolling, or Safari detection is used. The provider stays
-in its existing DOM parent.
+### Required physical iPhone Safari check
 
-An independent `100svh` sizing budget is designed to keep toolbar-driven `dvh` changes out of
-the preview split calculation; rotation still reconciles pane minimums. Freed
-viewport space reveals more settings rather than repeatedly resizing the video.
-[WebKit describes the viewport units](https://webkit.org/blog/12445/new-webkit-features-in-safari-15-4/).
-Focus scroll margins keep settings actions below the sticky preview in stacked
-mode, and visible alongside it in landscape. Keyboard,
-safe-area, and toolbar behavior on a physical device remain unverified.
+Use a normal Safari tab and record the phone model, iOS version, address-bar
+position, orientation, and starting toolbar state. Chromium verifies scroll
+ownership and playback continuity, not Safari's actual toolbar behavior.
 
-### Splitter gestures and one-way minimization
+1. Open `/?v=dt-SqNL4z3w&t=5-50&mute`. Confirm there is no shared document
+   scrollbar: settings scroll independently, while the preview and timeline stay
+   visible. Scroll settings both ways and at both boundaries; note any browser-owned
+   toolbar changes.
+2. In portrait, resize the stacked splitter up and down repeatedly. In landscape
+   with sufficient width, resize the side-by-side splitter left and right, then
+   select Stacked and repeat. Test with Safari's bars expanded and minimized.
+   Restore the bars using Safari's native toolbar. Splitter-triggered collapse is
+   not implemented; resizing must work regardless of toolbar state.
+3. Swipe the picture both ways while paused and playing. Verify there is no
+   accidental playback toggle, page scroll, or movement of the controls pane.
+   Play the clip and repeat settings scrolling, resizing, layout changes, Fit/Fill,
+   and rotation; check for provider reloads, playback resets, or lost A/B state.
+4. Check safe-area edges, Safari's address-bar keyboard opening/closing, external
+   keyboard focus, and all settings' reachability. Reset/reload and editor/watch
+   Back/Forward must preserve the existing URL behavior. Compare the unchanged
+   video-first `/dt-SqNL4z3w?t=5-50&mute`.
 
-Split position and browser chrome are independent. Both splitter orientations
-retain pointer capture and `touch-action: none`, so dragging either direction
-resizes without deliberately scrolling the document or restoring browser chrome.
-Pointer focus uses `preventScroll`. Default settings scrolling stays in its pane,
-including at boundaries where overscroll containment is supported.
-
-Combining a resize with native toolbar collapse is deferred. Under the
-[Pointer Events gesture ownership rules](https://www.w3.org/TR/pointerevents3/#the-touch-action-css-property),
-allowing native vertical panning can cancel the pointer stream. In stacked mode,
-that competes with the resize axis. In side-by-side mode, horizontal resizing
-produces no vertical document movement; allowing vertical panning would surrender
-that gesture to the browser rather than guarantee both actions. Directional
-`touch-action` cannot turn both drag directions into a single scroll direction.
-Chromium regressions demonstrate cancellation with an injected `pan-y` candidate;
-that candidate is not shipped. No synthetic gesture, scroll forwarding, toolbar
-visibility inference, or programmatic scroll workaround is introduced.
-
-The retained fallback is an upward finger swipe on the picture with Page scrolling
-enabled. This allows genuine native document scrolling; Safari decides whether to
-minimize its toolbar. Tap Safari's native toolbar to restore it. The experiment
-also lets settings scroll the document, so it does not satisfy independent settings
-scrolling. Leave it off when pane isolation is the priority. Reverse native scrolling,
-runway boundaries (including scroll-offset clamping after a resize), keyboard
-focus, or Safari itself may expand chrome; the app
-cannot lock it hidden. Physical acceptance of one-way toolbar behavior remains
-pending, and splitter-triggered collapse is not claimed.
-
-### Required physical iPhone Safari comparison
-
-Use Safari in a normal tab, not an installed home-screen app, and record the
-phone model, iOS version, address-bar position, orientation, and starting toolbar
-state. Browser emulation and Chromium cannot establish toolbar collapse.
-
-1. Open `/?v=dt-SqNL4z3w&t=5-50&mute`, wait for the paused frame, and expand
-   Safari's bars. With the experiment off, swipe upward inside settings several
-   times, first away from a scroll boundary and then at its end. Record whether
-   the toolbar collapses and whether the document moves. Compare the unchanged
-   video-first `/dt-SqNL4z3w?t=5-50&mute` with an ordinary finger scroll.
-2. Enable Page scrolling in settings. Expand Safari's bars again, then swipe
-   inside settings with ordinary finger gestures. Record whether the toolbar
-   collapses, the preview/timeline stay pinned, all settings remain reachable,
-   and the split remains stable. Tap Safari's native toolbar to restore the bars. Repeat near the start and end
-   of the finite runway, noting any browser-driven expansion on reverse scrolling.
-3. Play the muted clip. Repeat scrolling, drag/cancel the splitter, edit A/B,
-   change Fit/Fill, and rotate portrait/landscape. Check that playback continues
-   without a restart, source reload, lost clip settings, or accidental play/pause
-   from swiping the picture. Test once while paused too.
-4. Tab/focus settings with an external keyboard if available; ensure actions
-   are not concealed by the sticky preview. Exercise Safari's address-bar
-   keyboard and closing it, toolbar changes, and safe-area edges. The current
-   editor has no text-entry source field; future text inputs will require their
-   own on-screen-keyboard check.
-5. With bars expanded, drag the stacked splitter up and down. Minimize with an
-   upward picture swipe, then resize repeatedly in both directions. Tap the native
-   toolbar to restore bars. Repeat in landscape with the side-by-side splitter
-   moving left and right, and with Stacked selected explicitly. Record unexpected
-   expansion, cancellation, playback changes, or document movement. Splitter-driven
-   collapse is deferred; resizing must remain reliable regardless of toolbar state.
-6. Rotate to landscape and confirm the automatic side-by-side layout. Scroll
-   through the final settings and runway: the complete left preview and divider
-   must stay pinned. Switch between Stacked and Side by side and confirm page
-   scrolling stays enabled. Turn the checkbox off or use Reset split; confirm
-   ordinary pane scrolling returns and clip/share URLs are unchanged.
-   Reload: the experiment must start off. Compare editor/watch Back/Forward.
-
-**Physical Safari result: pending.** Keep this opt-in. If ordinary pane scrolling
-already collapses chrome, prefer the default layout. If native scrolling fails
-repeatedly, causes toolbar oscillation, conceals settings under the keyboard, or
-compromises playback, defer/remove the experiment rather than add synthetic
-scroll forwarding or promise forced chrome collapse.
+**Physical Safari recheck: pending.** The owner's feedback establishes the removed
+experiment's limitations; the restored pane layout still needs a device recheck.
+Safari owns toolbar visibility, and independent pane scrolling cannot promise
+that chrome will remain minimized.
 
 ## Clip links and navigation
 
