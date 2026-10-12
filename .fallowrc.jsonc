@@ -1,0 +1,28 @@
+{
+	"$schema": "https://raw.githubusercontent.com/fallow-rs/fallow/v3.33.1/schema.json",
+	"minimumVersion": "3.33.1",
+	"entry": [
+		// Framework matcher convention and computed/manual browser imports.
+		"src/params.ts",
+		"src/lib/player/*.browser-test.ts",
+		"knip.ts"
+	],
+	// Generated adapter/framework output is outside the source audit.
+	"ignorePatterns": [".svelte-kit/**", ".vercel/**"],
+	"ignoreDependencies": [
+		// unplugin-icons resolves these virtual imports and collections at build time.
+		"~icons",
+		"@iconify-json/fluent",
+		"@iconify-json/ic",
+		// Sass bundles this stylesheet; production needs no runtime package install.
+		"@leftium/nimble.css"
+	],
+	"duplicates": {
+		// Fallow defaults skip *.test.* and *.spec.*; #32 needs those audited too.
+		"ignoreDefaults": false
+	},
+	"audit": {
+		"dupesBaseline": "fallow-baselines/dupes.json",
+		"healthBaseline": "fallow-baselines/health.json"
+	}
+}

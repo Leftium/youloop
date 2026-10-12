@@ -1,0 +1,438 @@
+{
+	"kind": "health",
+	"finding_counts": {
+		"src/lib/player/ClipPlayer.svelte": {
+			"complexity_moderate": {
+				"count": 1
+			},
+			"crap_high": {
+				"count": 1
+			},
+			"crap_moderate": {
+				"count": 1
+			}
+		},
+		"src/lib/player/EditorWorkspace.svelte": {
+			"crap_critical": {
+				"count": 1
+			},
+			"crap_high": {
+				"count": 1
+			},
+			"crap_moderate": {
+				"count": 2
+			}
+		},
+		"src/lib/player/Player.svelte": {
+			"complexity_critical": {
+				"count": 2
+			},
+			"crap_critical": {
+				"count": 4
+			},
+			"crap_high": {
+				"count": 5
+			},
+			"crap_moderate": {
+				"count": 6
+			}
+		},
+		"src/lib/player/WatchPage.svelte": {
+			"crap_moderate": {
+				"count": 2
+			}
+		},
+		"src/lib/player/media-geometry.browser-test.ts": {
+			"complexity_critical": {
+				"count": 1
+			},
+			"crap_critical": {
+				"count": 1
+			}
+		},
+		"src/lib/player/video-framing.ts": {
+			"crap_high": {
+				"count": 1
+			}
+		},
+		"src/lib/player/watch-controls-placement.browser-test.ts": {
+			"crap_critical": {
+				"count": 3
+			}
+		},
+		"src/lib/player/watch-controls-placement.ts": {
+			"crap_critical": {
+				"count": 1
+			},
+			"crap_high": {
+				"count": 1
+			}
+		},
+		"src/lib/player/watch-controls.browser-test.ts": {
+			"complexity_critical": {
+				"count": 1
+			},
+			"crap_critical": {
+				"count": 1
+			}
+		},
+		"src/lib/player/watch-source-geometry.browser-test.ts": {
+			"crap_moderate": {
+				"count": 1
+			}
+		},
+		"src/lib/player/watch-source-geometry.fixture.svelte": {
+			"crap_moderate": {
+				"count": 1
+			}
+		},
+		"src/lib/player/watch-timeline.browser-test.ts": {
+			"complexity_critical": {
+				"count": 1
+			},
+			"crap_critical": {
+				"count": 2
+			}
+		},
+		"src/lib/player/watch-viewport.browser-test.ts": {
+			"crap_high": {
+				"count": 1
+			},
+			"crap_moderate": {
+				"count": 2
+			}
+		},
+		"src/lib/player/youtube-orientation.browser-test.ts": {
+			"complexity_critical": {
+				"count": 1
+			},
+			"crap_critical": {
+				"count": 1
+			}
+		},
+		"src/lib/player/youtube-orientation.ts": {
+			"crap_critical": {
+				"count": 2
+			},
+			"crap_moderate": {
+				"count": 2
+			}
+		},
+		"src/lib/server/youtube-thumbnail.ts": {
+			"complexity_high": {
+				"count": 1
+			},
+			"crap_high": {
+				"count": 1
+			}
+		},
+		"src/lib/share-url.ts": {
+			"complexity_critical": {
+				"count": 1
+			},
+			"complexity_high": {
+				"count": 1
+			},
+			"crap_critical": {
+				"count": 1
+			},
+			"crap_high": {
+				"count": 1
+			}
+		},
+		"tests/browser/editor-workspace.spec.ts": {
+			"crap_high": {
+				"count": 2
+			},
+			"crap_moderate": {
+				"count": 1
+			}
+		},
+		"tests/watch-playback-scope.test.js": {
+			"complexity_moderate": {
+				"count": 1
+			}
+		}
+	},
+	"identity_finding_counts": {
+		"src/lib/player/ClipPlayer.svelte\u0000<arrow>": {
+			"crap_moderate": {
+				"count": 1
+			}
+		},
+		"src/lib/player/ClipPlayer.svelte\u0000<template>": {
+			"complexity_moderate": {
+				"count": 1
+			}
+		},
+		"src/lib/player/ClipPlayer.svelte\u0000loadUrl": {
+			"crap_high": {
+				"count": 1
+			}
+		},
+		"src/lib/player/EditorWorkspace.svelte\u0000<arrow>": {
+			"crap_critical": {
+				"count": 1
+			}
+		},
+		"src/lib/player/EditorWorkspace.svelte\u0000endDrag": {
+			"crap_moderate": {
+				"count": 1
+			}
+		},
+		"src/lib/player/EditorWorkspace.svelte\u0000extendRunway": {
+			"crap_moderate": {
+				"count": 1
+			}
+		},
+		"src/lib/player/EditorWorkspace.svelte\u0000resizeWithKeyboard": {
+			"crap_high": {
+				"count": 1
+			}
+		},
+		"src/lib/player/Player.svelte\u0000<arrow>": {
+			"crap_high": {
+				"count": 1
+			},
+			"crap_moderate": {
+				"count": 2
+			}
+		},
+		"src/lib/player/Player.svelte\u0000<snippet:media>": {
+			"complexity_critical": {
+				"count": 1
+			}
+		},
+		"src/lib/player/Player.svelte\u0000handleBoundKeydown": {
+			"crap_moderate": {
+				"count": 1
+			}
+		},
+		"src/lib/player/Player.svelte\u0000handleInputCurrentTime": {
+			"crap_moderate": {
+				"count": 1
+			}
+		},
+		"src/lib/player/Player.svelte\u0000handleMetadata": {
+			"crap_moderate": {
+				"count": 1
+			}
+		},
+		"src/lib/player/Player.svelte\u0000handlePlaying": {
+			"crap_critical": {
+				"count": 1
+			}
+		},
+		"src/lib/player/Player.svelte\u0000handleProviderMessage": {
+			"crap_critical": {
+				"count": 1
+			}
+		},
+		"src/lib/player/Player.svelte\u0000handleSeeked": {
+			"crap_moderate": {
+				"count": 1
+			}
+		},
+		"src/lib/player/Player.svelte\u0000handleTimeUpdate": {
+			"crap_high": {
+				"count": 1
+			}
+		},
+		"src/lib/player/Player.svelte\u0000measureVisibleVideo": {
+			"complexity_critical": {
+				"count": 1
+			},
+			"crap_critical": {
+				"count": 1
+			}
+		},
+		"src/lib/player/Player.svelte\u0000pasteYoutubeId": {
+			"crap_high": {
+				"count": 1
+			}
+		},
+		"src/lib/player/Player.svelte\u0000publishDuration": {
+			"crap_high": {
+				"count": 1
+			}
+		},
+		"src/lib/player/Player.svelte\u0000readVideoTitle": {
+			"crap_high": {
+				"count": 1
+			}
+		},
+		"src/lib/player/Player.svelte\u0000togglePaused": {
+			"crap_critical": {
+				"count": 1
+			}
+		},
+		"src/lib/player/WatchPage.svelte\u0000extendRunway": {
+			"crap_moderate": {
+				"count": 1
+			}
+		},
+		"src/lib/player/WatchPage.svelte\u0000handleScroll": {
+			"crap_moderate": {
+				"count": 1
+			}
+		},
+		"src/lib/player/media-geometry.browser-test.ts\u0000run": {
+			"complexity_critical": {
+				"count": 1
+			},
+			"crap_critical": {
+				"count": 1
+			}
+		},
+		"src/lib/player/video-framing.ts\u0000calculateFrameVideoWidth": {
+			"crap_high": {
+				"count": 1
+			}
+		},
+		"src/lib/player/watch-controls-placement.browser-test.ts\u0000geometry": {
+			"crap_critical": {
+				"count": 1
+			}
+		},
+		"src/lib/player/watch-controls-placement.browser-test.ts\u0000run": {
+			"crap_critical": {
+				"count": 1
+			}
+		},
+		"src/lib/player/watch-controls-placement.browser-test.ts\u0000runTitle": {
+			"crap_critical": {
+				"count": 1
+			}
+		},
+		"src/lib/player/watch-controls-placement.ts\u0000placeWatchControls": {
+			"crap_high": {
+				"count": 1
+			}
+		},
+		"src/lib/player/watch-controls-placement.ts\u0000placeWatchTitle": {
+			"crap_critical": {
+				"count": 1
+			}
+		},
+		"src/lib/player/watch-controls.browser-test.ts\u0000run": {
+			"complexity_critical": {
+				"count": 1
+			},
+			"crap_critical": {
+				"count": 1
+			}
+		},
+		"src/lib/player/watch-source-geometry.browser-test.ts\u0000geometry": {
+			"crap_moderate": {
+				"count": 1
+			}
+		},
+		"src/lib/player/watch-source-geometry.fixture.svelte\u0000configure": {
+			"crap_moderate": {
+				"count": 1
+			}
+		},
+		"src/lib/player/watch-timeline.browser-test.ts\u0000run": {
+			"crap_critical": {
+				"count": 1
+			}
+		},
+		"src/lib/player/watch-timeline.browser-test.ts\u0000runView": {
+			"complexity_critical": {
+				"count": 1
+			},
+			"crap_critical": {
+				"count": 1
+			}
+		},
+		"src/lib/player/watch-viewport.browser-test.ts\u0000aligned": {
+			"crap_moderate": {
+				"count": 1
+			}
+		},
+		"src/lib/player/watch-viewport.browser-test.ts\u0000noOverflow": {
+			"crap_moderate": {
+				"count": 1
+			}
+		},
+		"src/lib/player/watch-viewport.browser-test.ts\u0000run": {
+			"crap_high": {
+				"count": 1
+			}
+		},
+		"src/lib/player/youtube-orientation.browser-test.ts\u0000run": {
+			"complexity_critical": {
+				"count": 1
+			},
+			"crap_critical": {
+				"count": 1
+			}
+		},
+		"src/lib/player/youtube-orientation.ts\u0000detect": {
+			"crap_critical": {
+				"count": 1
+			}
+		},
+		"src/lib/player/youtube-orientation.ts\u0000detectEmbed": {
+			"crap_critical": {
+				"count": 1
+			}
+		},
+		"src/lib/player/youtube-orientation.ts\u0000publishSource": {
+			"crap_moderate": {
+				"count": 1
+			}
+		},
+		"src/lib/player/youtube-orientation.ts\u0000setSource": {
+			"crap_moderate": {
+				"count": 1
+			}
+		},
+		"src/lib/server/youtube-thumbnail.ts\u0000jpegDimensions": {
+			"complexity_high": {
+				"count": 1
+			},
+			"crap_high": {
+				"count": 1
+			}
+		},
+		"src/lib/share-url.ts\u0000normalizeShareUrl": {
+			"complexity_high": {
+				"count": 1
+			},
+			"crap_high": {
+				"count": 1
+			}
+		},
+		"src/lib/share-url.ts\u0000parseShareUrl": {
+			"complexity_critical": {
+				"count": 1
+			},
+			"crap_critical": {
+				"count": 1
+			}
+		},
+		"tests/browser/editor-workspace.spec.ts\u0000<arrow>": {
+			"crap_high": {
+				"count": 2
+			},
+			"crap_moderate": {
+				"count": 1
+			}
+		},
+		"tests/watch-playback-scope.test.js\u0000<arrow>": {
+			"complexity_moderate": {
+				"count": 1
+			}
+		}
+	},
+	"runtime_coverage_findings": [],
+	"target_keys": [
+		"src/lib/share-url.ts:high impact",
+		"src/lib/player/youtube-orientation.ts:high impact",
+		"src/lib/player/watch-timeline.ts:high impact",
+		"src/lib/player/Player.svelte:complexity",
+		"src/lib/player/media-geometry.browser-test.ts:complexity",
+		"src/lib/player/watch-controls.browser-test.ts:complexity"
+	]
+}

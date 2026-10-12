@@ -17,7 +17,11 @@
 		"test:metadata": "node --test tests/video-metadata.test.js tests/youtube-thumbnail.test.js",
 		"test:social": "node --test tests/social-smoke.test.js",
 		"test:browser": "playwright test",
-		"test:clip": "node --test tests/clip-bounds.test.js tests/watch-playback-scope.test.js"
+		"test:clip": "node --test tests/clip-bounds.test.js tests/watch-playback-scope.test.js",
+		"knip": "svelte-kit sync && knip",
+		"fallow": "fallow --dupes-baseline fallow-baselines/dupes.json --health-baseline fallow-baselines/health.json --baseline-mode identity --summary",
+		"fallow:full": "fallow --dupes-baseline fallow-baselines/dupes.json --health-baseline fallow-baselines/health.json --baseline-mode identity",
+		"code-qc": "node scripts/code-qc.mjs"
 	},
 	"devDependencies": {
 		"@eslint/compat": "^2.1.1",
@@ -33,7 +37,9 @@
 		"eslint": "^10.12.0",
 		"eslint-config-prettier": "^10.1.8",
 		"eslint-plugin-svelte": "^3.23.0",
+		"fallow": "3.33.1",
 		"globals": "^17.13.0",
+		"knip": "6.41.0",
 		"mdsvex": "^0.12.8",
 		"prettier": "^3.9.9",
 		"prettier-plugin-svelte": "^4.1.1",

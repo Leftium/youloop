@@ -1,0 +1,45 @@
+{
+	"kind": "dupes",
+	"clone_groups": [
+		"tests/browser/editor-workspace.spec.ts:159-182|tests/browser/editor-workspace.spec.ts:512-523|tests/browser/editor-workspace.spec.ts:791-802",
+		"tests/browser/signed-ranges.spec.ts:120-124|tests/browser/signed-ranges.spec.ts:141-145",
+		"tests/browser/editor-workspace.spec.ts:499-510|tests/browser/editor-workspace.spec.ts:567-583",
+		"tests/browser/share-routes.spec.ts:154-163|tests/browser/share-routes.spec.ts:82-91",
+		"tests/browser/editor-workspace.spec.ts:158-182|tests/browser/editor-workspace.spec.ts:511-523",
+		"tests/browser/editor-workspace.spec.ts:121-125|tests/browser/editor-workspace.spec.ts:142-146",
+		"tests/browser/editor-workspace.spec.ts:228-237|tests/browser/editor-workspace.spec.ts:373-382",
+		"src/lib/player/youtube-orientation.browser-test.ts:194-200|src/lib/player/youtube-orientation.browser-test.ts:243-249",
+		"src/lib/player/watch-controls-placement.browser-test.ts:212-216|src/lib/player/watch-viewport.browser-test.ts:161-165",
+		"src/lib/player/youtube-orientation.browser-test.ts:139-144|src/lib/player/youtube-orientation.browser-test.ts:279-284",
+		"tests/browser/editor-workspace.spec.ts:651-657|tests/browser/editor-workspace.spec.ts:903-909",
+		"tests/browser/share-routes.spec.ts:63-67|tests/browser/signed-ranges.spec.ts:126-130"
+	],
+	"clone_fingerprints": [
+		"dup:0e2070e4:3",
+		"dup:f3f062fc:2",
+		"dup:4aa5c981:2",
+		"dup:3f6ce71b:2",
+		"dup:11b0ba2a:2",
+		"dup:b211ed10:2",
+		"dup:bad9603f:2",
+		"dup:4171726d:2",
+		"dup:221834bd:2",
+		"dup:3b1c74d4:2",
+		"dup:d4d2be5e:2",
+		"dup:491db695:2"
+	],
+	"normalized_clone_fingerprints": [
+		"dup:2123b5c0:3",
+		"dup:68f01873:2",
+		"dup:d4c69734:2",
+		"dup:5e2487a8:2",
+		"dup:14fe5dcc:2",
+		"dup:77692d4e:2",
+		"dup:5911941e:2",
+		"dup:9bf9b5e7:2",
+		"dup:f8bc39a1:2",
+		"dup:91f92826:2",
+		"dup:f6e2941b:2",
+		"dup:0d9c4752:2"
+	]
+}
