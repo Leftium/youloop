@@ -86,9 +86,15 @@ Only the document scrollbar indicator is hidden; the controls scrollbar remains.
 The experimental grid uses `100lvh`, matching watch mode's stable large viewport,
 to avoid shortening the panes during toolbar animation. This is a follow-up trial
 for the owner's report that controls were clipped above the minimized address bar.
-Expanded bars may cover the grid's bottom edge; physical Safari must verify that
-all controls remain reachable and the unwanted gap disappears. The bounded editor
-still uses `100dvh`. Existing split ratios and provider identity remain unchanged.
+The owner found the expanded bars covering controls acceptable, but reported that
+the landscape bottom gap remained even before collapse. The next trial scopes
+`viewport-fit=cover` to the editor, allowing Safari to render to the screen edges
+while retaining safe-area padding on controls. Physical Safari must verify the
+gap and provider framing; `lvh` alone did not fix the gap. The bounded editor
+still uses `100dvh`. In portrait, the experimental settings pane adds a scrollable
+bottom reserve of `100lvh - 100svh` plus its normal safe-area padding, so the last
+controls can be raised above expanded bars without changing the grid height.
+Existing split ratios and provider identity remain unchanged.
 
 The runway starts at 25 small viewports and freezes its height in pixels. Passive
 scroll/resize listeners add 25 current viewports before fewer than nine remain.
@@ -245,8 +251,8 @@ confirmed this with a landscape screenshot. Removing the iframe translation
 had not fixed it. DOM canvas/frame centers could agree even while the visible
 provider picture was clipped, so headless geometry tests alone missed this.
 
-The shared layout now declares one `width=device-width, initial-scale=1`
-viewport for both routes. It preserves the editor's viewport, native zoom,
+The watch route retains one `width=device-width, initial-scale=1` viewport.
+The editor now trials `viewport-fit=cover` for its separate bottom-gap report. It preserves the editor's viewport, native zoom,
 `100lvh` watch stage, explicit canvas centering, 16000px iframe crop and existing
 visible-viewport intersection. No touch cancellation or horizontal clipping is
 added. The viewport regression guards this exact declaration. Temporary

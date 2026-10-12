@@ -400,6 +400,16 @@
 		overflow-wrap: anywhere;
 		scrollbar-gutter: stable;
 	}
+	@media (orientation: portrait) {
+		.video-scroll .settings-pane {
+			/* lvh can extend behind expanded bars. Keep enough scrollable tail
+			   to lift the final controls above them without resizing the grid. */
+			--browser-chrome-reserve: max(0px, calc(100lvh - 100svh));
+			padding-bottom: calc(
+				max(1rem, env(safe-area-inset-bottom)) + var(--browser-chrome-reserve)
+			);
+		}
+	}
 	.settings-pane > :global(:last-child) {
 		/* The pane owns its safe-area spacing; do not stack a trailing block margin. */
 		margin-bottom: 0;

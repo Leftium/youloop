@@ -677,6 +677,11 @@ test.describe('pinned workspace with independent settings experiment', () => {
 				const snapOption = page.getByRole('checkbox', {
 					name: 'Snap document scrolling (experimental)'
 				});
+				await expect(page.locator('meta[name="viewport"]')).toHaveCount(1);
+				await expect(page.locator('meta[name="viewport"]')).toHaveAttribute(
+					'content',
+					'width=device-width, initial-scale=1, viewport-fit=cover'
+				);
 				await expect(option).toBeChecked();
 				await expect(snapOption).toBeChecked();
 				await expect(snapOption).toBeInViewport({ ratio: 1 });
@@ -722,6 +727,24 @@ test.describe('pinned workspace with independent settings experiment', () => {
 					await identity(page);
 				}
 				await pinned();
+				if (viewport.height > viewport.width) {
+					// Chromium has no Safari toolbar. Model a 120px lvh-svh gap
+					// and prove the final controls can scroll clear of that overlay.
+					expect(
+						await page.locator('#editor-settings').evaluate((el) => {
+							const pane = el as HTMLElement;
+							pane.style.setProperty('--browser-chrome-reserve', '120px');
+							pane.scrollTop = pane.scrollHeight;
+							const clearance =
+								pane.getBoundingClientRect().bottom -
+								pane.lastElementChild!.getBoundingClientRect().bottom;
+							pane.style.removeProperty('--browser-chrome-reserve');
+							pane.scrollTop = 0;
+							return clearance;
+						})
+					).toBeGreaterThanOrEqual(120);
+					await identity(page);
+				}
 				await page.locator('#editor-settings').evaluate((el) => {
 					const tall = document.createElement('div');
 					tall.style.height = '1400px';
