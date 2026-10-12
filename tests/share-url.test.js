@@ -258,3 +258,19 @@ test('deterministic state matrix round trips and canonicalization is idempotent'
 		}
 	}
 });
+
+test('legacy 99999 sentinel is open-ended, whereas canonical endpoints stay literal', () => {
+	for (const route of ['/', '/s', path]) {
+		assert.deepEqual(parse(`${route}?v=${videoId}&a=24.5&b=99999`), { videoId, start: 24.5 });
+	}
+	assert.deepEqual(parse(`${path}?t=24-99999&b=0`), { videoId, start: 24, end: 99999 });
+});
+
+test('editor links preserve route intent and all canonical state', async () => {
+	const { serializeEditorUrl } = await import('../src/lib/share-url.ts');
+	for (const [, state] of examples) {
+		const editor = serializeEditorUrl(state);
+		assert.ok(editor.startsWith(`/?v=${videoId}`));
+		assert.deepEqual(parse(editor), state);
+	}
+});

@@ -16,7 +16,14 @@ Use `pnpm check` for Svelte and TypeScript validation. `pnpm build` creates the
 Vercel server artifact in `.vercel/output/`. Query-based social previews require
 a server; the static build and its CI check have been retired.
 
-There is no `pnpm test` script. With `pnpm dev` running, open the app and run
+Run the automated real-YouTube browser suite with `pnpm test:browser` after
+`pnpm exec playwright install chromium`. Chromium launches with `--mute-audio`,
+so playback is silent even while tests verify unmuted state and `mute=0`.
+Production playback defaults are unchanged. Console watch regressions mute the
+media before playing and leave it muted afterward; their unmute assertions pause
+the provider first unless browser output is already suppressed.
+
+With `pnpm dev` running, open the app and run
 the browser regressions in its developer console. Wait for the YouTube iframe
 and source orientation to settle before running the geometry regression:
 
@@ -55,6 +62,31 @@ assertions check visibility state rather than animation timing. Hidden automatio
 can use `{ notifyScroll: true, skipViewportSimulation: true }`; that explicitly
 dispatches scroll notifications and omits the viewport-resize simulation. It
 does not verify native touch scrolling or Safari chrome.
+
+## Clip links and navigation
+
+`/` is the existing editor, including its demo player. Both `/?v=ID&a=...&b=...`
+and `/?v=ID&t=A-B` open that editor. `/<videoId>?t=A-B` opens the immersive watch
+view; `/s?v=...` still works and remains a watch route during migration.
+Open video, Edit, and Copy Link use current clip state. Copy Link emits canonical
+video paths. Local edits replace the current history entry through SvelteKit;
+view navigation adds entries for Back/Forward. Loading bare `/` leaves its URL
+and generic social metadata intact.
+
+The shared URL codec rejects duplicate recognized parameters and malformed
+selected values. Path IDs and `t`, `vertical`, and `fill` win over their legacy
+aliases. Boolean flags accept bare, `=1`, and `=0`; explicit false mute/framing
+values survive copying. Legacy `b=0` and `b=99999` mean video end, while canonical
+`t` endpoints are literal seconds. Open ends remain open after duration settles.
+Out-of-duration bounds clamp to a nonempty range using the actual provider
+duration. Invalid links show an error without starting a different video.
+
+Default clips repeat; `once` pauses at B. `mute` and `speed` apply to real media
+after the existing silent first-frame bootstrap. Browser autoplay policy and
+YouTube's supported playback rates still govern playback. Fit/Fill and orientation
+retain automatic detection unless overridden. SSR social cards use canonical
+video paths and clip bounds, omit playback/framing flags, and fall back safely
+when input or upstream metadata is invalid.
 
 ## Watch view
 
@@ -629,9 +661,9 @@ toggle controls how the actual video is framed inside that canvas:
 The default is automatic: when the selected orientation matches the detected
 source orientation, Fit is selected; when it differs, Fill is selected. Each
 manual Landscape/Portrait choice restores that automatic default. The user may
-override it with the Fill button; `fit=cover` stores explicit Fill and
-`fit=contain` stores explicit Fit. With no `fit` parameter, a shared URL uses
-the automatic default. Clipboard source replacement clears the manual override.
+override it with the Fill button; `fill` stores explicit Fill and `fill=0` stores
+explicit Fit. Legacy `fit=cover` and `fit=contain` are accepted on input. With
+no framing parameter, a shared URL uses the automatic default. Clipboard source replacement clears the manual override.
 
 The iframe width is derived from the **actual canvas width/height** and source
 aspect ratio, rather than using a fixed zoom multiplier. Original-aspect YouTube

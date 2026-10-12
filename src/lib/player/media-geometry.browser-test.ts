@@ -17,7 +17,7 @@ export async function run() {
 	)!;
 	const fillButton = document.querySelector<HTMLButtonElement>('[aria-label="Crop to fill"]')!;
 	if (!fillButton) throw new Error('Missing Crop to fill button');
-	const originalFit = new URL(window.location.href).searchParams.get('fit');
+	const originalFit = new URL(window.location.href).searchParams.get('fill');
 	const originalWidth = container.style.width;
 	const results: string[] = [];
 	const settle = () =>
@@ -31,7 +31,7 @@ export async function run() {
 	const pressed = () => fillButton.getAttribute('aria-pressed') === 'true';
 	const sourceRatio = () =>
 		Number(getComputedStyle(container).getPropertyValue('--video-source-ratio'));
-	const fitParameter = () => new URL(window.location.href).searchParams.get('fit');
+	const fitParameter = () => new URL(window.location.href).searchParams.get('fill');
 
 	assert(calculateFrameVideoWidth(300, 600, 16 / 9, false) === 300, 'Fit by width');
 	assert(calculateFrameVideoWidth(300, 600, 16 / 9, true) === 600 * (16 / 9), 'Fill by height');
@@ -98,7 +98,7 @@ export async function run() {
 				// Verify manually toggling Fill/Back provides explicit URL state.
 				fillButton.click();
 				await settle();
-				assert(fitParameter() === (fill ? 'contain' : 'cover'), 'Manual Fit/Fill URL override');
+				assert(fitParameter() === (fill ? '0' : ''), 'Manual Fit/Fill URL override');
 				fillButton.click();
 				await settle();
 			}
@@ -108,8 +108,8 @@ export async function run() {
 		container.style.width = originalWidth;
 		originalOrientation.click();
 		await settle();
-		if (originalFit === 'cover' || originalFit === 'contain') {
-			const desired = originalFit === 'cover';
+		if (originalFit === '' || originalFit === '0') {
+			const desired = originalFit === '';
 			if (pressed() === desired) fillButton.click();
 			fillButton.click();
 			await settle();

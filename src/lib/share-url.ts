@@ -65,7 +65,7 @@ export function normalizeShareUrl(state: ShareUrlState): ShareUrlResult {
  * unknown keys and fragments are ignored. Malformed selected values fail the
  * whole parse rather than quietly changing the requested video or clip.
  * Empty boolean values (bare or '=') mean true. Both '-' and ':' delimit ranges.
- * Legacy b=0 means video end, matching the current routes' sentinel behavior.
+ * Legacy b=0 and b=99999 mean video end; canonical t endpoints are literal.
  */
 export function parseShareUrl(input: string | URL): ShareUrlResult {
 	let url: URL;
@@ -118,7 +118,7 @@ export function parseShareUrl(input: string | URL): ShareUrlResult {
 		if (params.has('a')) state.start = seconds(params.get('a')!, 'a');
 		if (params.has('b')) {
 			const end = seconds(params.get('b')!, 'b');
-			if (end !== 0) state.end = end;
+			if (end !== 0 && end !== 99999) state.end = end;
 		}
 	}
 	for (const key of flags) {
@@ -178,4 +178,11 @@ export function serializeShareUrl(state: ShareUrlState): string {
 		if (value[key] !== undefined) query.push(value[key] ? key : `${key}=0`);
 	}
 	return `/${value.videoId}${query.length ? `?${query.join('&')}` : ''}`;
+}
+
+/** Preserve editor intent using the same canonical query grammar. */
+export function serializeEditorUrl(state: ShareUrlState): string {
+	const canonical = serializeShareUrl(state);
+	const query = canonical.split('?')[1];
+	return `/?v=${state.videoId}${query ? `&${query}` : ''}`;
 }

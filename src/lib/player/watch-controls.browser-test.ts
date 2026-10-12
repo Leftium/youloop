@@ -4,7 +4,11 @@ import type { WatchControlsPlayer } from './watch-controls';
 // Run on /s?v=dt-SqNL4z3w&a=0&b=15 after the first frame settles.
 // Synthetic touch events verify gesture wiring, not physical Safari toolbar behavior.
 export async function run(
-	options: { notifyScroll?: boolean; skipViewportSimulation?: boolean } = {}
+	options: {
+		notifyScroll?: boolean;
+		skipViewportSimulation?: boolean;
+		audioSuppressed?: boolean;
+	} = {}
 ) {
 	const media = document.querySelector<YouTubeVideoElement>('youtube-video')!;
 	const root = document.querySelector<WatchControlsPlayer>('youloop-controls-player')!;
@@ -16,6 +20,8 @@ export async function run(
 	const iframe = media?.shadowRoot?.querySelector('iframe');
 	if (!root || !iframe || media.readyState < 1)
 		throw new Error('Wait for the watch player to load');
+	// Console runs mute before scripted play; the runner suppresses output at browser level.
+	media.muted = true;
 	const results: string[] = [];
 	const originalPaused = media.paused;
 	const originalScroll = window.scrollY;
@@ -289,7 +295,7 @@ export async function run(
 		await wait(2300);
 		await until(
 			() => !visible() && getComputedStyle(controls).opacity === '0',
-			'Video.js inactivity hides playing controls'
+			`Video.js inactivity hides playing controls (visible=${visible()}, opacity=${getComputedStyle(controls).opacity}, paused=${media.paused}, provider=${media.engine?.getPlayerState()})`
 		);
 		timelineAtVisibleEdge();
 		tap('mouse');
@@ -304,12 +310,24 @@ export async function run(
 		await settle();
 		check(visible(), 'Desktop movement reveals controls');
 		const mute = controls.querySelector<HTMLButtonElement>('.watch-actions button')!;
+		if (!options.audioSuppressed) {
+			playButton.click();
+			await until(
+				() => media.paused && media.engine?.getPlayerState() === 2,
+				'Pause before console unmute check'
+			);
+		}
 		const originalMute = media.muted;
 		mute.click();
 		await until(() => media.muted !== originalMute, 'Mute control updates real media');
-		check(visible() && !media.paused, 'Control click does not trigger background gesture');
+		check(
+			visible() && media.paused === !options.audioSuppressed,
+			'Control click does not trigger background gesture'
+		);
 		mute.click();
 		await until(() => media.muted === originalMute, 'Unmute restores media');
+		media.muted = true;
+		if (!options.audioSuppressed) playButton.click();
 		root.store.toggleControls(false);
 		playButton.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true }));
 		playButton.focus({ preventScroll: true });
@@ -386,6 +404,7 @@ export async function run(
 		}
 		return results;
 	} finally {
+		media.muted = true;
 		controls.style.transition = originalTransition;
 		if (media.paused !== originalPaused) playButton.click();
 		await scrollTo(0);
