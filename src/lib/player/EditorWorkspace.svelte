@@ -461,11 +461,15 @@
 	}
 	@media (orientation: portrait) {
 		.video-scroll .settings-pane {
-			/* lvh can extend behind expanded bars. Keep enough scrollable tail
-			   to lift the final controls above them without resizing the grid. */
+			/* Trial painting below Safari's reported viewport without growing the
+			   preview. Match the extra pane height with a scrollable bottom reserve. */
+			--controls-overdraw: 60px;
+			box-sizing: border-box;
+			height: calc(100% + var(--controls-overdraw));
 			--browser-chrome-reserve: max(0px, calc(100lvh - 100svh));
 			padding-bottom: calc(
-				max(1rem, env(safe-area-inset-bottom)) + var(--browser-chrome-reserve)
+				max(1rem, env(safe-area-inset-bottom)) + var(--browser-chrome-reserve) +
+					var(--controls-overdraw)
 			);
 		}
 	}

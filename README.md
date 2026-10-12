@@ -161,6 +161,13 @@ not actual Safari toolbar collapse, momentum handoff, or native resize animation
    or session layout preferences. Compare editor/watch Back/Forward and the
    unchanged video-first `/dt-SqNL4z3w?t=5-50&mute`.
 
+The portrait pane now trials a fixed 60px extension below the grid, with another
+60px of scroll reserve. This diagnostic offset leaves the preview and splitter
+geometry unchanged. Device readouts showed grid/pane bottom 704px before and after
+collapse, while the visible viewport grew from 664px to 704px. The trial tests
+whether Safari can paint the nested pane beyond that boundary; it is not yet a
+confirmed fix or a general toolbar-height calculation.
+
 For the unresolved portrait clipping boundary, append `&viewportDebug=1` to an
 editor URL with an existing query (or `?viewportDebug=1` on the bare root).
 A noninteractive readout reports CSS-pixel viewport, grid/pane bottom, padding,
