@@ -180,24 +180,23 @@
 			}}
 		>
 			{#snippet editorActions()}
-				{#if !minimal}
-					<a class="secondary" href="https://youtu.be/{youtubeId}">youtu.be/{youtubeId}</a>
+				<a class="secondary" href="https://youtu.be/{youtubeId}">youtu.be/{youtubeId}</a>
+				<nav aria-label="Clip navigation">
+					<a href={sharePath}>Open video</a>
+					<button onclick={copyLink} disabled={!sharePath}>Copy Link</button>
+					{#if copyMessage}
+						<span role="status">{copyMessage}</span>
+						{#if copyMessage.startsWith('Clipboard')}<a href={sharePath}>{sharePath}</a>{/if}
+					{/if}
+				</nav>
+				{#if !normalized.ok}
+					<p role="alert">Choose an end after the start to share this clip.</p>
 				{/if}
-				{#if !minimal}
-					<nav aria-label="Clip navigation">
-						<a href={sharePath}>Open video</a>
-						<button onclick={copyLink} disabled={!sharePath}>Copy Link</button>
-						{#if copyMessage}
-							<span role="status">{copyMessage}</span>
-							{#if copyMessage.startsWith('Clipboard')}<a href={sharePath}>{sharePath}</a>{/if}
-						{/if}
-					</nav>
-				{/if}
-				{#if !normalized.ok}<p role="alert">
-						Choose an end after the start to share this clip.
-					</p>{/if}
 			{/snippet}
 		</Player>
+	{/if}
+	{#if minimal && !normalized.ok}
+		<p role="alert">Choose an end after the start to share this clip.</p>
 	{/if}
 {/if}
 

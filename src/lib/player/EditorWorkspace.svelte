@@ -10,14 +10,12 @@
 	let grid: HTMLDivElement;
 	let runway: HTMLDivElement;
 	let runwayHeight = $state<number>();
-	let mobile = $state(false);
+	let nativeScroll = $state(false);
 	const snapSpacing = 20;
-	let videoScroll = $derived(mobile);
-	let documentSnap = $derived(videoScroll);
 	let width = $state(0);
 	let height = $state(0);
 	let snapPointCount = $derived(
-		documentSnap ? Math.floor(((runwayHeight ?? 0) + height) / snapSpacing) + 1 : 0
+		nativeScroll ? Math.floor(((runwayHeight ?? 0) + height) / snapSpacing) + 1 : 0
 	);
 	let preference = $state<Layout | null>(null);
 	let ratios = $state({ columns: 0.62, rows: 0.55 });
@@ -44,9 +42,9 @@
 		const query = window.matchMedia(
 			'(pointer: coarse) and (max-width: 900px), (pointer: coarse) and (max-height: 500px)'
 		);
-		const updateMobile = () => (mobile = query.matches);
-		updateMobile();
-		query.addEventListener('change', updateMobile);
+		const updateScrollMode = () => (nativeScroll = query.matches);
+		updateScrollMode();
+		query.addEventListener('change', updateScrollMode);
 		const observer = new ResizeObserver(() => {
 			endDrag();
 			width = grid.clientWidth;
@@ -54,7 +52,7 @@
 		});
 		observer.observe(grid);
 		return () => {
-			query.removeEventListener('change', updateMobile);
+			query.removeEventListener('change', updateScrollMode);
 			observer.disconnect();
 			endDrag();
 		};
@@ -66,7 +64,7 @@
 	});
 
 	$effect(() => {
-		if (!videoScroll) return;
+		if (!nativeScroll) return;
 		// Freeze each runway budget in pixels: viewport changes must not shrink
 		// document scroll room. Only mode changes install/remove these listeners.
 		return untrack(() => {
@@ -198,8 +196,8 @@
 
 <section
 	class="editor-workspace"
-	class:video-scroll={videoScroll}
-	class:document-snap={documentSnap}
+	class:video-scroll={nativeScroll}
+	class:document-snap={nativeScroll}
 	aria-label="Editor workspace"
 >
 	<div
@@ -255,7 +253,7 @@
 		bind:this={runway}
 		style:height={runwayHeight === undefined ? undefined : `${runwayHeight}px`}
 	></div>
-	{#if documentSnap}
+	{#if nativeScroll}
 		<div class="document-snap-points" aria-hidden="true">
 			{#each Array.from({ length: snapPointCount }, (_, index) => index) as index (index)}
 				<span class="document-snap-point" style:top={`${index * snapSpacing}px`}></span>

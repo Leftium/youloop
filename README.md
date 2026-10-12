@@ -169,6 +169,8 @@ controls scrolling. These findings identify a rendering difference; they do not
 prove its internal WebKit cause. The failed variants, geometry readout, and debug
 switches were removed. Further investigation should use a minimal Safari
 reproduction rather than adding scroll-following workarounds to the editor.
+The bottom divider can flash briefly when chrome expansion/contraction coincides
+with rubber-band bounce. The owner considers that residual behavior acceptable.
 
 **Remaining device verification:** detailed safe-area/keyboard coverage, viewport
 resize smoothness, and broader iOS versions remain manual. The owner confirmed the

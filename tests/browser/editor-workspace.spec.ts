@@ -575,10 +575,6 @@ test.describe('mobile pane scrolling', () => {
 				context
 			}) => {
 				await openEditor(page);
-				await expect(
-					page.getByRole('checkbox', { name: 'Page scrolling (experimental)' })
-				).toHaveCount(0);
-				await expect(page.locator('.editor-scroll-runway')).toHaveCount(0);
 				await page.locator('#editor-settings').evaluate((el) => {
 					const tall = document.createElement('div');
 					tall.style.height = '1200px';
@@ -651,7 +647,7 @@ test.describe('mobile pane scrolling', () => {
 	}
 });
 
-test.describe('pinned workspace with independent settings experiment', () => {
+test.describe('automatic mobile document scrolling', () => {
 	for (const viewport of [
 		{ width: 390, height: 844 },
 		{ width: 844, height: 390 }
@@ -691,6 +687,8 @@ test.describe('pinned workspace with independent settings experiment', () => {
 								const timeline = document.querySelector('.wrap-sliders')!.getBoundingClientRect();
 								const settings = document.querySelector('#editor-settings')!;
 								const pane = settings.getBoundingClientRect();
+								const edge = document.querySelector('.settings-edge')!;
+								const divider = edge.getBoundingClientRect();
 								return (
 									Math.abs(grid.top) <= 1 &&
 									Math.abs(grid.bottom - innerHeight) <= 1 &&
@@ -701,6 +699,13 @@ test.describe('pinned workspace with independent settings experiment', () => {
 									pane.top >= 0 &&
 									pane.bottom <= innerHeight + 1 &&
 									getComputedStyle(settings).overflowY === 'auto' &&
+									(innerHeight > innerWidth
+										? Math.abs(divider.bottom - innerHeight) <= 1 &&
+											divider.height === 1 &&
+											Math.abs(divider.left - pane.left) <= 1 &&
+											Math.abs(divider.right - pane.right) <= 1 &&
+											getComputedStyle(edge).pointerEvents === 'none'
+										: getComputedStyle(edge).display === 'none') &&
 									document.documentElement.scrollWidth <= innerWidth
 								);
 							})
@@ -862,6 +867,9 @@ test.describe('pinned workspace with independent settings experiment', () => {
 					await page.getByRole('button', { name: 'Side by side', exact: true }).click();
 					await pinned();
 				}
+				// A wide portrait viewport must limit the edge divider to the columns controls pane.
+				await page.setViewportSize({ width: 844, height: 1000 });
+				await pinned();
 				await page.setViewportSize({ width: 1280, height: 800 });
 				await expect(page.locator('.editor-workspace')).not.toHaveClass(/video-scroll/);
 				await geometry(page);
