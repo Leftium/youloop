@@ -172,31 +172,78 @@ for (const flags of ['mute', 'once&mute&speed=1.5&vertical=0&fill=0']) {
 	});
 }
 
-test('same-source range navigation preserves provider and restores bounds on Back', async ({
-	page
-}) => {
-	await page.goto(`/${id}/-30~-5?mute`);
-	await settled(page);
-	await page.evaluate(() => {
-		const media = document.querySelector('youtube-video') as HTMLElement & { engine: unknown };
-		Object.assign(window, { savedMedia: media, savedEngine: media.engine });
-		const link = document.createElement('a');
-		link.href = '/dt-SqNL4z3w/5~15?mute';
-		link.textContent = 'Change range';
-		document.body.append(link);
-	});
-	await page.getByRole('link', { name: 'Change range' }).click();
-	await settled(page);
-	await expect(page.locator('.watch-timeline')).toHaveAttribute('aria-valuemax', '10');
-	expect(
-		await page.evaluate(() => {
-			const saved = window as unknown as { savedMedia: Element; savedEngine: unknown };
+for (const scope of ['clip', 'video'] as const) {
+	test(`same-source range navigation preserves provider and restores bounds on Back: ${scope}`, async ({
+		page
+	}) => {
+		const watch = `/${id}/-30~-5?mute`;
+		const next = `/${id}/5~15?mute`;
+		const timeline = page.locator('.watch-timeline');
+		await page.goto(watch);
+		await settled(page);
+		await expect(timeline).toHaveAttribute('aria-valuemax', '25');
+		if (scope === 'video') await page.locator('.watch-time').click();
+		await expect(timeline).toHaveAttribute('data-mode', scope);
+		await page.evaluate((next) => {
 			const media = document.querySelector('youtube-video') as HTMLElement & { engine: unknown };
-			return media === saved.savedMedia && media.engine === saved.savedEngine;
-		})
-	).toBe(true);
-	await page.goBack();
-	await settled(page);
-	await expect(page.locator('.watch-timeline')).toHaveAttribute('aria-valuemax', '25');
-	await expect(page).toHaveURL(`http://localhost:5173/${id}/-30~-5?mute`);
-});
+			Object.assign(window, {
+				savedMedia: media,
+				savedEngine: media.engine,
+				savedFrame: media.shadowRoot!.querySelector('iframe')
+			});
+			const link = document.createElement('a');
+			link.href = next;
+			link.textContent = 'Change range';
+			document.body.append(link);
+		}, next);
+		const assertProvider = async () =>
+			expect(
+				await page.evaluate(() => {
+					const saved = window as unknown as {
+						savedMedia: Element;
+						savedEngine: unknown;
+						savedFrame: Element;
+					};
+					const media = document.querySelector('youtube-video') as HTMLElement & {
+						engine: unknown;
+					};
+					return (
+						media === saved.savedMedia &&
+						media.engine === saved.savedEngine &&
+						media.shadowRoot?.querySelector('iframe') === saved.savedFrame
+					);
+				})
+			).toBe(true);
+		// Locator.click scrolls this offscreen link into view. Back restores that
+		// scroll position and enters Theater, which intentionally hides the timeline.
+		// Native link activation keeps SvelteKit navigation without that scroll.
+		await page
+			.getByRole('link', { name: 'Change range' })
+			.evaluate((link) => (link as HTMLAnchorElement).click());
+		await expect(page).toHaveURL('http://localhost:5173' + next);
+		await settled(page);
+		await expect(timeline).toHaveAttribute('data-mode', scope);
+		if (scope === 'clip') await expect(timeline).toHaveAttribute('aria-valuemax', '10');
+		await assertProvider();
+		await page.goBack();
+		await expect(page).toHaveURL('http://localhost:5173' + watch);
+		await settled(page);
+		expect(await page.evaluate(() => scrollY)).toBe(0);
+		await expect(page.locator('.share-prototype')).toHaveAttribute('data-mode', 'default');
+		await expect(timeline).toHaveAttribute('data-mode', scope);
+		await expect(page.getByRole('link', { name: 'Edit', exact: true })).toHaveAttribute(
+			'href',
+			`/?v=${id}&t=-30~-5&mute`
+		);
+		await assertProvider();
+		// Check resolved A/B as well as signed intent, even when VIDEO was selected.
+		if (scope === 'video') await page.locator('.watch-time').click();
+		await expect(timeline).toHaveAttribute('aria-valuemax', '25');
+		await expect
+			.poll(async () => {
+				const media = await state(page);
+				return Math.abs(media.time - (media.duration - 30));
+			})
+			.toBeLessThan(0.5);
+	});
+}
