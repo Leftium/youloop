@@ -11,6 +11,8 @@
 	let runway: HTMLDivElement;
 	let runwayHeight = $state<number>();
 	let mobile = $state(false);
+	let viewportDebug = $state(false);
+	let viewportReadout = $state('');
 	let videoScrollRequested = $state(true);
 	let snapRequested = $state(true);
 	const snapSpacing = 20;
@@ -32,6 +34,7 @@
 	let drag: { id: number; target: HTMLElement; origin: number; size: number } | undefined;
 
 	onMount(() => {
+		viewportDebug = new URLSearchParams(location.search).get('viewportDebug') === '1';
 		try {
 			const saved = JSON.parse(sessionStorage.getItem(storageKey) ?? 'null');
 			if (saved?.layout === 'columns' || saved?.layout === 'rows') preference = saved.layout;
@@ -59,6 +62,45 @@
 			query.removeEventListener('change', updateMobile);
 			observer.disconnect();
 			endDrag();
+		};
+	});
+
+	$effect(() => {
+		if (!viewportDebug) return;
+		const pane = grid.querySelector<HTMLElement>('#editor-settings')!;
+		const viewport = window.visualViewport;
+		let frame = 0;
+		const update = () => {
+			frame = 0;
+			const bounds = pane.getBoundingClientRect();
+			const round = (value: number) => Math.round(value);
+			viewportReadout = [
+				`inner ${innerHeight} / screen ${screen.height}`,
+				`visual ${round(viewport?.height ?? innerHeight)} + ${round(viewport?.offsetTop ?? 0)}`,
+				`grid ${round(grid.getBoundingClientRect().bottom)} / pane ${round(bounds.bottom)}`,
+				`pane h ${pane.clientHeight} / pad ${round(parseFloat(getComputedStyle(pane).paddingBottom))}`,
+				`doc y ${round(scrollY)} / pane y ${round(pane.scrollTop)}`
+			].join('\n');
+		};
+		const schedule = () => {
+			if (!frame) frame = requestAnimationFrame(update);
+		};
+		const observer = new ResizeObserver(schedule);
+		observer.observe(grid);
+		window.addEventListener('scroll', schedule, { passive: true });
+		window.addEventListener('resize', schedule, { passive: true });
+		pane.addEventListener('scroll', schedule, { passive: true });
+		viewport?.addEventListener('resize', schedule);
+		viewport?.addEventListener('scroll', schedule);
+		schedule();
+		return () => {
+			cancelAnimationFrame(frame);
+			observer.disconnect();
+			window.removeEventListener('scroll', schedule);
+			window.removeEventListener('resize', schedule);
+			pane.removeEventListener('scroll', schedule);
+			viewport?.removeEventListener('resize', schedule);
+			viewport?.removeEventListener('scroll', schedule);
 		};
 	});
 
@@ -173,6 +215,10 @@
 	}
 </script>
 
+{#if viewportDebug}
+	<output class="viewport-debug" aria-label="Viewport geometry diagnostics">{viewportReadout}</output>
+{/if}
+
 {#snippet layoutControls()}
 	<div class="workspace-layout" role="group" aria-label="Workspace layout">
 		<div class="nc-join layout-modes">
@@ -278,6 +324,19 @@
 </section>
 
 <style>
+	.viewport-debug {
+		position: fixed;
+		z-index: 100;
+		top: max(1rem, env(safe-area-inset-top));
+		right: max(0.5rem, env(safe-area-inset-right));
+		padding: 0.5rem;
+		background: #fff;
+		color: #000;
+		font: 11px/1.4 monospace;
+		white-space: pre;
+		pointer-events: none;
+	}
+
 	.editor-workspace {
 		height: 100dvh;
 		min-height: 0;

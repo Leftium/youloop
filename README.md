@@ -161,6 +161,13 @@ not actual Safari toolbar collapse, momentum handoff, or native resize animation
    or session layout preferences. Compare editor/watch Back/Forward and the
    unchanged video-first `/dt-SqNL4z3w?t=5-50&mute`.
 
+For the unresolved portrait clipping boundary, append `&viewportDebug=1` to an
+editor URL with an existing query (or `?viewportDebug=1` on the bare root).
+A noninteractive readout reports CSS-pixel viewport, grid/pane bottom, padding,
+and scroll offsets. Capture it immediately after load and after toolbar collapse.
+Compare the reported pane bottom with the visible cutoff; geometry alone cannot
+prove Safari's compositor clipping. Without the flag no diagnostic listeners run.
+
 **Remaining device verification:** detailed safe-area/keyboard coverage, viewport
 resize smoothness, and broader iOS versions remain manual. The owner confirmed the
 observations above; a completely uncoupled first gesture is not claimed.
