@@ -13,8 +13,9 @@ pnpm dev
 ```
 
 Use `pnpm check` for Svelte and TypeScript validation. `pnpm build` creates the
-Vercel server artifact in `.vercel/output/`; `pnpm build:static` creates the
-GitHub Pages production artifact in `build/`. Both use the same routes and player.
+Vercel server artifact in `.vercel/output/`. `pnpm build:static` creates an
+optional prerendered fallback in `build/`; it is not automatically deployed.
+Both builds use the same routes and player.
 
 There is no `pnpm test` script. With `pnpm dev` running, open the app and run
 the browser regressions in its developer console. Wait for the YouTube iframe
@@ -240,29 +241,36 @@ not establish physical-device behavior.
 
 ## Deployment
 
-Production remains GitHub Pages at `youloop.leftium.com`. Pushes to `main` run
-`pnpm build:static` through [the Pages workflow](.github/workflows/pages.yml).
-Its publish job, Pages custom-domain setting, and production DNS remain in place. The
-repository must use GitHub Actions as its Pages source. All deployments serve
-from the domain root, without a SvelteKit base path.
+Production runs on the [Git-connected `team-leftium/youloop` Vercel project](https://vercel.com/team-leftium/youloop)
+at [youloop.leftium.com](https://youloop.leftium.com). Pushes to `main` trigger
+Vercel builds using `vercel.json` and the SvelteKit 3 Vercel adapter. The owner
+moved the custom-domain DNS from GitHub Pages to Vercel on 2026-10-12,
+before [PR #25](https://github.com/Leftium/youloop/pull/25) merged. All routes serve
+from the domain root; no SvelteKit base path is configured.
+
+The former GitHub Pages publish workflow has been retired. The GitHub Pages
+site/custom-domain configuration may still exist in repository settings;
+deleting the workflow does not disable that site or change its settings.
+`pnpm build:static` remains available as a rollback artifact and in hosting CI,
+but it does not publish automatically.
 
 ### Provider decision
 
-The owner selected Vercel for staging. It has an authenticated account available
-and a first-party Kit 3 adapter, making it the smallest supported change here.
+Vercel was selected for staging and then production, using the existing account
+and first-party Kit 3 adapter. Cloudflare Workers was compared but not deployed.
 The old migration [ce364f2](https://github.com/Leftium/youloop/commit/ce364f2a77a4375553736cd09bf06c41f3eb9681)
 was reviewed for adapter/prerender history, without reverting its client URL
 handling or subsequent Video.js and mobile viewport work.
 
-| Concern       | Vercel                                                                                                                                                                                    | Cloudflare Workers                                                                                                                                                             |
-| ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Compatibility | `@sveltejs/adapter-vercel` 7 supports Kit 3; Node 24 functions built with Vite 8 verified here.                                                                                           | First-party `adapter-cloudflare` 8 supports Kit 3. Workers use a different runtime; this project has not been built or tested there.                                           |
-| Previews      | CLI uploads and Git previews; this staging project uses explicit CLI deploys with automatic Git deployments disabled.                                                                     | Wrangler deploys and version URLs; requires a Cloudflare account, Wrangler configuration, and Workers runtime verification.                                                    |
-| Execution     | Regional Node functions, CDN static assets; cold requests can add startup/network latency.                                                                                                | Distributed isolates and static assets; CPU limits matter for SSR, and Node compatibility is not identical to Node.                                                            |
-| Cost          | Hobby is free for personal non-commercial use, with hard usage caps; Pro adds paid usage. Check function CPU/memory, requests, transfer, build, and protection allowances before cutover. | Free: 100,000 dynamic requests/day and 10ms CPU/invocation. Paid starts at $5/month with 10M requests and 30M CPU-ms included; overages apply. Static asset requests are free. |
-| Cache         | CDN assets and optional ISR; no ISR or HTML cache policy added here. Staging proof responses are private/no-store.                                                                        | Cache API/CDN policies need explicit design for dynamic responses and query keys.                                                                                              |
-| Domain/TLS    | Provider-issued staging HTTPS; custom-domain DNS records and TLS must be verified before cutover.                                                                                         | `workers.dev` HTTPS for staging; Workers Custom Domains require an active Cloudflare zone.                                                                                     |
-| Rollback      | Retain known-good deployments and reassign/promote only the intended project after approval.                                                                                              | Wrangler version rollback; bindings/storage changes can prevent safe rollback.                                                                                                 |
+| Concern       | Vercel                                                                                                                                                                        | Cloudflare Workers                                                                                                                                                             |
+| ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Compatibility | `@sveltejs/adapter-vercel` 7 supports Kit 3; Node 24 functions built with Vite 8 verified here.                                                                               | First-party `adapter-cloudflare` 8 supports Kit 3. Workers use a different runtime; this project has not been built or tested there.                                           |
+| Previews      | Automatic Preview deployments for pull requests and non-`main` branches; production deploys from `main`.                                                                      | Wrangler deploys and version URLs; requires a Cloudflare account, Wrangler configuration, and Workers runtime verification.                                                    |
+| Execution     | Regional Node functions, CDN static assets; cold requests can add startup/network latency.                                                                                    | Distributed isolates and static assets; CPU limits matter for SSR, and Node compatibility is not identical to Node.                                                            |
+| Cost          | Hobby is free for personal non-commercial use, with hard usage caps; Pro adds paid usage. Monitor actual function CPU/memory, requests, transfer, build and protection usage. | Free: 100,000 dynamic requests/day and 10ms CPU/invocation. Paid starts at $5/month with 10M requests and 30M CPU-ms included; overages apply. Static asset requests are free. |
+| Cache         | CDN assets and optional ISR; proof-enabled builds use private/no-store HTML responses. No HTML cache policy added.                                                            | Cache API/CDN policies need explicit design for dynamic responses and query keys.                                                                                              |
+| Domain/TLS    | The custom domain now points to Vercel; confirm HTTPS/TLS and the assigned deployment in the Vercel dashboard.                                                                | `workers.dev` HTTPS for staging; Workers Custom Domains require an active Cloudflare zone.                                                                                     |
+| Rollback      | Restore a known-good deployment in the original `youloop` project without a DNS change.                                                                                       | Wrangler version rollback; bindings/storage changes can prevent safe rollback.                                                                                                 |
 
 Sources checked 2026-10-12: [Kit 3 migration](https://svelte.dev/docs/kit/migrating-to-sveltekit-3),
 [Vercel adapter](https://svelte.dev/docs/kit/adapter-vercel),
@@ -274,34 +282,28 @@ Sources checked 2026-10-12: [Kit 3 migration](https://svelte.dev/docs/kit/migrat
 and [Workers rollback](https://developers.cloudflare.com/workers/versions-and-deployments/rollbacks/).
 Provider quotas and prices can change; confirm the account's actual plan.
 
-### Vercel staging
+### Vercel previews
 
-Use the separate `team-leftium/youloop-staging` project. Do not link this checkout
-to the existing `youloop` Vercel project or attach the production domain.
-The staging project uses Node 24, the `sveltekit` framework, and the committed
-install/build commands in `vercel.json`. No application secrets are required.
-CLI authentication and project access are required; `.vercel/` and local OIDC
-environment files are ignored and must stay out of Git.
+The Git-connected [`team-leftium/youloop`](https://vercel.com/team-leftium/youloop)
+project deploys `main` to production. Pushes to other branches and pull requests
+receive Preview deployments in the same project. Review the commit-specific
+Preview URL in the GitHub PR or Vercel dashboard, and confirm its commit SHA and
+environment before merging. `vercel.json` keeps automatic Git deployments enabled.
 
-```bash
-vercel login
-vercel link --yes --project youloop-staging --scope team-leftium
-vercel deploy --yes --build-env DEPLOY_TARGET=vercel --build-env YOULOOP_RUNTIME_PROOF=1
-```
+PR #25 used a temporary, Git-disconnected `team-leftium/youloop-staging`
+project while the original project was paused. That separate project is no longer
+needed and can be deleted manually from the Vercel dashboard. Deleting it also
+removes its historical deployment URLs and project-specific configuration; it
+does not remove the separately configured production `youloop` project.
 
-Use the resulting immutable deployment URL for review. Do not pass `--prod`.
-Vercel assigns a new project's first deployment to its production environment;
-in this isolated project that affects only staging aliases. Later CLI uploads
-are previews. `youloop-staging` is not Git-connected, so it is deployed only
-through the CLI. The original `team-leftium/youloop` project was reconnected to
-Git and unpaused after the initial staging deployment; this shared
-`vercel.json` deliberately does not disable its automatic Git deployments.
-Staging authentication protection was disabled only on `youloop-staging`,
-allowing public HTTP and browser review.
+The app uses Node 24, the `sveltekit` framework, and the committed install/build
+commands in `vercel.json`. No application secrets are currently required. Local
+`.vercel/` and OIDC environment files must remain untracked.
 
-`DEPLOY_TARGET` defaults to `vercel`; `static` selects the Pages adapter and
-prerenders the existing routes. Unknown targets fail the build. This is a
-build-time setting, not an environment switch on an already built artifact.
+`DEPLOY_TARGET` defaults to `vercel`; `static` selects the static adapter and
+prerenders the existing routes for optional rollback. Unknown targets fail the
+build. This is a build-time setting, not an environment switch on an already
+built artifact.
 The Vercel build renders the existing shell per request. Video source creation,
 URL parsing, and playback remain in browser mount handlers; this does not
 choose the eventual social metadata design or add new share paths.
@@ -326,7 +328,8 @@ YOULOOP_RUNTIME_PROOF=1 pnpm build
 pnpm preview --host 127.0.0.1 --port 4173
 # In another terminal:
 HOSTING_URL=http://127.0.0.1:4173 pnpm test:hosting
-HOSTING_URL=https://YOUR-DEPLOYMENT.vercel.app pnpm test:hosting
+# Requires a Vercel deployment built with YOULOOP_RUNTIME_PROOF=1:
+HOSTING_URL=https://YOUR-PROOF-ENABLED-DEPLOYMENT.vercel.app pnpm test:hosting
 ```
 
 The smoke suite requests `/`, `/s?v=dt-SqNL4z3w&a=31&b=38`, and `/about`
@@ -336,39 +339,45 @@ from a static SPA fallback. `vite preview` runs the production-built Kit server
 locally; hosted checks exercise the actual Vercel function. Browser reload and
 YouTube interaction checks are separate from HTTP tests. The
 [hosting CI workflow](.github/workflows/hosting.yml) checks both builds, types,
-lint, URL codec, production-mode HTTP, and the Pages HTML/assets. The custom
-domain is configured in GitHub Pages settings; there is no tracked CNAME file.
+lint, URL codec, production-mode HTTP, and the static fallback HTML/assets.
+It does not publish to GitHub Pages or change Vercel domain settings.
 
-### Production cutover and rollback (requires owner approval)
+### Production operation and rollback
 
-1. Record the current Pages deployment, Git SHA, DNS records/TTL, and known-good
-   Vercel deployment. Verify the staging URL, query links, assets, and physical
-   iPhone Safari matrix before seeking approval.
-2. After explicit cutover approval, build without runtime proof, attach
-   `youloop.leftium.com` to the chosen Vercel project, and use the DNS record
-   Vercel supplies. Check domain ownership and certificate issuance. Avoid
-   guessing a generic CNAME target; verify the project's recommended record.
-3. Change only the approved DNS record, allow propagation, and check HTTPS,
-   direct loads/reloads, query URLs, and playback from multiple networks.
-4. Retire the Pages publish workflow and remove its custom-domain association
-   only after successful cutover and separate owner authorization. Keep the
-   static build available for rollback; do not retire it as part of staging.
-5. For a Vercel regression, restore a verified deployment on the intended
-   project. To return to Pages, restore its recorded DNS/custom-domain settings,
-   enable its publish workflow if retired, and deploy the known-good static
-   SHA. Verify Pages TLS and direct URLs after DNS propagation. Merely reverting
-   adapter code does not roll back DNS or a provider alias.
+The owner switched the custom domain to the original Vercel `youloop` project
+on 2026-10-12. Vercel reported successful deployment of merged PR #25 at
+[`e937e7e`](https://github.com/Leftium/youloop/commit/e937e7e9a57a85523f09b3d651ae21e46481ef71).
+Normal releases follow the connected `main` branch. The same Vercel project
+creates Preview deployments for pull requests and other branches.
 
-Until cutover, rollback of staging is simply using the previous staging
-deployment URL. Production remains served by Pages throughout.
+1. For a release, confirm the production deployment's SHA, branch, domain
+   assignment, and HTTPS certificate in the Vercel dashboard. Check direct loads
+   and reloads of `/`, `/s?v=dt-SqNL4z3w&a=31&b=38`, and `/about`, along
+   with assets, playback, and mobile scrolling.
+2. For an application regression, promote or redeploy a known-good version in
+   the original `youloop` Vercel project, then recheck the domain and routes.
+   This rollback normally needs no DNS change.
+3. To restore GitHub Pages as an emergency fallback, build the static site with
+   `pnpm build:static`, restore the retired publishing workflow from Git
+   history, configure GitHub Pages and its custom domain in repository settings,
+   and switch DNS to the verified Pages record. Verify HTTPS and direct links
+   afterward. This is an explicit owner action, not an automatic rollback.
+4. If GitHub Pages remains enabled in repository settings, disable the unused
+   site and remove its old domain association separately when no longer needed.
+   Removing the workflow alone does not modify Pages settings.
+
+For preview comparisons, open a commit-specific Vercel Preview deployment. To
+roll back production, restore a known-good deployment in the original `youloop`
+project; do not promote an unverified Preview build.
 
 ### Hosting verification recorded for PR #25
 
 On 2026-10-12, `pnpm check`, `pnpm lint`, `pnpm test:share-url` (20 tests),
 `pnpm build`, and `pnpm build:static` passed. The four HTTP smoke tests passed
 against both the production-built local server and public Vercel staging.
-The PR records the final immutable staging URL and remote SHA. All three pages
-also loaded and reloaded in T3's Chromium preview.
+PR #25 records the historical manual staging URL and remote SHA. That URL will
+stop working if the temporary project is deleted. All three pages were loaded
+and reloaded in T3's Chromium preview.
 
 Browser regressions passed 39 orientation checks, eight provider-focus checks,
 and 35 pure timeline checks. Hosted `/s` bootstrapped the real YouTube iframe,
@@ -385,8 +394,10 @@ with hidden-tab scroll notifications also failed `A=0 shows only excluded end
 tail`; its full playback/gesture suite did not pass. Sustained playback,
 loop completion, native scroll/chrome behavior, full Fit/Fill geometry,
 fullscreen, and the physical iPhone Safari matrix still need visible/device
-review. No player or mobile geometry code was changed. Cloudflare execution,
-production domain/TLS cutover, and rollback execution were not tested.
+review. No player or mobile geometry code was changed. Cloudflare execution
+and rollback were not tested during PR #25; after merge, the owner changed DNS
+and Vercel reported a successful production deployment. The live domain and TLS
+remain separate operational checks.
 
 ## Player migration
 
