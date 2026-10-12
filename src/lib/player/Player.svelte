@@ -1476,6 +1476,7 @@
 	}
 
 	.editor-preview-content {
+		container: editor-preview / inline-size;
 		display: grid;
 		grid-template-rows: minmax(0, 1fr) auto;
 		height: 100%;
@@ -1505,6 +1506,18 @@
 		width: 24px;
 		height: 24px;
 	}
+	@container editor-preview (max-width: 319px) {
+		/* Keep one transport row in narrow native columns, including expanded
+		   Safari bars. The divider's 12px hit extension stays clear of controls. */
+		:global(.native-scroll [data-layout='columns']) .editor-transport {
+			padding-left: max(4px, env(safe-area-inset-left));
+			padding-right: max(12px, env(safe-area-inset-right));
+		}
+		:global(.native-scroll [data-layout='columns']) .preview-playback .nc-join button {
+			width: 40px;
+		}
+	}
+
 	.preview-brand {
 		position: absolute;
 		z-index: 1;

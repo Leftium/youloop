@@ -508,10 +508,17 @@ test.describe('mobile native page-scroll experiment', () => {
 					const picture = document.querySelector('.player')!.getBoundingClientRect();
 					const timeline = document.querySelector('.wrap-sliders')!.getBoundingClientRect();
 					const settings = document.querySelector('#editor-settings')!;
+					const columns =
+						document.querySelector('.workspace-grid')!.getAttribute('data-layout') === 'columns';
 					return (
 						Math.abs(preview.top) <= 1 &&
-						preview.bottom <= innerHeight - 100 &&
-						Math.abs(separator.top - preview.bottom) <= 1 &&
+						(columns
+							? preview.bottom <= innerHeight + 1 &&
+								Math.abs(separator.top) <= 1 &&
+								Math.abs(separator.bottom - preview.bottom) <= 1 &&
+								Math.abs(separator.left - preview.right) <= 1
+							: preview.bottom <= innerHeight - 100 &&
+								Math.abs(separator.top - preview.bottom) <= 1) &&
 						picture.height >= 100 &&
 						timeline.top >= picture.bottom &&
 						timeline.bottom <= preview.bottom &&
@@ -557,8 +564,11 @@ test.describe('mobile native page-scroll experiment', () => {
 
 	for (const viewport of [
 		{ width: 320, height: 568 },
+		{ width: 568, height: 320 },
+		{ width: 568, height: 232 },
 		{ width: 390, height: 844 },
-		{ width: 844, height: 390 }
+		{ width: 844, height: 390 },
+		{ width: 932, height: 430 }
 	]) {
 		test(`settings scroll the document beneath the sticky preview at ${viewport.width}x${viewport.height}`, async ({
 			page
@@ -587,13 +597,30 @@ test.describe('mobile native page-scroll experiment', () => {
 				'5.1'
 			);
 			const afterEdit = page.url();
-			await divider(page).press('ArrowDown');
+			await divider(page).press(viewport.width >= 568 ? 'ArrowRight' : 'ArrowDown');
 			await stickyGeometry(page);
+			if (viewport.width >= 568) {
+				await expect(
+					page.getByRole('button', { name: 'Side by side', exact: true })
+				).toHaveAttribute('aria-pressed', 'true');
+				await page.mouse.move(viewport.width * 0.8, viewport.height - 40);
+				await page.mouse.wheel(0, 10000);
+				await expect
+					.poll(() =>
+						page.evaluate(() =>
+							Math.abs(scrollY - (document.documentElement.scrollHeight - innerHeight))
+						)
+					)
+					.toBeLessThanOrEqual(1);
+				await stickyGeometry(page);
+			}
 			await identity(page);
 			expect(page.url()).toBe(afterEdit);
 			await page.getByRole('button', { name: 'Reset split' }).click();
 			await expect(page.locator('.editor-workspace')).not.toHaveClass(/native-scroll/);
 			await expect.poll(() => rootOffset(page)).toBe(0);
+			// Restore portrait before checking the unchanged bounded workspace on a short phone.
+			if (viewport.height < 390) await page.setViewportSize({ width: 320, height: 568 });
 			await geometry(page);
 			await identity(page);
 			expect(page.url()).not.toBe(url); // Only the intentional A edit changed the URL.
@@ -641,7 +668,7 @@ test.describe('mobile native page-scroll experiment', () => {
 			await page.evaluate(() => document.documentElement.scrollHeight - innerHeight)
 		).toBeGreaterThanOrEqual(79);
 		// End is a user keyboard action, not a toolbar-collapse API.
-		await divider(page).focus();
+		await page.locator('#editor-settings').focus();
 		await page.keyboard.press('Control+End');
 		await stickyGeometry(page);
 		await page.getByRole('button', { name: 'Copy Link', exact: true }).focus();
@@ -697,9 +724,12 @@ test.describe('mobile native page-scroll experiment', () => {
 		await geometry(page);
 		await page.setViewportSize({ width: 844, height: 390 });
 		await expect(page.locator('.editor-workspace')).toHaveClass(/native-scroll/);
+		await page.getByRole('button', { name: 'Stacked', exact: true }).click();
+		await expect(page.locator('.editor-workspace')).toHaveClass(/native-scroll/);
+		await stickyGeometry(page);
 		await page.getByRole('button', { name: 'Side by side', exact: true }).click();
-		await expect(page.locator('.editor-workspace')).not.toHaveClass(/native-scroll/);
-		await geometry(page);
+		await expect(page.locator('.editor-workspace')).toHaveClass(/native-scroll/);
+		await stickyGeometry(page);
 		await identity(page);
 		expect(await time()).toBeGreaterThanOrEqual(started);
 		expect(

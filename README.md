@@ -70,8 +70,7 @@ does not verify native touch scrolling or Safari chrome.
 On touch viewports up to 900px wide (or landscape windows up to 500px tall),
 the editor settings offer **Page scrolling
 (experimental)**. It is off by default and lasts only for the current editor
-visit. It never enters clip URLs or session layout preferences. Side by side or
-Reset split turns it off; desktop sizing retains the normal bounded workspace.
+visit. It never enters clip URLs or session layout preferences. Reset split turns it off; desktop sizing retains the normal bounded workspace.
 
 The default settings pane scrolls internally. In Chromium, adding a sticky whole
 workspace and document runway still leaves ordinary interior settings scrolling
@@ -81,8 +80,11 @@ that is not evidence of Safari toolbar behavior. WebKit has also documented
 so it would be incorrect to assume nested scrolling always prevents collapse.
 
 The opt-in layout removes the nested settings scroller and lets finger scrolling
-over settings move the document. Video, timeline, transport, and separator stick
-above those controls. A finite invisible runway keeps short settings scrollable
+over settings move the document. Video, timeline, transport, and separator stay pinned above settings in stacked
+mode, or beside settings in side-by-side mode. Landscape defaults to side by side
+from 568px wide in the experiment (including 568px landscape phones); an explicit
+layout preference still wins. The normal workspace retains its 660px threshold. Both layout
+buttons work without turning off page scrolling. A finite invisible runway keeps short settings scrollable
 even with the browser toolbar collapsed. Unlike watch mode's long runway, it does
 not add an endless blank page. No scroll forwarding, wheel/touch interception,
 programmatic document scrolling, or Safari detection is used. The provider stays
@@ -92,7 +94,8 @@ An independent `100svh` sizing budget is designed to keep toolbar-driven `dvh` c
 the preview split calculation; rotation still reconciles pane minimums. Freed
 viewport space reveals more settings rather than repeatedly resizing the video.
 [WebKit describes the viewport units](https://webkit.org/blog/12445/new-webkit-features-in-safari-15-4/).
-Focus scroll margins keep settings actions below the sticky preview. Keyboard,
+Focus scroll margins keep settings actions below the sticky preview in stacked
+mode, and visible alongside it in landscape. Keyboard,
 safe-area, and toolbar behavior on a physical device remain unverified.
 
 ### Required physical iPhone Safari comparison
@@ -120,8 +123,11 @@ state. Browser emulation and Chromium cannot establish toolbar collapse.
    keyboard and closing it, toolbar changes, and safe-area edges. The current
    editor has no text-entry source field; future text inputs will require their
    own on-screen-keyboard check.
-5. Turn the checkbox off, use Reset split, and select Side by side where it fits.
-   Confirm ordinary pane scrolling returns and clip/share URLs are unchanged.
+5. Rotate to landscape and confirm the automatic side-by-side layout. Scroll
+   through the final settings and runway: the complete left preview and divider
+   must stay pinned. Switch between Stacked and Side by side and confirm page
+   scrolling stays enabled. Turn the checkbox off or use Reset split; confirm
+   ordinary pane scrolling returns and clip/share URLs are unchanged.
    Reload: the experiment must start off. Compare editor/watch Back/Forward.
 
 **Physical Safari result: pending.** Keep this opt-in. If ordinary pane scrolling

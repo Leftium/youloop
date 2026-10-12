@@ -15,9 +15,12 @@
 	let height = $state(0);
 	let preference = $state<Layout | null>(null);
 	let ratios = $state({ columns: 0.62, rows: 0.55 });
-	let layout = $derived(pageScroll ? 'rows' : width >= 660 ? (preference ?? 'columns') : 'rows');
+	let sideBySideMinimum = $derived(pageScroll ? 568 : 660);
+	let layout = $derived(width >= sideBySideMinimum ? (preference ?? 'columns') : 'rows');
 	let available = $derived(Math.max(0, (layout === 'columns' ? width : height) - dividerSize));
-	let minimum = $derived(layout === 'columns' ? 320 : Math.min(240, Math.max(0, available - 110)));
+	let minimum = $derived(
+		layout === 'columns' ? (pageScroll ? 285 : 320) : Math.min(240, Math.max(0, available - 110))
+	);
 	let maximum = $derived(Math.max(minimum, available - (layout === 'columns' ? 280 : 110)));
 	let size = $derived(Math.max(minimum, Math.min(ratios[layout] * available, maximum)));
 	let dragging = $state(false);
@@ -121,7 +124,6 @@
 
 	function choose(next: Layout) {
 		endDrag();
-		if (next === 'columns') pageScrollRequested = false;
 		preference = next;
 		remember();
 	}
@@ -139,14 +141,14 @@
 	<div class="workspace-layout" role="group" aria-label="Workspace layout">
 		<div class="nc-join layout-modes">
 			<button
-				aria-label={width < 660
+				aria-label={width < sideBySideMinimum
 					? 'Side by side (requires a wider preview workspace)'
 					: 'Side by side'}
-				title={width < 660
-					? 'Side by side requires a workspace at least 660px wide'
+				title={width < sideBySideMinimum
+					? `Side by side requires a workspace at least ${sideBySideMinimum}px wide`
 					: 'Side by side'}
 				aria-pressed={layout === 'columns'}
-				disabled={width < 660}
+				disabled={width < sideBySideMinimum}
 				onclick={() => choose('columns')}><IcRoundViewAgenda class="columns-icon" /></button
 			>
 			<button
@@ -211,12 +213,12 @@
 				</label>
 				<p class="scroll-hint">
 					Keeps the preview pinned while settings scroll with the page. Safari toolbar behavior
-					needs device testing. Side by side or Reset split returns to pane scrolling.
+					needs device testing. Both layouts work; Reset split returns to pane scrolling.
 				</p>
 			{/if}
 		</div>
+		<div class="editor-scroll-runway" aria-hidden="true"></div>
 	</div>
-	<div class="editor-scroll-runway" aria-hidden="true"></div>
 </section>
 
 <style>
@@ -258,7 +260,9 @@
 	}
 	.native-scroll .workspace-grid {
 		height: auto;
-		grid-template-rows: var(--preview-size) var(--divider-size) auto;
+	}
+	.native-scroll .workspace-grid[data-layout='rows'] {
+		grid-template-rows: var(--preview-size) var(--divider-size) auto auto;
 	}
 	.native-scroll .preview-pane {
 		position: sticky;
@@ -281,12 +285,29 @@
 		scrollbar-gutter: auto;
 	}
 	.native-scroll .settings-pane :global(:is(button, input, a)) {
-		scroll-margin-top: calc(var(--preview-size) + var(--divider-size) + 16px);
+		scroll-margin-top: 16px;
 		scroll-margin-bottom: 16px;
+	}
+	.native-scroll [data-layout='rows'] .settings-pane :global(:is(button, input, a)) {
+		scroll-margin-top: calc(var(--preview-size) + var(--divider-size) + 16px);
+	}
+	.native-scroll .workspace-grid[data-layout='columns'] {
+		grid-template-rows: auto auto;
+	}
+	.native-scroll [data-layout='columns'] .preview-pane,
+	.native-scroll [data-layout='columns'] .splitter {
+		top: 0;
+		height: 100svh;
+	}
+	.native-scroll [data-layout='columns'] .settings-pane {
+		min-height: 100svh;
 	}
 	.native-scroll .editor-scroll-runway {
 		display: block;
-		/* Retain real scroll room even after toolbar collapse enlarges the viewport.
+		grid-column: 1 / -1;
+		/* Keep the runway inside the sticky containing grid so the full-height
+		   landscape preview remains pinned at the end of the document.
+		   Retain real scroll room even after toolbar collapse enlarges the viewport.
 		   Unlike watch mode's endless runway, this keeps the final controls reachable. */
 		height: calc(100lvh - 100svh + 80px);
 		pointer-events: none;
