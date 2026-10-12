@@ -770,7 +770,7 @@
 	}
 </script>
 
-{#snippet preview()}
+{#snippet media()}
 	<div
 		class="player"
 		class:workspace={!minimal}
@@ -959,13 +959,12 @@
 			></button>
 		{/if}
 		{#if !minimal}
-			<button
-				class="fullscreen"
-				aria-label={fullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
-				onclick={toggleFullscreen}
-			>
-				{#if fullscreen}<IcRoundFullscreenExit />{:else}<IcRoundFullscreen />{/if}
-			</button>
+			<div class="preview-brand">
+				<a class="brand" href="/" data-sveltekit-reload title="YouLoop home">
+					<img src="/logo.svg" alt="" />YouLoop
+				</a>
+				<span class="compact-brand"><img src="/logo.svg" alt="" />YouLoop</span>
+			</div>
 		{/if}
 		{#if minimal && playerError}
 			<p class="player-error" role="alert">{playerError}</p>
@@ -973,77 +972,89 @@
 	</div>
 {/snippet}
 
+{#snippet preview(layoutControls: Snippet)}
+	<div class="editor-preview-content">
+		{@render media()}
+		<div class="editor-transport">
+			<div class="timestamps">
+				<div>{formatVideoTime(currentTime)} / {formatVideoTime(duration)}</div>
+				<div>{formatVideoTime(repeatA)}A - {formatVideoTime(repeatB)}B</div>
+			</div>
+
+			<div class="wrap-sliders">
+				<input type="range" aria-hidden="true" tabindex="-1" />
+
+				<div class="wrap-connector">
+					<div class="connector" style:left={percentA} style:right={percentB}></div>
+				</div>
+
+				{#if duration}
+					<input
+						type="range"
+						aria-label="Current time"
+						class="current-time"
+						min="0"
+						step="0.1"
+						oninput={handleInputCurrentTime}
+						bind:value={currentTime}
+						max={duration}
+					/>
+
+					<input
+						type="range"
+						aria-label="Repeat start"
+						class="repeat-a"
+						min="0"
+						step="0.1"
+						oninput={handleInputRepeatA}
+						bind:value={repeatA}
+						max={duration}
+					/>
+
+					<input
+						type="range"
+						aria-label="Repeat end"
+						class="repeat-b"
+						min="0"
+						step="0.1"
+						oninput={handleInputRepeatB}
+						bind:value={repeatB}
+						max={duration}
+					/>
+				{/if}
+			</div>
+
+			<div class="preview-actions">
+				<div class="preview-playback" inert={!metadataReceived}>
+					<div class="nc-join" role="group">
+						{#key paused}
+							<button aria-label={paused ? 'Play' : 'Pause'} onclick={togglePaused}>
+								{#if paused}
+									<IcRoundPlayArrow />
+								{:else}
+									<IcRoundPause />
+								{/if}
+							</button>
+						{/key}
+
+						<button aria-label="Previous frame" onclick={makeStepFrame(-1)}
+							><IcRoundSkipPrevious /></button
+						>
+						<button aria-label="Next frame" onclick={makeStepFrame(1)}><IcRoundSkipNext /></button>
+					</div>
+				</div>
+				{@render layoutControls()}
+			</div>
+		</div>
+	</div>
+{/snippet}
+
 {#snippet settings()}
 	{#if !minimal && playerError}<p role="alert">{playerError}</p>{/if}
 
 	{#if !minimal}
-		<div class="timestamps">
-			<div>{formatVideoTime(currentTime)} / {formatVideoTime(duration)}</div>
-			<div>{formatVideoTime(repeatA)}A - {formatVideoTime(repeatB)}B</div>
-		</div>
-
-		<div class="wrap-sliders">
-			<input type="range" />
-
-			<div class="wrap-connector">
-				<div class="connector" style:left={percentA} style:right={percentB}></div>
-			</div>
-
-			{#if duration}
-				<input
-					type="range"
-					aria-label="Current time"
-					class="current-time"
-					min="0"
-					step="0.1"
-					oninput={handleInputCurrentTime}
-					bind:value={currentTime}
-					max={duration}
-				/>
-
-				<input
-					type="range"
-					aria-label="Repeat start"
-					class="repeat-a"
-					min="0"
-					step="0.1"
-					oninput={handleInputRepeatA}
-					bind:value={repeatA}
-					max={duration}
-				/>
-
-				<input
-					type="range"
-					aria-label="Repeat end"
-					class="repeat-b"
-					min="0"
-					step="0.1"
-					oninput={handleInputRepeatB}
-					bind:value={repeatB}
-					max={duration}
-				/>
-			{/if}
-		</div>
-
 		<center>
 			<div class="controls" inert={!metadataReceived}>
-				<div class="nc-join" role="group">
-					{#key paused}
-						<button aria-label={paused ? 'Play' : 'Pause'} onclick={togglePaused}>
-							{#if paused}
-								<IcRoundPlayArrow />
-							{:else}
-								<IcRoundPause />
-							{/if}
-						</button>
-					{/key}
-
-					<button aria-label="Previous frame" onclick={makeStepFrame(-1)}
-						><IcRoundSkipPrevious /></button
-					>
-					<button aria-label="Next frame" onclick={makeStepFrame(1)}><IcRoundSkipNext /></button>
-				</div>
-
 				<div class="ab-buttons nc-join" role="group">
 					<button class="a-button" onclick={setRepeatA}>A</button>
 					<button class="b-button" onclick={setRepeatB}>B</button>
@@ -1135,7 +1146,7 @@
 {/snippet}
 
 {#if minimal}
-	{@render preview()}
+	{@render media()}
 {:else}
 	<EditorWorkspace {preview} {settings} />
 {/if}
@@ -1464,15 +1475,79 @@
 		outline-offset: -4px;
 	}
 
-	.fullscreen {
-		position: absolute;
-		right: 0;
-		bottom: 0;
-		padding: 4px;
+	.editor-preview-content {
+		display: grid;
+		grid-template-rows: minmax(0, 1fr) auto;
+		height: 100%;
+		min-width: 0;
+		min-height: 0;
+	}
+	.editor-transport {
+		padding: 0.5rem max(1rem, env(safe-area-inset-right)) max(1rem, env(safe-area-inset-bottom))
+			max(1rem, env(safe-area-inset-left));
+	}
+	.editor-transport .wrap-sliders {
+		margin-bottom: 0.5rem;
+	}
+	.preview-actions {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.5rem;
+	}
+	.preview-playback .nc-join button {
+		width: 44px;
+		height: 44px;
+		padding: 0;
 		margin: 0;
-		border: 0;
-		background: transparent;
+	}
+	.preview-playback :global(svg) {
+		width: 24px;
+		height: 24px;
+	}
+	.preview-brand {
+		position: absolute;
+		z-index: 1;
+		top: max(0.5rem, env(safe-area-inset-top));
+		left: max(0.5rem, env(safe-area-inset-left));
+		pointer-events: none;
 		color: white;
+		font-weight: 700;
+		font-size: 1rem;
+	}
+	.preview-brand img {
+		height: 1.25em;
+		width: auto;
+	}
+	.brand,
+	.compact-brand {
+		align-items: center;
+		gap: 0.35rem;
+		padding: 0.25rem 0.5rem;
+		border-radius: 0.25rem;
+		background: rgb(0 0 0 / 60%);
+	}
+	.brand {
+		display: flex;
+		min-height: 44px;
+		color: inherit;
+		text-decoration: none;
+		pointer-events: auto;
+	}
+	.brand:focus-visible {
+		outline: 2px solid white;
+	}
+	.compact-brand {
+		display: none;
+	}
+	@container (max-width: 480px) or (max-height: 240px) {
+		.brand {
+			display: none;
+		}
+		.compact-brand {
+			display: flex;
+			font-size: 0.7rem;
+		}
 	}
 
 	.controls {

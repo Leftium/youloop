@@ -19,6 +19,8 @@
 
 {#if page.route.id === '/s' || page.route.id === '/[videoId=videoId]'}
 	{@render children()}
+{:else if page.route.id === '/'}
+	<main class="editor-page">{@render children()}</main>
 {:else}
 	<main>
 		{@render children()}
@@ -37,6 +39,27 @@
 <style>
 	:global(:root) {
 		--nc-content-width: 1200px;
+	}
+
+	:global(html:has(.editor-page)),
+	:global(body:has(.editor-page)) {
+		margin: 0;
+		padding: 0;
+		max-width: none;
+		scrollbar-gutter: auto;
+	}
+
+	:global(body:has(.editor-page)) {
+		display: block;
+	}
+
+	.editor-page {
+		width: 100%;
+		max-width: none;
+		height: 100dvh;
+		margin: 0;
+		padding: 0;
+		overflow: hidden;
 	}
 
 	nav h1 {

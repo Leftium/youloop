@@ -1,18 +1,21 @@
 <script lang="ts">
 	import { onMount, untrack, type Snippet } from 'svelte';
+	import IcRoundViewColumn from '~icons/ic/round-view-column';
+	import IcRoundViewAgenda from '~icons/ic/round-view-agenda';
+	import IcRoundRestartAlt from '~icons/ic/round-restart-alt';
 
-	let { preview, settings }: { preview: Snippet; settings: Snippet } = $props();
+	let { preview, settings }: { preview: Snippet<[Snippet]>; settings: Snippet } = $props();
 	type Layout = 'columns' | 'rows';
 	const storageKey = 'youloop.editor-workspace';
-	const dividerSize = 24;
+	const dividerSize = 3;
 	let grid: HTMLDivElement;
 	let width = $state(0);
 	let height = $state(0);
 	let preference = $state<Layout | null>(null);
-	let ratios = $state({ columns: 0.62, rows: 0.42 });
+	let ratios = $state({ columns: 0.62, rows: 0.55 });
 	let layout = $derived(width >= 660 ? (preference ?? 'columns') : 'rows');
 	let available = $derived(Math.max(0, (layout === 'columns' ? width : height) - dividerSize));
-	let minimum = $derived(Math.min(layout === 'columns' ? 240 : 100, available / 2));
+	let minimum = $derived(layout === 'columns' ? 320 : Math.min(240, Math.max(0, available - 110)));
 	let maximum = $derived(Math.max(minimum, available - (layout === 'columns' ? 280 : 110)));
 	let size = $derived(Math.max(minimum, Math.min(ratios[layout] * available, maximum)));
 	let dragging = $state(false);
@@ -116,21 +119,39 @@
 	function reset() {
 		endDrag();
 		preference = null;
-		ratios = { columns: 0.62, rows: 0.42 };
+		ratios = { columns: 0.62, rows: 0.55 };
 		remember();
 	}
 </script>
 
-<section class="editor-workspace" aria-label="Editor workspace">
-	<div class="workspace-toolbar" role="group" aria-label="Workspace layout">
-		<button
-			aria-pressed={layout === 'columns'}
-			disabled={width < 660}
-			onclick={() => choose('columns')}>Side by side</button
+{#snippet layoutControls()}
+	<div class="workspace-layout" role="group" aria-label="Workspace layout">
+		<div class="nc-join layout-modes">
+			<button
+				aria-label={width < 660
+					? 'Side by side (requires a wider preview workspace)'
+					: 'Side by side'}
+				title={width < 660
+					? 'Side by side requires a workspace at least 660px wide'
+					: 'Side by side'}
+				aria-pressed={layout === 'columns'}
+				disabled={width < 660}
+				onclick={() => choose('columns')}><IcRoundViewColumn /></button
+			>
+			<button
+				aria-label="Stacked"
+				title="Stacked"
+				aria-pressed={layout === 'rows'}
+				onclick={() => choose('rows')}><IcRoundViewAgenda /></button
+			>
+		</div>
+		<button aria-label="Reset split" title="Reset split" onclick={reset}
+			><IcRoundRestartAlt /></button
 		>
-		<button aria-pressed={layout === 'rows'} onclick={() => choose('rows')}>Stacked</button>
-		<button onclick={reset}>Reset split</button>
 	</div>
+{/snippet}
+
+<section class="editor-workspace" aria-label="Editor workspace">
 	<div
 		class="workspace-grid"
 		class:dragging
@@ -140,7 +161,7 @@
 		style:--divider-size={`${dividerSize}px`}
 	>
 		<div id="editor-preview" class="preview-pane" role="region" aria-label="Video preview">
-			{@render preview()}
+			{@render preview(layoutControls)}
 		</div>
 		<!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
 		<div
@@ -177,29 +198,35 @@
 
 <style>
 	.editor-workspace {
-		display: grid;
-		grid-template-rows: auto minmax(0, 1fr);
-		gap: 0.5rem;
-		height: calc(100dvh - 6rem);
-		min-height: 240px;
+		height: 100dvh;
+		min-height: 0;
 	}
-	.workspace-toolbar {
+	.workspace-layout {
 		display: flex;
-		flex-wrap: wrap;
 		gap: 0.4rem;
+		margin-left: auto;
 	}
-	.workspace-toolbar button {
+	.layout-modes {
+		display: flex;
+	}
+	.workspace-layout button {
+		display: grid;
+		place-items: center;
+		width: 44px;
+		height: 44px;
+		padding: 0;
 		margin: 0;
-		padding: 0.4rem 0.6rem;
-		min-height: 44px;
-		font-size: 0.85rem;
 	}
-	.workspace-toolbar button[aria-pressed='true'] {
-		outline: 2px solid currentColor;
-		outline-offset: -4px;
+	.workspace-layout :global(svg) {
+		width: 24px;
+		height: 24px;
+	}
+	.workspace-layout button[aria-pressed='true'] {
+		box-shadow: inset 0 -3px #01aaff;
 	}
 	.workspace-grid {
 		display: grid;
+		height: 100%;
 		min-width: 0;
 		min-height: 0;
 		grid-template-columns: minmax(0, var(--preview-size)) var(--divider-size) minmax(0, 1fr);
@@ -217,36 +244,44 @@
 	.settings-pane {
 		overflow-y: auto;
 		overflow-x: hidden;
-		padding: 0.5rem;
-		padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
+		padding: max(1rem, env(safe-area-inset-top)) max(1rem, env(safe-area-inset-right))
+			max(1rem, env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-left));
 		overflow-wrap: anywhere;
 		scrollbar-gutter: stable;
 	}
 	.splitter {
-		display: grid;
-		place-items: center;
+		position: relative;
+		z-index: 2;
 		cursor: col-resize;
 		touch-action: none;
 	}
+	.splitter::before,
 	.splitter::after {
 		content: '';
-		width: 4px;
-		height: 36px;
-		border-radius: 2px;
-		background: #646b79;
+		position: absolute;
+	}
+	.splitter::before {
+		inset: 0;
+		background: var(--nc-border, #ababab);
+	}
+	/* The thin track has a 27px hit area; pane padding keeps controls clear. */
+	.splitter::after {
+		inset: 0 -12px;
 	}
 	[data-layout='rows'] .splitter {
 		cursor: row-resize;
 	}
 	[data-layout='rows'] .splitter::after {
-		width: 36px;
-		height: 4px;
+		inset: -12px 0;
 	}
-	.splitter:focus-visible,
-	.splitter:hover,
-	.dragging .splitter {
+	.splitter:focus-visible {
 		outline: 2px solid #01aaff;
-		outline-offset: -2px;
+		outline-offset: 0;
+	}
+	.splitter:focus-visible::before,
+	.splitter:hover::before,
+	.dragging .splitter::before {
+		background: #01aaff;
 	}
 	.dragging {
 		user-select: none;

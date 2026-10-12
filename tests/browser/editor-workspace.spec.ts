@@ -49,12 +49,19 @@ async function geometry(page: Page) {
 		.poll(() =>
 			page.evaluate(() => {
 				const preview = document.querySelector('#editor-preview')!.getBoundingClientRect();
+				const picture = document.querySelector('.player')!.getBoundingClientRect();
+				const workspace = document.querySelector('.editor-workspace')!.getBoundingClientRect();
 				const canvas = document.querySelector('.media-canvas')!.getBoundingClientRect();
 				const controls = document.querySelector('#editor-settings')!.getBoundingClientRect();
 				const ratio = Number(
 					getComputedStyle(document.querySelector('.player')!).getPropertyValue('--media-ratio')
 				);
 				return (
+					workspace.left === 0 &&
+					workspace.top === 0 &&
+					Math.abs(workspace.right - innerWidth) < 1 &&
+					Math.abs(workspace.bottom - innerHeight) < 1 &&
+					picture.height >= 100 &&
 					preview.top >= 0 &&
 					preview.bottom <= innerHeight + 1 &&
 					preview.height >= 99 &&
@@ -246,12 +253,16 @@ for (const viewport of [
 			el.prepend(extra);
 		});
 		const before = await page.locator('#editor-preview').boundingBox();
+		const timelineBefore = await page.locator('.wrap-sliders').boundingBox();
+		const transportBefore = await page.locator('.preview-actions').boundingBox();
 		await page.locator('#editor-settings').hover();
 		await page.mouse.wheel(0, 800);
 		await expect
 			.poll(() => page.locator('#editor-settings').evaluate((el) => el.scrollTop))
 			.toBeGreaterThan(0);
 		expect(await page.locator('#editor-preview').boundingBox()).toEqual(before);
+		expect(await page.locator('.wrap-sliders').boundingBox()).toEqual(timelineBefore);
+		expect(await page.locator('.preview-actions').boundingBox()).toEqual(transportBefore);
 		await geometry(page);
 		await identity(page);
 	});
@@ -294,7 +305,7 @@ test('session preferences restore, reconcile on resize, reset and stay out of sh
 	await page.getByRole('button', { name: 'Reset split' }).click();
 	expect(
 		await page.evaluate((key) => JSON.parse(sessionStorage.getItem(key)!), storageKey)
-	).toEqual({ layout: null, ratios: { columns: 0.62, rows: 0.42 } });
+	).toEqual({ layout: null, ratios: { columns: 0.62, rows: 0.55 } });
 });
 
 test('touch capture and cancellation clean up without changing provider identity', async ({
@@ -353,6 +364,131 @@ for (const storage of ['stale', 'blocked']) {
 		await geometry(page);
 		await page.getByRole('button', { name: 'Reset split' }).click();
 		await geometry(page);
+		await identity(page);
+	});
+}
+
+for (const viewport of [
+	{ width: 1920, height: 1080 },
+	{ width: 320, height: 568 },
+	{ width: 390, height: 844 },
+	{ width: 844, height: 390 }
+]) {
+	test(`preview transport, branding and grouped layout fill viewport at ${viewport.width}x${viewport.height}`, async ({
+		page
+	}) => {
+		await page.setViewportSize(viewport);
+		await openEditor(page);
+		await geometry(page);
+		const preview = page.locator('#editor-preview');
+		const settings = page.locator('#editor-settings');
+		await expect(preview.locator('.timestamps')).toHaveCount(1);
+		await expect(preview.locator('.wrap-sliders')).toHaveCount(1);
+		await expect(
+			preview.getByRole('slider', { name: /Current time|Repeat start|Repeat end/ })
+		).toHaveCount(3);
+		await expect(
+			settings.locator('.wrap-sliders,.timestamps,.workspace-layout,.preview-playback')
+		).toHaveCount(0);
+		await expect(page.locator('.workspace-toolbar')).toHaveCount(0);
+		await expect(page.getByRole('button', { name: /fullscreen/i })).toHaveCount(0);
+		const group = preview.getByRole('group', { name: 'Workspace layout' });
+		await expect(group.locator('button[aria-pressed="true"]')).toHaveCount(1);
+		await expect(group.getByRole('button', { name: 'Reset split' })).not.toHaveAttribute(
+			'aria-pressed'
+		);
+		expect(
+			await group.locator('button').evaluateAll((buttons) =>
+				buttons.every((button) => {
+					const box = button.getBoundingClientRect();
+					return (
+						box.width >= 44 &&
+						box.height >= 44 &&
+						button.getAttribute('title') &&
+						button.textContent?.trim() === ''
+					);
+				})
+			)
+		).toBe(true);
+		if (viewport.width < 660) {
+			const side = group.getByRole('button', { name: /Side by side/ });
+			await expect(side).toBeDisabled();
+			await expect(side).toHaveAttribute('title', /at least 660px/);
+		}
+		await expect(preview.locator('.preview-brand')).toContainText('YouLoop');
+		await expect(preview.locator('.preview-brand img:visible')).toHaveAttribute('src', '/logo.svg');
+		await expect(page.locator('.editor-page > nav')).toHaveCount(0);
+		expect(
+			await preview.evaluate((preview) => {
+				const picture = preview.querySelector('.player')!.getBoundingClientRect();
+				const brand = preview.querySelector('.preview-brand')!.getBoundingClientRect();
+				const timeline = preview.querySelector('.wrap-sliders')!.getBoundingClientRect();
+				const pictureCenter = document.elementFromPoint(
+					picture.left + picture.width / 2,
+					picture.top + picture.height / 2
+				);
+				const settings = document.querySelector('#editor-settings')!;
+				const overlap = (a: DOMRect, b: DOMRect) =>
+					a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
+				return (
+					brand.left >= picture.left &&
+					brand.right <= picture.right &&
+					brand.top >= picture.top &&
+					brand.bottom <= picture.bottom &&
+					!overlap(brand, timeline) &&
+					pictureCenter?.classList.contains('video-toggle') &&
+					parseFloat(getComputedStyle(settings).paddingLeft) >= 16 &&
+					document.documentElement.scrollHeight <= innerHeight &&
+					getComputedStyle(document.querySelector('.preview-brand')!).pointerEvents === 'none'
+				);
+			})
+		).toBe(true);
+		if (viewport.width === 1920) {
+			await expect(preview.locator('.brand')).toBeVisible();
+			await expect(preview.locator('.brand')).toHaveAttribute('href', '/');
+			await expect(preview.locator('.brand')).toHaveAttribute('data-sveltekit-reload');
+		} else if (viewport.width < 660) {
+			await expect(preview.locator('.compact-brand')).toBeVisible();
+			await expect(preview.locator('.brand')).toBeHidden();
+		}
+		await preview.getByRole('button', { name: 'Play video', exact: true }).click();
+		await page.waitForFunction(
+			() =>
+				(
+					document.querySelector('youtube-video') as HTMLElement & {
+						engine: { getPlayerState(): number };
+					}
+				).engine.getPlayerState() === 1
+		);
+		await preview.getByRole('button', { name: 'Pause video', exact: true }).click();
+		const start = preview.getByRole('slider', { name: 'Repeat start', exact: true });
+		await start.focus();
+		await start.press('ArrowRight');
+		await expect(start).toHaveValue('5.1');
+		const url = page.url();
+		const box = (await divider(page).boundingBox())!;
+		const columns = (await divider(page).getAttribute('aria-orientation')) === 'vertical';
+		const x = box.x + box.width / 2 + (columns ? -10 : 0);
+		const y = box.y + box.height / 2 + (columns ? 0 : -10);
+		expect(columns ? box.width : box.height).toBe(3);
+		// Hit the transparent extension, outside the visible 3px line.
+		expect(
+			await page.evaluate(({ x, y }) => document.elementFromPoint(x, y)?.getAttribute('role'), {
+				x,
+				y
+			})
+		).toBe('separator');
+		await page.mouse.move(x, y);
+		await page.mouse.down();
+		await expect(page.locator('.workspace-grid')).toHaveClass(/dragging/);
+		await page.mouse.move(x + (columns ? 30 : 0), y + (columns ? 0 : 30));
+		await page.mouse.up();
+		await geometry(page);
+		await identity(page);
+		expect(page.url()).toBe(url);
+		// Padded action targets remain outside the divider's expanded hit area.
+		await page.getByRole('button', { name: 'Reset split' }).click();
+		await expect(group.locator('button[aria-pressed="true"]')).toHaveCount(1);
 		await identity(page);
 	});
 }
