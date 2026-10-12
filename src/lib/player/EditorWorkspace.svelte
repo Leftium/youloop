@@ -383,8 +383,8 @@
 	.settings-edge {
 		display: none;
 		position: fixed;
-		/* Follow the visible viewport, while the workspace keeps its lvh size. */
-		top: calc(100dvh - 1px);
+		/* Anchor directly to the viewport rather than waiting for dvh updates. */
+		bottom: 0;
 		right: 0;
 		height: 1px;
 		background: var(--nc-border);
