@@ -320,9 +320,10 @@
 	.video-scroll .workspace-grid {
 		position: sticky;
 		top: 0;
-		/* Fill space freed by browser chrome. The observer reconciles the split
-		   from its existing ratio without remounting the provider. */
-		height: 100dvh;
+		/* Keep the experimental canvas at the collapsed-toolbar height to avoid
+		   intermediate dvh clipping and toolbar-animation resize jitter. Expanded
+		   Safari bars may cover its bottom edge; verify reachability on device. */
+		height: 100lvh;
 	}
 	.video-scroll .video-scroll-runway {
 		display: block;

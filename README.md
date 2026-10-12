@@ -83,11 +83,12 @@ With video scrolling active, the complete grid is sticky over a native document
 runway. Controls retain their own `overflow-y: auto` scroller, with
 `overscroll-behavior-y: none` to suppress boundary chaining/bouncing where supported.
 Only the document scrollbar indicator is hidden; the controls scrollbar remains.
-The grid uses `100dvh` so it fills space freed by browser chrome and keeps transport
-visible with expanded bars. Using `100lvh` for the entire editor would reserve the
-hidden-toolbar height even with bars open, potentially concealing interactive
-controls. Watch mode can crop its video stage that way; the editor retains dynamic
-viewport sizing and its existing split ratios.
+The experimental grid uses `100lvh`, matching watch mode's stable large viewport,
+to avoid shortening the panes during toolbar animation. This is a follow-up trial
+for the owner's report that controls were clipped above the minimized address bar.
+Expanded bars may cover the grid's bottom edge; physical Safari must verify that
+all controls remain reachable and the unwanted gap disappears. The bounded editor
+still uses `100dvh`. Existing split ratios and provider identity remain unchanged.
 
 The runway starts at 25 small viewports and freezes its height in pixels. Passive
 scroll/resize listeners add 25 current viewports before fewer than nine remain.
