@@ -81,7 +81,8 @@
 	function startDrag(event: PointerEvent) {
 		if (event.button !== 0 || drag) return;
 		const target = event.currentTarget as HTMLElement;
-		target.focus();
+		// Focus must not move the document or couple split position to browser chrome.
+		target.focus({ preventScroll: true });
 		target.setPointerCapture(event.pointerId);
 		drag = {
 			id: event.pointerId,
@@ -212,8 +213,9 @@
 					Page scrolling (experimental)
 				</label>
 				<p class="scroll-hint">
-					Keeps the preview pinned while settings scroll with the page. Safari toolbar behavior
-					needs device testing. Both layouts work; Reset split returns to pane scrolling.
+					Keeps the preview pinned while settings scroll with the page. Swipe upward on the picture
+					to try minimizing Safari's toolbar; resizing does not scroll the page. Safari controls the
+					toolbar. Reset split returns to pane scrolling.
 				</p>
 			{/if}
 		</div>
@@ -367,6 +369,8 @@
 		min-height: 0;
 	}
 	.settings-pane {
+		/* Keep pane boundary gestures from chaining into the document where supported. */
+		overscroll-behavior-y: contain;
 		overflow-y: auto;
 		overflow-x: hidden;
 		padding: max(1rem, env(safe-area-inset-top)) max(1rem, env(safe-area-inset-right))
@@ -378,6 +382,8 @@
 		position: relative;
 		z-index: 2;
 		cursor: col-resize;
+		/* Native panning cancels resize pointers, especially for stacked splits.
+		   Keep resizing independent of document scroll and Safari toolbar state. */
 		touch-action: none;
 	}
 	.splitter::before,

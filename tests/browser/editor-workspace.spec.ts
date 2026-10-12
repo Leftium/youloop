@@ -559,6 +559,13 @@ test.describe('mobile native page-scroll experiment', () => {
 			.poll(() => page.locator('#editor-settings').evaluate((el) => el.scrollTop))
 			.toBeGreaterThan(100);
 		expect(await rootOffset(page)).toBe(0);
+		await page.locator('#editor-settings').evaluate((el) => {
+			el.scrollTop = el.scrollHeight;
+		});
+		await page.mouse.wheel(0, 250);
+		await page.waitForTimeout(250);
+		expect(await rootOffset(page)).toBe(0);
+		await expect(page.locator('#editor-settings')).toHaveCSS('overscroll-behavior-y', 'contain');
 		await identity(page);
 	});
 
@@ -626,6 +633,105 @@ test.describe('mobile native page-scroll experiment', () => {
 			expect(page.url()).not.toBe(url); // Only the intentional A edit changed the URL.
 		});
 	}
+
+	for (const viewport of [
+		{ width: 390, height: 844 },
+		{ width: 844, height: 390 }
+	]) {
+		test(`touch splitter owns both drag directions without document scrolling at ${viewport.width}x${viewport.height}`, async ({
+			page,
+			context
+		}) => {
+			await page.setViewportSize(viewport);
+			await openEditor(page);
+			await option(page).check();
+			await page.locator('#editor-settings').hover();
+			await page.mouse.wheel(0, 100);
+			await expect.poll(() => rootOffset(page)).toBeGreaterThan(0);
+			await stickyGeometry(page);
+			const url = page.url();
+			await page.getByRole('button', { name: 'Play', exact: true }).click();
+			await page.waitForFunction(
+				() =>
+					(
+						document.querySelector('youtube-video') as HTMLElement & {
+							engine: { getPlayerState(): number };
+						}
+					).engine.getPlayerState() === 1
+			);
+			const time = await page
+				.locator('youtube-video')
+				.evaluate((el) => (el as HTMLElement & { currentTime: number }).currentTime);
+			const cdp = await context.newCDPSession(page);
+			await expect(divider(page)).toHaveCSS('touch-action', 'none');
+			for (const delta of [25, -25, 25, -25]) {
+				const before = await value(page);
+				const offset = await rootOffset(page);
+				const box = (await divider(page).boundingBox())!;
+				const columns = viewport.width > viewport.height;
+				const start = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+				await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [start] });
+				await expect(page.locator('.workspace-grid')).toHaveClass(/dragging/);
+				for (let step = 1; step <= 6; step++) {
+					await cdp.send('Input.dispatchTouchEvent', {
+						type: 'touchMove',
+						touchPoints: [
+							{
+								x: start.x + (columns ? (delta * step) / 6 : 0),
+								y: start.y + (columns ? 0 : (delta * step) / 6)
+							}
+						]
+					});
+				}
+				await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+				await expect(page.locator('.workspace-grid')).not.toHaveClass(/dragging/);
+				expect(Math.abs((await value(page)) - before - delta)).toBeLessThanOrEqual(1);
+				expect(await rootOffset(page)).toBe(offset);
+				await stickyGeometry(page);
+				await identity(page);
+			}
+			expect(
+				await page.locator('youtube-video').evaluate((el) => {
+					const media = el as HTMLElement & {
+						paused: boolean;
+						playbackRate: number;
+						currentTime: number;
+					};
+					return !media.paused && media.playbackRate === 1.5 && media.currentTime;
+				})
+			).toBeGreaterThanOrEqual(time);
+			expect(page.url()).toBe(url);
+		});
+	}
+
+	test('native vertical pan candidate cancels stacked resizing rather than combining gesture ownership', async ({
+		page,
+		context
+	}) => {
+		await openEditor(page);
+		await option(page).check();
+		// Investigation only: native panning conflicts with the stacked resize axis.
+		await page.addStyleTag({ content: '.splitter { touch-action: pan-y !important; }' });
+		await divider(page).evaluate((el) =>
+			el.addEventListener('pointercancel', () => el.setAttribute('data-pan-cancelled', 'true'))
+		);
+		const box = (await divider(page).boundingBox())!;
+		const start = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+		const cdp = await context.newCDPSession(page);
+		await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [start] });
+		await expect(page.locator('.workspace-grid')).toHaveClass(/dragging/);
+		for (let step = 1; step <= 8; step++) {
+			await cdp.send('Input.dispatchTouchEvent', {
+				type: 'touchMove',
+				touchPoints: [{ x: start.x, y: start.y - step * 15 }]
+			});
+		}
+		await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+		await expect(divider(page)).toHaveAttribute('data-pan-cancelled', 'true');
+		await expect(page.locator('.workspace-grid')).not.toHaveClass(/dragging/);
+		await expect.poll(() => rootOffset(page)).toBeGreaterThan(0);
+		await identity(page);
+	});
 
 	test('real touch scrolling over settings and preview does not accidentally play; short controls retain a finite runway', async ({
 		page,

@@ -74,8 +74,8 @@ visit. It never enters clip URLs or session layout preferences. Reset split turn
 
 The default settings pane scrolls internally. In Chromium, adding a sticky whole
 workspace and document runway still leaves ordinary interior settings scrolling
-inside that pane. Native scroll chaining can reach the document at a pane boundary;
-that is not evidence of Safari toolbar behavior. WebKit has also documented
+inside that pane. The default pane uses `overscroll-behavior-y: contain` to prevent boundary scroll
+chaining where supported; this does not control Safari toolbar behavior. WebKit has also documented
 [toolbar responses to nested scrolling](https://bugs.webkit.org/show_bug.cgi?id=231878),
 so it would be incorrect to assume nested scrolling always prevents collapse.
 
@@ -98,6 +98,35 @@ Focus scroll margins keep settings actions below the sticky preview in stacked
 mode, and visible alongside it in landscape. Keyboard,
 safe-area, and toolbar behavior on a physical device remain unverified.
 
+### Splitter gestures and one-way minimization
+
+Split position and browser chrome are independent. Both splitter orientations
+retain pointer capture and `touch-action: none`, so dragging either direction
+resizes without deliberately scrolling the document or restoring browser chrome.
+Pointer focus uses `preventScroll`. Default settings scrolling stays in its pane,
+including at boundaries where overscroll containment is supported.
+
+Combining a resize with native toolbar collapse is deferred. Under the
+[Pointer Events gesture ownership rules](https://www.w3.org/TR/pointerevents3/#the-touch-action-css-property),
+allowing native vertical panning can cancel the pointer stream. In stacked mode,
+that competes with the resize axis. In side-by-side mode, horizontal resizing
+produces no vertical document movement; allowing vertical panning would surrender
+that gesture to the browser rather than guarantee both actions. Directional
+`touch-action` cannot turn both drag directions into a single scroll direction.
+Chromium regressions demonstrate cancellation with an injected `pan-y` candidate;
+that candidate is not shipped. No synthetic gesture, scroll forwarding, toolbar
+visibility inference, or programmatic scroll workaround is introduced.
+
+The retained fallback is an upward finger swipe on the picture with Page scrolling
+enabled. This allows genuine native document scrolling; Safari decides whether to
+minimize its toolbar. Tap Safari's native toolbar to restore it. The experiment
+also lets settings scroll the document, so it does not satisfy independent settings
+scrolling. Leave it off when pane isolation is the priority. Reverse native scrolling,
+runway boundaries (including scroll-offset clamping after a resize), keyboard
+focus, or Safari itself may expand chrome; the app
+cannot lock it hidden. Physical acceptance of one-way toolbar behavior remains
+pending, and splitter-triggered collapse is not claimed.
+
 ### Required physical iPhone Safari comparison
 
 Use Safari in a normal tab, not an installed home-screen app, and record the
@@ -112,8 +141,8 @@ state. Browser emulation and Chromium cannot establish toolbar collapse.
 2. Enable Page scrolling in settings. Expand Safari's bars again, then swipe
    inside settings with ordinary finger gestures. Record whether the toolbar
    collapses, the preview/timeline stay pinned, all settings remain reachable,
-   and the split remains stable. Reverse the gesture to restore browser bars;
-   repeat near the start and end of the finite runway.
+   and the split remains stable. Tap Safari's native toolbar to restore the bars. Repeat near the start and end
+   of the finite runway, noting any browser-driven expansion on reverse scrolling.
 3. Play the muted clip. Repeat scrolling, drag/cancel the splitter, edit A/B,
    change Fit/Fill, and rotate portrait/landscape. Check that playback continues
    without a restart, source reload, lost clip settings, or accidental play/pause
@@ -123,7 +152,13 @@ state. Browser emulation and Chromium cannot establish toolbar collapse.
    keyboard and closing it, toolbar changes, and safe-area edges. The current
    editor has no text-entry source field; future text inputs will require their
    own on-screen-keyboard check.
-5. Rotate to landscape and confirm the automatic side-by-side layout. Scroll
+5. With bars expanded, drag the stacked splitter up and down. Minimize with an
+   upward picture swipe, then resize repeatedly in both directions. Tap the native
+   toolbar to restore bars. Repeat in landscape with the side-by-side splitter
+   moving left and right, and with Stacked selected explicitly. Record unexpected
+   expansion, cancellation, playback changes, or document movement. Splitter-driven
+   collapse is deferred; resizing must remain reliable regardless of toolbar state.
+6. Rotate to landscape and confirm the automatic side-by-side layout. Scroll
    through the final settings and runway: the complete left preview and divider
    must stay pinned. Switch between Stacked and Side by side and confirm page
    scrolling stays enabled. Turn the checkbox off or use Reset split; confirm
