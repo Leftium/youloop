@@ -241,7 +241,7 @@
 			aria-label="Clip settings"
 			tabindex="0"
 		>
-			{@render settings()}
+			<div class="settings-content">{@render settings()}</div>
 		</div>
 	</div>
 	<div
@@ -380,7 +380,12 @@
 			padding-bottom: calc(max(1rem, env(safe-area-inset-bottom)) + var(--browser-chrome-reserve));
 		}
 	}
-	.settings-pane > :global(:last-child) {
+	.video-scroll .settings-content {
+		/* A tiny native scroll range keeps short controls eligible to own gestures.
+		   Safari still decides scroll latching and toolbar behavior. */
+		min-height: calc(100% + 1px);
+	}
+	.settings-content > :global(:last-child) {
 		/* The pane owns its safe-area spacing; do not stack a trailing block margin. */
 		margin-bottom: 0;
 	}

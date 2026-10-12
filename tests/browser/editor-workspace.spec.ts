@@ -891,3 +891,49 @@ test.describe('pinned workspace with independent settings experiment', () => {
 		});
 	}
 });
+
+for (const viewport of [
+	{ width: 390, height: 844 },
+	{ width: 844, height: 390 }
+]) {
+	test.describe(`short controls ${viewport.width}x${viewport.height}`, () => {
+		test.use({ hasTouch: true, isMobile: true, viewport, screen: viewport });
+		test('fitting controls retain gesture ownership and provider identity', async ({
+			page,
+			context
+		}) => {
+			await openEditor(page);
+			// Model a controls section whose real content fits without replacing media.
+			await page.addStyleTag({ content: '.settings-content > * { display: none !important; }' });
+			const pane = page.locator('#editor-settings');
+			expect(await pane.evaluate((el) => el.scrollHeight - el.clientHeight)).toBeGreaterThan(0);
+			expect(await pane.evaluate((el) => el.scrollHeight - el.clientHeight)).toBeLessThanOrEqual(2);
+			const box = (await pane.boundingBox())!;
+			const cdp = await context.newCDPSession(page);
+			for (const direction of [-1, 1, -1]) {
+				const x = box.x + box.width / 2;
+				const y = box.y + box.height / 2;
+				await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y }] });
+				await page.waitForTimeout(50);
+				for (let step = 1; step <= 6; step++) {
+					await cdp.send('Input.dispatchTouchEvent', {
+						type: 'touchMove',
+						touchPoints: [{ x, y: y + direction * step * 10 }]
+					});
+					await page.waitForTimeout(30);
+				}
+				await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+				await page.waitForTimeout(300);
+				expect(await page.evaluate(() => scrollY)).toBe(0);
+				await identity(page);
+				await expect
+					.poll(() =>
+						page
+							.locator('youtube-video')
+							.evaluate((el) => (el as HTMLElement & { paused: boolean }).paused)
+					)
+					.toBe(true);
+			}
+		});
+	});
+}
