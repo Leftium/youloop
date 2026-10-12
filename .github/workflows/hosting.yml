@@ -36,7 +36,7 @@ jobs:
           done
           HOSTING_URL=http://127.0.0.1:4173 pnpm test:hosting
       - run: pnpm build:static
-      - name: Verify Pages artifact
+      - name: Verify static fallback artifact
         run: |
           test -f build/index.html
           test -f build/s.html
