@@ -126,7 +126,6 @@
 	}
 
 	let currentTime = $state(repeatA);
-	let boundFeedback = $state('');
 	let duration: number | undefined = $state();
 	const scopeChoice = createTimelineMode();
 	let playbackScope = $state<TimelineMode>('video');
@@ -676,7 +675,6 @@
 	}
 
 	function setRepeatA() {
-		boundFeedback = `Start (A) set to ${formatVideoTime(currentTime)}`;
 		repeatA = currentTime;
 		onstartchange?.(repeatA);
 		if (repeatA > repeatB) {
@@ -686,7 +684,6 @@
 	}
 
 	function setRepeatB() {
-		boundFeedback = `End (B) set to ${formatVideoTime(currentTime)}`;
 		repeatB = currentTime;
 		onendchange?.(repeatB);
 		if (repeatB < repeatA) {
@@ -828,7 +825,7 @@
 
 {#if boundsError}<p role="alert">{boundsError}</p>{/if}
 
-{#snippet media()}
+{#snippet media(editorOverlay?: Snippet)}
 	<div
 		class="player"
 		class:workspace={!minimal}
@@ -1016,6 +1013,7 @@
 				onclick={togglePaused}
 			></button>
 		{/if}
+		{@render editorOverlay?.()}
 		{#if minimal && playerError}
 			<p class="player-error" role="alert">{playerError}</p>
 		{/if}
@@ -1024,15 +1022,17 @@
 
 {#snippet preview(layoutControls: Snippet)}
 	<div class="editor-preview-content">
-		<div class="preview-header">
-			{@render layoutControls()}
-			<div class="preview-brand">
-				<a class="brand" href="/" data-sveltekit-reload title="YouLoop home">
-					<img src="/logo.svg" alt="" />YouLoop
-				</a>
+		{#snippet corners()}
+			<div class="preview-corners">
+				{@render layoutControls()}
+				<div class="preview-brand">
+					<a class="brand" href="/" data-sveltekit-reload title="YouLoop home">
+						<img src="/logo.svg" alt="" />YouLoop
+					</a>
+				</div>
 			</div>
-		</div>
-		{@render media()}
+		{/snippet}
+		{@render media(corners)}
 		<div class="editor-transport">
 			<div class="timestamps">
 				<div>{formatVideoTime(currentTime)} / {formatVideoTime(duration)}</div>
@@ -1108,27 +1108,38 @@
 	</div>
 {/snippet}
 
-{#snippet settings()}
+{#snippet settings(layoutReset: Snippet)}
 	{#if !minimal && playerError}<p role="alert">{playerError}</p>{/if}
 
 	{#if !minimal}
 		<center>
 			<div class="controls" inert={!metadataReceived}>
 				<div class="bound-actions" role="group" aria-label="Set clip bounds at current playhead">
-					<button class="a-button" aria-label="Set start (A)" onclick={setRepeatA}>
-						<strong>Set start (A)</strong>
-						<span class="bound-description">Use current playhead</span>
-						<span class="bound-time">{formatVideoTime(repeatA)}</span>
-					</button>
-					<button class="b-button" aria-label="Set end (B)" onclick={setRepeatB}>
-						<strong>Set end (B)</strong>
-						<span class="bound-description">Use current playhead</span>
-						<span class="bound-time">{formatVideoTime(repeatB)}</span>
-					</button>
+					<div class="bound-action">
+						<button
+							class="a-button"
+							aria-label="A Start"
+							aria-describedby="start-action-description"
+							onclick={setRepeatA}>A Start</button
+						>
+						<div class="bound-description" id="start-action-description">
+							Set start to playhead
+							<output aria-label="Start bound" aria-live="polite">{repeatA} s</output>
+						</div>
+					</div>
+					<div class="bound-action">
+						<button
+							class="b-button"
+							aria-label="B End"
+							aria-describedby="end-action-description"
+							onclick={setRepeatB}>B End</button
+						>
+						<div class="bound-description" id="end-action-description">
+							Set end to playhead
+							<output aria-label="End bound" aria-live="polite">{repeatB} s</output>
+						</div>
+					</div>
 				</div>
-				<p class="bound-feedback" role="status">
-					{boundFeedback || 'Set bounds here, or drag A/B on the timeline.'}
-				</p>
 
 				<div class="nc-join" role="group">
 					{#key loop}
@@ -1163,8 +1174,7 @@
 					<button
 						aria-label="Cycle playback speed"
 						title="Cycle playback speed"
-						onclick={makeTogglePlaybackRate()}
-						><IcRoundSpeed /><span class="control-label">{playbackRate / 100}x</span></button
+						onclick={makeTogglePlaybackRate()}><IcRoundSpeed /></button
 					>
 
 					<button
@@ -1244,6 +1254,7 @@
 		</center>
 	{/if}
 
+	{@render layoutReset()}
 	{@render editorActions?.()}
 {/snippet}
 
@@ -1579,7 +1590,7 @@
 
 	.editor-preview-content {
 		display: grid;
-		grid-template-rows: auto minmax(0, 1fr) auto;
+		grid-template-rows: minmax(0, 1fr) auto;
 		height: 100%;
 		min-width: 0;
 		min-height: 0;
@@ -1607,16 +1618,20 @@
 		width: 24px;
 		height: 24px;
 	}
-	.preview-header {
+	.preview-corners {
+		position: absolute;
+		inset: max(8px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) auto
+			max(8px, env(safe-area-inset-left));
+		z-index: 1;
 		display: flex;
-		align-items: center;
+		align-items: flex-start;
 		justify-content: space-between;
 		gap: 8px;
-		padding: max(4px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) 4px
-			max(8px, env(safe-area-inset-left));
+		pointer-events: none;
 	}
 	.preview-brand {
 		min-width: 0;
+		color: white;
 		font-weight: 700;
 		font-size: 0.85rem;
 	}
@@ -1629,45 +1644,53 @@
 		align-items: center;
 		gap: 0.35rem;
 		min-height: 44px;
+		padding-inline: 8px;
+		border-radius: 6px;
+		background: rgb(0 0 0 / 70%);
 		color: inherit;
 		text-decoration: none;
+		pointer-events: auto;
 	}
 	.brand:focus-visible {
-		outline: 2px solid #01aaff;
+		outline: 2px solid white;
+		outline-offset: 2px;
 	}
 	.bound-actions {
 		display: grid;
 		grid-template-columns: 1fr 1fr;
 		gap: 8px;
 		width: 100%;
+		text-align: left;
 	}
-	.bound-actions button {
+	.bound-action {
 		display: flex;
-		flex-direction: column;
 		align-items: center;
-		gap: 4px;
+		gap: 8px;
+		min-width: 0;
+	}
+	.bound-action button {
+		background: $zinc-550;
+		flex-shrink: 0;
 		min-height: 44px;
 		margin: 0;
 		padding: 8px;
-		font-size: 0.9rem;
+		font-size: 0.85rem;
+		font-weight: 600;
 	}
-	.bound-actions .a-button strong {
+	.bound-action .a-button {
 		color: $azure-250;
 	}
-	.bound-actions .b-button strong {
+	.bound-action .b-button {
 		color: $indigo-300;
 	}
-	.bound-time {
-		font-variant-numeric: tabular-nums;
-	}
 	.bound-description {
+		min-width: 0;
 		font-size: 0.8rem;
+		line-height: 1.3;
 	}
-	.bound-feedback {
-		width: 100%;
-		min-height: 2.6em;
-		margin: 0;
-		font-size: 0.85rem;
+	.bound-description output {
+		display: block;
+		font-variant-numeric: tabular-nums;
 	}
 	.settings-help {
 		font-size: 0.85rem;
@@ -1687,25 +1710,13 @@
 		outline-offset: 2px;
 	}
 	@container clip-settings (max-width: 380px) {
-		.bound-description {
-			font-size: 0.75rem;
-			line-height: 1.2;
-		}
-		.bound-actions button {
-			font-size: 0.85rem;
+		.bound-actions {
+			grid-template-columns: 1fr;
 		}
 		.speed-buttons {
 			display: flex;
 			flex-wrap: wrap;
 			justify-content: center;
-		}
-	}
-	@container clip-settings (min-width: 560px) {
-		.bound-actions button {
-			flex-direction: row;
-			flex-wrap: wrap;
-			justify-content: center;
-			column-gap: 10px;
 		}
 	}
 

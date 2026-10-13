@@ -3,7 +3,8 @@
 	import IcRoundViewAgenda from '~icons/ic/round-view-agenda';
 	import IcRoundRestartAlt from '~icons/ic/round-restart-alt';
 
-	let { preview, settings }: { preview: Snippet<[Snippet]>; settings: Snippet } = $props();
+	let { preview, settings }: { preview: Snippet<[Snippet]>; settings: Snippet<[Snippet]> } =
+		$props();
 	type Layout = 'columns' | 'rows';
 	const storageKey = 'youloop.editor-workspace';
 	const dividerSize = 3;
@@ -21,10 +22,12 @@
 	let ratios = $state({ columns: 0.62, rows: 0.55 });
 	let layout = $derived(width >= 660 ? (preference ?? 'columns') : 'rows');
 	let available = $derived(Math.max(0, (layout === 'columns' ? width : height) - dividerSize));
-	// Reserve the fixed header plus transport and picture in stacked layouts.
-	let minimum = $derived(layout === 'columns' ? 320 : Math.min(284, Math.max(0, available - 110)));
+	let minimum = $derived(layout === 'columns' ? 320 : Math.min(240, Math.max(0, available - 110)));
 	let maximum = $derived(Math.max(minimum, available - (layout === 'columns' ? 280 : 110)));
 	let size = $derived(Math.max(minimum, Math.min(ratios[layout] * available, maximum)));
+	let layoutAction = $derived(
+		layout === 'columns' ? 'Switch to stacked layout' : 'Switch to side-by-side layout'
+	);
 	let dragging = $state(false);
 	let drag: { id: number; target: HTMLElement; origin: number; size: number } | undefined;
 
@@ -170,31 +173,29 @@
 
 {#snippet layoutControls()}
 	<div class="workspace-layout" role="group" aria-label="Workspace layout">
-		<div class="nc-join layout-modes">
-			<button
-				aria-label={width < 660
-					? 'Side by side (requires a wider preview workspace)'
-					: 'Side by side'}
-				title={width < 660
-					? 'Side by side requires a workspace at least 660px wide'
-					: 'Side by side'}
-				aria-pressed={layout === 'columns'}
-				disabled={width < 660}
-				onclick={() => choose('columns')}
-				><IcRoundViewAgenda class="columns-icon" /><span>Side by side</span></button
-			>
-			<button
-				aria-label="Stacked"
-				title="Stacked"
-				aria-pressed={layout === 'rows'}
-				onclick={() => choose('rows')}><IcRoundViewAgenda /><span>Stacked</span></button
-			>
-		</div>
+		<button
+			aria-label={layoutAction}
+			title={layoutAction}
+			aria-describedby={width < 660 ? 'layout-unavailable' : undefined}
+			disabled={width < 660}
+			onclick={() => choose(layout === 'columns' ? 'rows' : 'columns')}
+			><IcRoundViewAgenda class={layout === 'rows' ? 'columns-icon' : undefined} /></button
+		>
+	</div>
+{/snippet}
+
+{#snippet layoutReset()}
+	<div class="layout-reset">
 		<button
 			aria-label="Restore default layout"
 			title="Restore default layout and split"
-			onclick={reset}><IcRoundRestartAlt /></button
+			onclick={reset}
 		>
+			<IcRoundRestartAlt /> Restore default layout
+		</button>
+		{#if width < 660}
+			<p id="layout-unavailable">Side by side requires a workspace at least 660px wide.</p>
+		{/if}
 	</div>
 {/snippet}
 
@@ -243,7 +244,7 @@
 			aria-label="Clip settings"
 			tabindex="0"
 		>
-			<div class="settings-content">{@render settings()}</div>
+			<div class="settings-content">{@render settings(layoutReset)}</div>
 		</div>
 	</div>
 	<span
@@ -319,28 +320,25 @@
 		display: flex;
 		gap: 0.4rem;
 		flex-shrink: 0;
-	}
-	.layout-modes {
-		display: flex;
+		pointer-events: auto;
 	}
 	.workspace-layout button {
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		gap: 6px;
-		min-width: 44px;
+		display: grid;
+		place-items: center;
+		width: 44px;
 		height: 44px;
 		padding: 0;
 		margin: 0;
 		border: 0;
-		background: #646b79;
+		border-radius: 6px;
+		background: rgb(60 60 60 / 80%);
 		color: white;
 	}
 	.workspace-layout button:hover:not(:disabled) {
-		background: #5c6370;
+		background: rgb(90 90 90 / 90%);
 	}
 	.workspace-layout button:focus-visible {
-		outline: 2px solid #646b79;
+		outline: 2px solid white;
 		outline-offset: 2px;
 	}
 	.workspace-layout :global(svg) {
@@ -350,24 +348,19 @@
 	.workspace-layout :global(.columns-icon) {
 		transform: rotate(90deg);
 	}
-	.workspace-layout button[aria-pressed='true'] {
-		background: #354d69;
-		box-shadow: inset 0 -3px #79c0ff;
-	}
 	.workspace-layout button:disabled {
-		opacity: 0.4;
+		opacity: 0.5;
 	}
-	.workspace-layout span {
-		display: none;
+	.layout-reset {
+		margin-block: 1rem;
 	}
-	@container editor-preview (min-width: 520px) {
-		.workspace-layout span {
-			display: inline;
-			font-size: 0.8rem;
-		}
-		.layout-modes button {
-			padding-inline: 10px;
-		}
+	.layout-reset button {
+		min-height: 44px;
+		margin: 0;
+	}
+	.layout-reset p {
+		margin-block: 0.5rem 0;
+		font-size: 0.85rem;
 	}
 	.workspace-grid {
 		display: grid;
@@ -387,7 +380,6 @@
 		min-height: 0;
 	}
 	.preview-pane {
-		container: editor-preview / inline-size;
 		background: var(--nc-surface-1);
 	}
 	.settings-pane {

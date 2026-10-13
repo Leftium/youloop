@@ -196,7 +196,7 @@
 			{#snippet editorActions()}
 				<a class="secondary" href="https://youtu.be/{youtubeId}">youtu.be/{youtubeId}</a>
 				<nav aria-label="Clip navigation">
-					<a href={sharePath}>Open video</a>
+					<a class="nc-button" href={sharePath}>Open video</a>
 					<button onclick={copyLink} disabled={!sharePath}>Copy Link</button>
 					{#if copyMessage}
 						<span role="status">{copyMessage}</span>
@@ -221,7 +221,9 @@
 		gap: 1rem;
 		flex-wrap: wrap;
 	}
+	.nc-button,
 	button {
+		min-height: 44px;
 		margin: 0;
 	}
 </style>
