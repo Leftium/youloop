@@ -5,7 +5,9 @@
 		// Framework matcher convention and computed/manual browser imports.
 		"src/params.ts",
 		"src/lib/player/*.browser-test.ts",
-		"knip.ts"
+		"knip.ts",
+		// Preserve the manifest's bare #lib entry, even though callers use #lib/* today.
+		"src/lib/index.ts"
 	],
 	// Generated adapter/framework output is outside the source audit.
 	"ignorePatterns": [".svelte-kit/**", ".vercel/**"],

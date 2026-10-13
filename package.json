@@ -19,9 +19,11 @@
 		"test:browser": "playwright test",
 		"test:clip": "node --test tests/clip-bounds.test.js tests/watch-playback-scope.test.js",
 		"knip": "svelte-kit sync && knip",
-		"fallow": "fallow --dupes-baseline fallow-baselines/dupes.json --health-baseline fallow-baselines/health.json --baseline-mode identity --summary",
+		"fallow": "node scripts/fallow.mjs",
 		"fallow:full": "fallow --dupes-baseline fallow-baselines/dupes.json --health-baseline fallow-baselines/health.json --baseline-mode identity",
-		"code-qc": "node scripts/code-qc.mjs"
+		"code-qc": "node scripts/code-qc.mjs",
+		"fallow:raw": "fallow --summary",
+		"knip:raw": "svelte-kit sync && knip"
 	},
 	"devDependencies": {
 		"@eslint/compat": "^2.1.1",
