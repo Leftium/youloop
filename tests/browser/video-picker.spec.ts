@@ -26,7 +26,7 @@ for (const width of [1280, 390]) {
 				}
 			})
 		);
-		await dialog.getByRole('button', { name: 'Load from clipboard' }).click();
+		await dialog.getByRole('button', { name: 'Paste from clipboard' }).click();
 		await expect(dialog.getByRole('status')).toContainText('Paste your link');
 		await expect(input).toHaveValue('manual draft');
 		await page.evaluate(() =>
@@ -35,14 +35,14 @@ for (const width of [1280, 390]) {
 				value: { readText: async () => 'invalid' }
 			})
 		);
-		await dialog.getByRole('button', { name: 'Load from clipboard' }).click();
+		await dialog.getByRole('button', { name: 'Paste from clipboard' }).click();
 		await expect(dialog.getByRole('status')).toContainText('valid YouTube');
-		await expect(input).toHaveValue('manual draft');
+		await expect(input).toHaveValue('invalid');
 		await input.press('Escape');
 		await expect(dialog).not.toBeVisible();
 		await expect(choose).toBeFocused();
 		await choose.click();
-		await expect(input).toHaveValue('manual draft');
+		await expect(input).toHaveValue('');
 		await input.fill('dt-SqNL4z3w');
 		await input.press('Enter');
 		await expect(page).toHaveURL(/\?v=dt-SqNL4z3w$/);
@@ -61,6 +61,10 @@ for (const example of videoExamples) {
 		await page.getByRole('button', { name: 'Choose video', exact: true }).click();
 		const source = parseEditorSource(example.href)!;
 		await page.getByRole('dialog').getByRole('link', { name: example.label, exact: true }).click();
+		await expect(page.getByRole('dialog').getByRole('textbox')).toHaveValue(example.href);
+		await expect(page).toHaveURL('http://localhost:5173/');
+		await expect(page.locator('youtube-video')).toHaveCount(0);
+		await page.getByRole('dialog').getByRole('button', { name: 'Load', exact: true }).click();
 		await expect(page).toHaveURL('http://localhost:5173' + serializeEditorUrl(source.clip!));
 		await page.waitForFunction(
 			() => (document.querySelector('youtube-video') as HTMLMediaElement)?.duration > 10,
@@ -173,7 +177,7 @@ test('one Escape wins over input blur handlers and respects composition', async 
 	await expect(dialog).not.toBeVisible();
 	await expect(choose).toBeFocused();
 	await choose.click();
-	await expect(input).toHaveValue('draft to retain');
+	await expect(input).toHaveValue('');
 	await input.focus();
 	await input.dispatchEvent('compositionstart');
 	await input.press('Escape');
@@ -203,7 +207,7 @@ test('dialog whitespace is inert, actual backdrop dismisses, and links fit their
 	await page.mouse.click(4, 4);
 	await expect(dialog).not.toBeVisible();
 	await page.getByRole('button', { name: 'Choose video', exact: true }).click();
-	await expect(input).toHaveValue('retained');
+	await expect(input).toHaveValue('');
 	await dialog.getByRole('button', { name: 'Close video picker' }).click();
 	await expect(dialog).not.toBeVisible();
 });
@@ -232,7 +236,7 @@ test('candidate metadata is debounced, stale-safe, optional, and never commits p
 	await page.getByRole('button', { name: 'Choose video', exact: true }).click();
 	const dialog = page.getByRole('dialog');
 	const input = dialog.getByRole('textbox', {
-		name: 'YouTube URL, ID, or YouLoop link.',
+		name: 'YouTube URL, ID, or YouLoop link',
 		exact: true
 	});
 	await input.fill('bad');
@@ -255,4 +259,59 @@ test('candidate metadata is debounced, stale-safe, optional, and never commits p
 	await input.press('Enter');
 	await expect(page).toHaveURL(/v=NSGIZbUbIWw/);
 	await expect(page.locator('youtube-video')).toHaveCount(1);
+});
+
+test('clipboard and welcome presets preview without committing until Load', async ({ page }) => {
+	await page.route('**/api/video-metadata?*', (route) =>
+		route.fulfill({
+			json: {
+				title: 'Selected candidate',
+				image: 'https://i.ytimg.com/vi/dt-SqNL4z3w/hqdefault.jpg'
+			}
+		})
+	);
+	await page.goto('/');
+	await page.locator('.cards a').first().click();
+	const dialog = page.getByRole('dialog');
+	const input = dialog.getByRole('textbox');
+	await expect(input).toHaveValue(videoExamples[0].href);
+	await expect(dialog.locator('.candidate-preview')).toContainText('Selected candidate');
+	await expect(page).toHaveURL('http://localhost:5173/');
+	await expect(page.locator('youtube-video')).toHaveCount(0);
+	await dialog.getByRole('button', { name: 'Close video picker' }).click();
+	await page.getByRole('button', { name: 'Choose video', exact: true }).click();
+	await expect(input).toHaveValue('');
+	await page.evaluate(() =>
+		Object.defineProperty(navigator, 'clipboard', {
+			configurable: true,
+			value: { readText: async () => '/dt-SqNL4z3w/31~38?mute' }
+		})
+	);
+	await dialog.getByRole('button', { name: 'Paste from clipboard' }).click();
+	await expect(input).toHaveValue('/dt-SqNL4z3w/31~38?mute');
+	await expect(dialog.locator('.candidate-preview')).toContainText('Selected candidate');
+	await expect(page).toHaveURL('http://localhost:5173/');
+	await expect(page.locator('youtube-video')).toHaveCount(0);
+	await dialog.getByRole('button', { name: 'Load', exact: true }).click();
+	await expect(page).toHaveURL(/v=dt-SqNL4z3w&t=31~38&mute/);
+});
+
+test.describe('invisible touch targets', () => {
+	test.use({ hasTouch: true, viewport: { width: 390, height: 844 } });
+	test('X closes when tapped outside its visible icon', async ({ page }) => {
+		await page.goto('/');
+		await page.getByRole('button', { name: 'Choose video', exact: true }).click();
+		const dialog = page.getByRole('dialog');
+		const close = dialog.getByRole('button', { name: 'Close video picker' });
+		const box = (await close.boundingBox())!;
+		expect(box.height).toBeLessThan(44);
+		const target = await close.evaluate((el) => ({
+			height: getComputedStyle(el, '::after').height,
+			background: getComputedStyle(el).backgroundColor
+		}));
+		expect(parseFloat(target.height)).toBeGreaterThanOrEqual(44);
+		expect(target.background).toBe('rgba(0, 0, 0, 0)');
+		await page.touchscreen.tap(box.x + box.width / 2, box.y - 3);
+		await expect(dialog).not.toBeVisible();
+	});
 });

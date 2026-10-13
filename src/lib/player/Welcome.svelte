@@ -1,7 +1,14 @@
 <script lang="ts">
 	import { videoExamples } from './video-examples';
-	let { ready, onchoose }: { ready: boolean; onchoose: (trigger: HTMLButtonElement) => void } =
-		$props();
+	let {
+		ready,
+		onchoose,
+		onexample
+	}: {
+		ready: boolean;
+		onchoose: (trigger: HTMLButtonElement) => void;
+		onexample: (trigger: HTMLAnchorElement, href: string) => void;
+	} = $props();
 </script>
 
 <section class="welcome" aria-labelledby="welcome-title">
@@ -56,7 +63,21 @@
 		<h2 id="examples-title">Try a little repetition</h2>
 		<p>A few clips to get you started.</p>
 		<nav aria-label="Video examples" class="cards">
-			{#each videoExamples as example (example.label)}<a href={example.href}
+			{#each videoExamples as example (example.label)}<a
+					href={ready ? example.href : undefined}
+					aria-disabled={!ready}
+					onclick={(event) => {
+						if (
+							event.button !== 0 ||
+							event.metaKey ||
+							event.ctrlKey ||
+							event.shiftKey ||
+							event.altKey
+						)
+							return;
+						event.preventDefault();
+						if (ready) onexample(event.currentTarget, example.href);
+					}}
 					><img
 						src={`https://i.ytimg.com/vi/${example.videoId}/hqdefault.jpg`}
 						alt=""
@@ -242,6 +263,9 @@
 		background: var(--nc-surface-2);
 		color: inherit;
 		text-decoration: none;
+	}
+	.cards a[aria-disabled='true'] {
+		pointer-events: none;
 	}
 	.cards a:hover {
 		border-color: var(--nc-primary);

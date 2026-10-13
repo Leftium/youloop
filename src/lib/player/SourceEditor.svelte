@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import IcRoundEdit from '~icons/ic/round-edit';
 	import IcRoundOpenInNew from '~icons/ic/round-open-in-new';
 	import VideoPicker from './VideoPicker.svelte';
 	import type { EditorSource } from './editor-source';
@@ -35,11 +36,12 @@
 		>
 		<span id="source-new-tab" class="visually-hidden">Opens in a new tab</span>
 		<button
-			class="inline"
+			class="inline secondary outline change-video"
 			disabled={!ready}
 			aria-label="Change video"
 			title="Change video"
-			onclick={(event) => picker.open(event.currentTarget)}>Change</button
+			onclick={(event) => picker.open(event.currentTarget)}
+			><IcRoundEdit aria-hidden="true" /><span class="change-label">Change</span></button
 		>
 	</div>
 </fieldset>
@@ -80,8 +82,14 @@
 		font-size: 0.85rem;
 		overflow-wrap: anywhere;
 	}
-	button.inline {
-		min-height: 32px;
+	button.change-video {
+		--nc-primary: var(--nc-secondary);
+		--nc-primary-hover: var(--nc-secondary-hover);
+		--nc-primary-focus: var(--nc-secondary-focus);
+		position: relative;
+		display: inline-flex;
+		align-items: center;
+		gap: 4px;
 		margin: 0;
 		flex-shrink: 0;
 	}
@@ -96,9 +104,26 @@
 		height: 14px;
 		flex-shrink: 0;
 	}
+	.change-video :global(svg) {
+		width: 1em;
+		height: 1em;
+	}
 	@media (pointer: coarse) {
-		button.inline {
-			min-height: 40px;
+		.source-link {
+			gap: 12px;
+		}
+		.change-video::after {
+			content: '';
+			position: absolute;
+			inset: 50% auto auto 50%;
+			width: max(100%, 44px);
+			height: max(100%, 44px);
+			transform: translate(-50%, -50%);
+		}
+	}
+	@container clip-settings (max-width: 330px) {
+		.change-label {
+			display: none;
 		}
 	}
 </style>

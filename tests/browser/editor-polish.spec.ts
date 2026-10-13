@@ -380,7 +380,7 @@ test.describe('editor polish', () => {
 		);
 	});
 
-	test('dialog source drafts, supported links, one-click clipboard and title freshness', async ({
+	test('dialog source drafts, supported links, clipboard previews and title freshness', async ({
 		page
 	}) => {
 		await open(page);
@@ -389,7 +389,7 @@ test.describe('editor polish', () => {
 		const original = page.url();
 		await page.getByRole('button', { name: 'Change video', exact: true }).click();
 		const source = page.getByRole('textbox', {
-			name: 'YouTube URL, ID, or YouLoop link.',
+			name: 'YouTube URL, ID, or YouLoop link',
 			exact: true
 		});
 		await source.fill(secondId);
@@ -403,7 +403,8 @@ test.describe('editor polish', () => {
 		await expect(page.getByRole('dialog').getByRole('status')).toContainText('YouLoop clip link');
 		await identity(page);
 		await clipboard(page, `https://youloop.app/${id}/10.25~-3.5?mute&speed=0.5`);
-		await page.getByRole('button', { name: 'Load from clipboard' }).click();
+		await page.getByRole('button', { name: 'Paste from clipboard' }).click();
+		await page.getByRole('dialog').getByRole('button', { name: 'Load', exact: true }).click();
 		await expect(page.getByRole('button', { name: 'Change video', exact: true })).toBeFocused();
 		await expect(page.getByRole('link', { name: 'Open video', exact: true })).toHaveAttribute(
 			'href',
@@ -412,7 +413,8 @@ test.describe('editor polish', () => {
 		await identity(page); // Compatible same-source links only update state.
 		await clipboard(page, `https://www.youtube.com/shorts/${secondId}`);
 		await page.getByRole('button', { name: 'Change video', exact: true }).click();
-		await page.getByRole('button', { name: 'Load from clipboard' }).click();
+		await page.getByRole('button', { name: 'Paste from clipboard' }).click();
+		await page.getByRole('dialog').getByRole('button', { name: 'Load', exact: true }).click();
 		await expect(
 			page.getByRole('link', { name: `youtu.be/${secondId}`, exact: true })
 		).toHaveAttribute('href', `https://youtu.be/${secondId}`);
@@ -439,7 +441,7 @@ test.describe('editor polish', () => {
 			})
 		);
 		await page.getByRole('button', { name: 'Change video', exact: true }).click();
-		await page.getByRole('button', { name: 'Load from clipboard' }).click();
+		await page.getByRole('button', { name: 'Paste from clipboard' }).click();
 		await expect(page.getByRole('dialog').getByRole('status')).toContainText(
 			'Clipboard unavailable'
 		);

@@ -284,7 +284,11 @@
 			{/snippet}
 		</Player>
 	{:else}
-		<Welcome {ready} onchoose={(trigger) => picker.open(trigger)} />
+		<Welcome
+			{ready}
+			onchoose={(trigger) => picker.open(trigger)}
+			onexample={(trigger, href) => picker.open(trigger, href)}
+		/>
 	{/if}
 	{#if minimal && !normalized.ok}
 		<p role="alert">Choose an end after the start to share this clip.</p>

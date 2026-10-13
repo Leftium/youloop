@@ -1,7 +1,6 @@
 <script lang="ts">
 	import { videoExamples } from './video-examples';
-	import { parseEditorSource, type EditorSource } from './editor-source';
-	let { onchoose }: { onchoose?: (source: EditorSource) => void } = $props();
+	let { onchoose }: { onchoose?: (href: string) => void } = $props();
 </script>
 
 <nav aria-label="Video examples">
@@ -19,7 +18,7 @@
 				)
 					return;
 				event.preventDefault();
-				onchoose(parseEditorSource(example.href)!);
+				onchoose(example.href);
 			}}>{example.label}</a
 		>
 	{/each}
@@ -27,13 +26,16 @@
 
 <style>
 	nav {
-		display: grid;
-		gap: 4px;
-		justify-items: start;
+		display: flex;
+		flex-wrap: wrap;
+		gap: 8px 16px;
 	}
 	a {
-		display: flex;
-		align-items: center;
-		min-height: 44px;
+		color: inherit;
+		opacity: 0.75;
+		font-size: 0.85rem;
+	}
+	a:hover {
+		opacity: 1;
 	}
 </style>

@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import IcRoundContentPaste from '~icons/ic/round-content-paste';
 	import IcRoundClose from '~icons/ic/round-close';
 	import VideoExamples from './VideoExamples.svelte';
 	import { parseEditorSource, type EditorSource } from './editor-source';
@@ -54,7 +55,8 @@
 		};
 	});
 
-	export function open(trigger?: HTMLElement) {
+	export function open(trigger?: HTMLElement, initialDraft = '') {
+		draft = initialDraft;
 		opener = trigger ?? (document.activeElement as HTMLElement);
 		message = '';
 		opening += 1;
@@ -79,12 +81,17 @@
 		if (source) commit(source);
 		else message = 'Enter a valid YouTube ID, YouTube URL, or YouLoop clip link.';
 	}
-	async function loadClipboard() {
+	async function pasteClipboard() {
 		const request = opening;
 		clipboardPending = true;
 		try {
 			const text = await navigator.clipboard.readText();
-			if (dialog.open && request === opening) apply(text);
+			if (dialog.open && request === opening) {
+				draft = text.trim();
+				message = parseEditorSource(draft)
+					? ''
+					: 'Enter a valid YouTube ID, YouTube URL, or YouLoop clip link.';
+			}
 		} catch {
 			if (dialog.open && request === opening)
 				message = 'Clipboard unavailable. Paste your link into the field, then choose Load.';
@@ -165,7 +172,7 @@
 	<!-- Focus a non-input first so mobile users can choose without opening the keyboard. -->
 	<div class="picker-heading">
 		<h2 id="video-picker-title" tabindex="-1" bind:this={heading}>Choose video</h2>
-		<button class="inline close" aria-label="Close video picker" onclick={close}
+		<button class="plain-action close" aria-label="Close video picker" onclick={close}
 			><IcRoundClose aria-hidden="true" /></button
 		>
 	</div>
@@ -175,21 +182,25 @@
 			apply();
 		}}
 	>
-		<label for="video-picker-source">YouTube URL, ID, or YouLoop link.</label>
+		<label for="video-picker-source">YouTube URL, ID, or YouLoop link</label>
 		<div class="nc-join source-entry">
 			<input
 				id="video-picker-source"
 				bind:this={input}
 				bind:value={draft}
-				placeholder="YouTube ID or video link"
+				placeholder="Paste a video link..."
 				autocomplete="off"
 				autocapitalize="none"
 				spellcheck="false"
 			/>
-			<button type="submit">Load</button>
+			<button class="secondary outline" type="submit">Load</button>
 		</div>
-		<button class="clipboard" type="button" disabled={clipboardPending} onclick={loadClipboard}
-			>Load from clipboard</button
+		<button
+			class="plain-action clipboard"
+			type="button"
+			disabled={clipboardPending}
+			onclick={pasteClipboard}
+			><IcRoundContentPaste aria-hidden="true" /><span>Paste from clipboard</span></button
 		>
 		{#if message}<p role="status">{message}</p>{/if}
 	</form>
@@ -208,8 +219,14 @@
 			{:else}<p>Preview unavailable. You can still load this video.</p>{/if}
 		</div>
 	{/if}
+	<hr />
 	<h3>Try an example</h3>
-	<VideoExamples onchoose={commit} />
+	<VideoExamples
+		onchoose={(href) => {
+			draft = href;
+			message = '';
+		}}
+	/>
 </dialog>
 
 <style>
@@ -237,27 +254,47 @@
 		width: 100%;
 		font-size: 16px;
 	}
-	button {
-		min-height: 44px;
-		margin: 0;
-	}
 	.picker-heading {
 		display: flex;
 		align-items: start;
 		justify-content: space-between;
 		gap: 12px;
 	}
-	.close.inline {
-		display: grid;
-		place-items: center;
-		min-width: 36px;
-		min-height: 36px;
-		margin: 0;
+	.plain-action {
+		all: unset;
+		position: relative;
+		display: inline-flex;
+		align-items: center;
+		gap: 8px;
+		color: inherit;
+		cursor: pointer;
+	}
+	.plain-action:focus-visible {
+		outline: 2px solid var(--nc-primary-focus);
+		outline-offset: 4px;
+	}
+	.plain-action:hover {
+		opacity: 0.7;
+	}
+	.plain-action:disabled {
+		opacity: 0.5;
+		cursor: default;
+	}
+	.close {
+		padding: 4px;
+		line-height: 1;
 		flex-shrink: 0;
 	}
 	.close :global(svg) {
-		width: 20px;
-		height: 20px;
+		width: 18px;
+		height: 18px;
+	}
+	.clipboard {
+		padding-block: 4px;
+	}
+	.clipboard :global(svg) {
+		width: 1em;
+		height: 1em;
 	}
 	.source-entry {
 		display: flex;
@@ -269,6 +306,9 @@
 		flex: 1;
 	}
 	.source-entry button {
+		--nc-primary: var(--nc-secondary);
+		--nc-primary-hover: var(--nc-secondary-hover);
+		--nc-primary-focus: var(--nc-secondary-focus);
 		flex-shrink: 0;
 	}
 	.candidate-preview {
@@ -291,8 +331,8 @@
 		font-size: 0.85rem;
 		overflow-wrap: anywhere;
 	}
-	.clipboard {
-		width: 100%;
+	hr {
+		margin-block: 24px;
 	}
 	@media (max-width: 660px), (pointer: coarse) and (max-height: 500px) {
 		dialog {
@@ -305,6 +345,16 @@
 			border-radius: 16px 16px 0 0;
 			padding: 20px max(20px, env(safe-area-inset-right)) max(20px, env(safe-area-inset-bottom))
 				max(20px, env(safe-area-inset-left));
+		}
+	}
+	@media (pointer: coarse) {
+		.plain-action::after {
+			content: '';
+			position: absolute;
+			inset: 50% auto auto 50%;
+			width: max(100%, 44px);
+			height: max(100%, 44px);
+			transform: translate(-50%, -50%);
 		}
 	}
 	@media (prefers-reduced-motion: reduce) {

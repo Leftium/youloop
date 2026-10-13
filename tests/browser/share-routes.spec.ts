@@ -217,7 +217,8 @@ test('source changes and out-of-duration validation retain editor parity', async
 	await expect(page.getByRole('button', { name: 'Copy Link', exact: true })).toBeDisabled();
 	await page.evaluate(() => navigator.clipboard.writeText('https://youtu.be/jNQXAC9IVRw'));
 	await page.getByRole('button', { name: 'Change video' }).click();
-	await page.getByRole('button', { name: 'Load from clipboard' }).click();
+	await page.getByRole('button', { name: 'Paste from clipboard' }).click();
+	await page.getByRole('dialog').getByRole('button', { name: 'Load', exact: true }).click();
 	await settled(page);
 	await expect(page.getByRole('link', { name: 'Open video', exact: true })).toHaveAttribute(
 		'href',
