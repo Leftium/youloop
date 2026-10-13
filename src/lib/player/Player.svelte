@@ -3,7 +3,12 @@
 	import type { YouTubeVideoElement } from '@videojs/html/media/youtube-video';
 	import { onMount, untrack, type Snippet } from 'svelte';
 	import EditorWorkspace from './EditorWorkspace.svelte';
-	import { resolveClipRange, type ShareUrlState } from '#lib/share-url.ts';
+	import BoundEditor from './BoundEditor.svelte';
+	import SourceEditor from './SourceEditor.svelte';
+	import type { EditorSource } from './editor-source';
+	import { editorTime } from './editor-time';
+	import type { TimestampPolicy } from '../share-url.ts';
+	import { resolveClipRange, subtractSeconds, type ShareUrlState } from '#lib/share-url.ts';
 	import {
 		playbackBounds,
 		scopeSwitchTarget,
@@ -33,7 +38,6 @@
 	import IcRoundFullscreen from '~icons/ic/round-fullscreen';
 	import IcRoundFullscreenExit from '~icons/ic/round-fullscreen-exit';
 	import IcRoundCropLandscape from '~icons/ic/round-crop-landscape';
-	import IcRoundCropPortrait from '~icons/ic/round-crop-portrait';
 
 	let player = $state<YouTubeVideoElement>(undefined!);
 	let playerContainer: HTMLDivElement;
@@ -43,6 +47,9 @@
 	let controlsModule = $state<typeof import('./watch-controls')>();
 	let nativeFullscreen = $state(false);
 	let videoTitle = $state('');
+	let titleUnavailable = $state(false);
+	let subSeconds = $state(false);
+	let boundEditError = $state('');
 	let watchTitle = $state<HTMLHeadingElement>();
 	let titlePlacement = $state({ left: 0, top: 0, width: 0, maxHeight: 0, mode: 'video' });
 	let controlsRegion = $state<HTMLDivElement>();
@@ -52,13 +59,6 @@
 	let visibleBounds = $state({ left: 0, top: 0, width: 0, height: 0 });
 
 	const framerate = 30;
-
-	// https://stackoverflow.com/a/27728417/117030
-	const YOUTUBE_URL_ID_REGEX =
-		/^.*(?:(?:youtu\.be\/|v\/|vi\/|u\/\w\/|embed\/|shorts\/)|(?:(?:watch)?\?v(?:i)?=|&v(?:i)?=))([^#&?]*).*/;
-
-	// https://webapps.stackexchange.com/a/101153/1530
-	const YOUTUBE_ID_REGEX = /^[0-9A-Za-z_-]{11}$/;
 
 	const YOUTUBE_ORIGINS = ['https://www.youtube-nocookie.com', 'https://www.youtube.com'];
 	const YOUTUBE_STATE_UNSTARTED = -1;
@@ -81,8 +81,8 @@
 		ononcechange?: (once: boolean) => void;
 		onmutechange?: (mute: boolean) => void;
 		onspeedchange?: (speed: number) => void;
-		onstartchange?: (start: number) => void;
-		onendchange?: (end: number) => void;
+		onstartchange?: (start: number | undefined) => void;
+		onendchange?: (end: number | undefined) => void;
 		requestedBounds: Pick<ShareUrlState, 'start' | 'end'>;
 		onboundsresolved?: (valid: boolean) => void;
 		theater?: boolean;
@@ -90,7 +90,10 @@
 		ontheater?: () => void;
 		onfillchange?: (fill: boolean) => void;
 		onorientationchange?: (orientation: 'landscape' | 'portrait') => void;
-		onsourcechange?: (videoId: string) => void;
+		onsourcechange?: (videoId: string, clip?: ShareUrlState) => void;
+		ondurationresolved?: (duration: number | undefined) => void;
+		timestampPolicy?: TimestampPolicy;
+		onpolicychange?: (policy: TimestampPolicy) => void;
 	}
 
 	let {
@@ -118,7 +121,10 @@
 		ontheater,
 		onfillchange,
 		onorientationchange,
-		onsourcechange
+		onsourcechange,
+		ondurationresolved,
+		timestampPolicy = 'preserve',
+		onpolicychange
 	}: Props = $props();
 
 	if (youtubeId === null) {
@@ -147,8 +153,6 @@
 	let muted = $state(false);
 	let loop = $derived(!once);
 	let playbackRate = $state(100);
-
-	let youtubeIdResultMessage = $state('');
 
 	let percentA = $derived(`${duration === undefined ? 0 : (repeatA / duration) * 100}%`);
 	let percentB = $derived(`${100 - (duration === undefined ? 0 : (repeatB / duration) * 100)}%`);
@@ -439,12 +443,31 @@
 	});
 
 	function readVideoTitle() {
-		if (!minimal) return;
 		const engine = player?.engine as
-			{ getVideoData?: () => { title?: string } | undefined; videoTitle?: string } | undefined;
-		const title = engine?.getVideoData?.()?.title || engine?.videoTitle;
-		if (typeof title === 'string') videoTitle = title;
+			| {
+					getVideoData?: () => { title?: string; video_id?: string } | undefined;
+					videoTitle?: string;
+			  }
+			| undefined;
+		const data = engine?.getVideoData?.();
+		if (data?.video_id && data.video_id !== youtubeId) return;
+		const title = data?.title || engine?.videoTitle;
+		if (typeof title === 'string' && title.trim()) {
+			videoTitle = title;
+			titleUnavailable = false;
+		}
 	}
+
+	$effect(() => {
+		if (!player || !metadataReceived || videoTitle) return;
+		let attempts = 0;
+		// Paused/cued sources can receive their title after the last media event.
+		const timer = setInterval(() => {
+			readVideoTitle();
+			if (++attempts >= 10) titleUnavailable = true;
+		}, 500);
+		return () => clearInterval(timer);
+	});
 
 	function seek(time: number, stayPaused = minimal ? requestedPaused : player.paused) {
 		pauseAfterSeek = stayPaused;
@@ -459,6 +482,7 @@
 		const nextDuration = player.engine?.getDuration() ?? player.duration;
 		if (!Number.isFinite(nextDuration) || nextDuration <= 0) return;
 		duration = nextDuration;
+		ondurationresolved?.(duration);
 		if (!validateBounds()) return;
 		if (minimal) playbackScope = scopeChoice.choose(nextDuration, repeatA, repeatB);
 		if (player.currentTime < activeBounds.start || player.currentTime > activeBounds.end) {
@@ -471,6 +495,10 @@
 		const bounds = resolveClipRange(requestedBounds, duration);
 		onboundsresolved?.(bounds.ok);
 		if (!bounds.ok) {
+			const resolve = (value: number) =>
+				Math.max(0, Math.min(duration!, value < 0 ? subtractSeconds(duration!, -value) : value));
+			repeatA = resolve(requestedBounds.start ?? 0);
+			repeatB = requestedBounds.end === undefined ? duration : resolve(requestedBounds.end);
 			boundsError = 'Invalid clip: the resolved end must be after the start within this video.';
 			pause();
 			return false;
@@ -526,7 +554,7 @@
 		initialFramePending = true;
 		bootstrapMuted = true;
 		player.muted = true;
-		player.playbackRate = playbackRate / 100;
+		if (player) player.playbackRate = playbackRate / 100;
 		// YouTube needs playback to render a sought frame. Pause once that frame is ready.
 		// An out-of-duration A cannot render a first frame. Bootstrap inside the
 		// provider first; settled duration then clamps the requested range.
@@ -666,7 +694,7 @@
 	function toggleMute() {
 		muted = !muted;
 		onmutechange?.(muted);
-		player.muted = bootstrapMuted || muted;
+		if (player) player.muted = bootstrapMuted || muted;
 	}
 
 	function toggleLoop() {
@@ -674,22 +702,16 @@
 		ononcechange?.(!loop);
 	}
 
-	function setRepeatA() {
-		repeatA = currentTime;
-		onstartchange?.(repeatA);
-		if (repeatA > repeatB) {
-			repeatB = repeatA;
-			onendchange?.(repeatB);
+	function setAtPlayhead(endpoint: 'start' | 'end') {
+		const value = subSeconds ? currentTime : Math.round(currentTime);
+		const next = { ...requestedBounds, [endpoint]: value };
+		if (duration === undefined || value > duration || !resolveClipRange(next, duration).ok) {
+			boundEditError = 'Choose a playhead position with End after Start.';
+			return;
 		}
-	}
-
-	function setRepeatB() {
-		repeatB = currentTime;
-		onendchange?.(repeatB);
-		if (repeatB < repeatA) {
-			repeatA = repeatB;
-			onstartchange?.(repeatA);
-		}
+		boundEditError = '';
+		if (endpoint === 'start') onstartchange?.(value);
+		else onendchange?.(value);
 	}
 
 	function makeTogglePlaybackRate(rate?: number) {
@@ -697,16 +719,14 @@
 			return function () {
 				playbackRate = rate;
 				onspeedchange?.(playbackRate / 100);
-				player.playbackRate = playbackRate / 100;
+				if (player) player.playbackRate = playbackRate / 100;
 			};
 		} else {
 			return function () {
-				playbackRate /= 2;
-				if (playbackRate < 25) {
-					playbackRate = 200;
-				}
+				const choices = [200, 100, 50, 25];
+				playbackRate = choices[(choices.indexOf(playbackRate) + 1) % choices.length];
 				onspeedchange?.(playbackRate / 100);
-				player.playbackRate = playbackRate / 100;
+				if (player) player.playbackRate = playbackRate / 100;
 			};
 		}
 	}
@@ -771,34 +791,10 @@
 		else handleInputRepeatB(event);
 	}
 
-	async function pasteYoutubeId() {
-		let clipboardText: string;
-		try {
-			clipboardText = await navigator.clipboard.readText();
-		} catch (error) {
-			youtubeIdResultMessage = `Clipboard unavailable: ${String(error)}`;
-			return;
-		}
-
-		clipboardText = clipboardText.trim();
-		const matchesUrl = clipboardText.match(YOUTUBE_URL_ID_REGEX);
-		const matchesId = clipboardText.match(YOUTUBE_ID_REGEX);
-
-		if (matchesUrl?.[1] && YOUTUBE_ID_REGEX.test(matchesUrl[1])) {
-			youtubeId = matchesUrl[1];
-			youtubeIdResultMessage = `Found from URL: ${youtubeId}`;
-		} else if (matchesId?.[0]) {
-			youtubeId = matchesId[0];
-			youtubeIdResultMessage = `Found ID: ${youtubeId}`;
-		} else {
-			youtubeIdResultMessage = `No matches in "${clipboardText}"`;
-			return;
-		}
-
-		onsourcechange?.(youtubeId);
-		repeatA = 0;
-		repeatB = 99999;
-		sourceVersion += 1;
+	function applySource(source: EditorSource) {
+		const changed = source.videoId !== youtubeId;
+		onsourcechange?.(source.videoId, source.clip);
+		if (changed || !source.clip) sourceVersion += 1;
 	}
 
 	function resetSource() {
@@ -809,6 +805,7 @@
 		firstFrameReady = false;
 		bootstrapMuted = false;
 		duration = undefined;
+		ondurationresolved?.(undefined);
 		currentTime = repeatA;
 		paused = true;
 		requestedPaused = true;
@@ -817,6 +814,8 @@
 		playerError = '';
 		boundsError = '';
 		videoTitle = '';
+		titleUnavailable = false;
+		boundEditError = '';
 		pauseAfterSeek = false;
 		initialFramePending = false;
 		retrySeekTime = undefined;
@@ -1036,7 +1035,7 @@
 		<div class="editor-transport">
 			<div class="timestamps">
 				<div>{formatVideoTime(currentTime)} / {formatVideoTime(duration)}</div>
-				<div>{formatVideoTime(repeatA)}A - {formatVideoTime(repeatB)}B</div>
+				<div>{editorTime(repeatA, subSeconds)}A - {editorTime(repeatB, subSeconds)}B</div>
 			</div>
 
 			<div class="wrap-sliders">
@@ -1084,24 +1083,63 @@
 				{/if}
 			</div>
 
-			<div class="preview-actions">
-				<div class="preview-playback" inert={!metadataReceived}>
-					<div class="nc-join" role="group">
-						{#key paused}
-							<button aria-label={paused ? 'Play' : 'Pause'} onclick={togglePaused}>
-								{#if paused}
-									<IcRoundPlayArrow />
-								{:else}
-									<IcRoundPause />
-								{/if}
-							</button>
-						{/key}
-
-						<button aria-label="Previous frame" onclick={makeStepFrame(-1)}
-							><IcRoundSkipPrevious /></button
+			<div class="preview-actions" inert={!metadataReceived}>
+				<div class="preview-playback nc-join" role="group" aria-label="Player transport">
+					<button
+						class="transport-play"
+						aria-label={paused ? 'Play' : 'Pause'}
+						onclick={togglePaused}
+						disabled={!!boundsError}
+					>
+						{#if paused}<IcRoundPlayArrow />{:else}<IcRoundPause />{/if}<span class="play-label"
+							>{paused ? 'Play' : 'Pause'}</span
 						>
-						<button aria-label="Next frame" onclick={makeStepFrame(1)}><IcRoundSkipNext /></button>
-					</div>
+					</button>
+					<button
+						class="transport-frame"
+						aria-label="Previous frame"
+						data-tooltip="Previous frame"
+						onclick={makeStepFrame(-1)}
+						disabled={!!boundsError}
+						><IcRoundSkipPrevious /><span class="frame-label">Previous frame</span></button
+					>
+					<button
+						class="transport-frame"
+						aria-label="Next frame"
+						data-tooltip="Next frame"
+						onclick={makeStepFrame(1)}
+						disabled={!!boundsError}
+						><IcRoundSkipNext /><span class="frame-label">Next frame</span></button
+					>
+					<button
+						class="transport-speed"
+						aria-label={`Cycle playback speed, current ${playbackRate / 100}x`}
+						data-tooltip="Cycle playback speed"
+						onclick={makeTogglePlaybackRate()}
+						><IcRoundSpeed /><span class="secondary-label">Speed</span><span class="speed-value"
+							>{playbackRate / 100}x</span
+						></button
+					>
+					<button
+						class="transport-sound"
+						aria-label={muted ? 'Sound off, turn on' : 'Sound on, turn off'}
+						aria-pressed={!muted}
+						data-tooltip={muted ? 'Turn sound on' : 'Turn sound off'}
+						onclick={toggleMute}
+						>{#if muted}<IcRoundVolumeOff />{:else}<IcRoundVolumeUp />{/if}<span
+							class="secondary-label">Sound</span
+						></button
+					>
+					<button
+						class="transport-loop"
+						aria-label={loop ? 'Loop, switch to Once' : 'Once, switch to Loop'}
+						aria-pressed={loop}
+						data-tooltip={loop ? 'Switch to Once' : 'Switch to Loop'}
+						onclick={toggleLoop}
+						>{#if loop}<FluentArrowRepeat />{:else}<FluentArrowRepeatOff />{/if}<span
+							class="secondary-label">Loop</span
+						></button
+					>
 				</div>
 			</div>
 		</div>
@@ -1109,153 +1147,143 @@
 {/snippet}
 
 {#snippet settings(layoutReset: Snippet)}
-	{#if !minimal && playerError}<p role="alert">{playerError}</p>{/if}
-
-	{#if !minimal}
-		<center>
-			<div class="controls" inert={!metadataReceived}>
-				<div class="bound-actions" role="group" aria-label="Set clip bounds at current playhead">
-					<div class="bound-action">
-						<button
-							class="a-button"
-							aria-label="A Start"
-							aria-describedby="start-action-description"
-							onclick={setRepeatA}>A Start</button
-						>
-						<div class="bound-description" id="start-action-description">
-							Set start to playhead
-							<output aria-label="Start bound" aria-live="polite">{repeatA} s</output>
-						</div>
-					</div>
-					<div class="bound-action">
-						<button
-							class="b-button"
-							aria-label="B End"
-							aria-describedby="end-action-description"
-							onclick={setRepeatB}>B End</button
-						>
-						<div class="bound-description" id="end-action-description">
-							Set end to playhead
-							<output aria-label="End bound" aria-live="polite">{repeatB} s</output>
-						</div>
-					</div>
-				</div>
-
-				<div class="nc-join" role="group">
-					{#key loop}
-						<button
-							aria-label="Loop"
-							aria-pressed={loop}
-							title="Loop repeats the clip; Once stops at the end"
-							onclick={toggleLoop}
-						>
-							{#if loop}
-								<FluentArrowRepeat /><span class="control-label">Loop</span>
-							{:else}
-								<FluentArrowRepeatOff /><span class="control-label">Once</span>
-							{/if}
-						</button>
-					{/key}
-				</div>
-
-				<div class="nc-join" role="group">
-					{#key muted}
-						<button aria-label="Mute" aria-pressed={muted} onclick={toggleMute}>
-							{#if muted}
-								<IcRoundVolumeOff /><span class="control-label">Muted</span>
-							{:else}
-								<IcRoundVolumeUp /><span class="control-label">Sound on</span>
-							{/if}
-						</button>
-					{/key}
-				</div>
-
+	{#if playerError}<p role="alert">{playerError}</p>{/if}
+	<div class="controls">
+		<section aria-labelledby="clip-heading" class="settings-section">
+			<h2 id="clip-heading">Clip</h2>
+			<SourceEditor
+				videoId={youtubeId ?? ''}
+				title={videoTitle}
+				unavailable={titleUnavailable || !!playerError}
+				onapply={applySource}
+			/>
+			<BoundEditor
+				endpoint="start"
+				value={repeatA}
+				bounds={requestedBounds}
+				{duration}
+				precise={subSeconds}
+				onchange={(value) => {
+					boundEditError = '';
+					onstartchange?.(value);
+				}}
+				onset={() => setAtPlayhead('start')}
+			/>
+			<BoundEditor
+				endpoint="end"
+				value={repeatB}
+				bounds={requestedBounds}
+				{duration}
+				precise={subSeconds}
+				onchange={(value) => {
+					boundEditError = '';
+					onendchange?.(value);
+				}}
+				onset={() => setAtPlayhead('end')}
+			/>
+			{#if boundEditError}<p role="alert">{boundEditError}</p>{/if}
+			<label class="precision-choice"
+				><input type="checkbox" bind:checked={subSeconds} />Sub-second times</label
+			>
+			<label class="policy-row"
+				>URL timestamp format<select
+					aria-label="URL timestamp format"
+					value={timestampPolicy}
+					disabled={duration === undefined || !!boundsError}
+					onchange={(event) => onpolicychange?.(event.currentTarget.value as TimestampPolicy)}
+				>
+					<option value="preserve">As entered</option><option value="shortest">Shortest</option
+					><option value="from-start">Both from start</option><option value="mixed"
+						>Start + end</option
+					><option value="from-end">Both from end</option>
+				</select></label
+			>
+			<p class="policy-help">
+				Format keeps this clip, but changes how bounds follow a future video duration.
+			</p>
+			{@render editorActions?.()}
+		</section>
+		<section aria-labelledby="playback-heading" class="settings-section">
+			<h2 id="playback-heading">Playback</h2>
+			<div class="setting-row">
+				<span>Speed</span>
 				<div class="speed-buttons nc-join" role="group" aria-label="Playback speed">
-					<button
-						aria-label="Cycle playback speed"
-						title="Cycle playback speed"
-						onclick={makeTogglePlaybackRate()}><IcRoundSpeed /></button
-					>
-
-					<button
-						aria-label="2x speed"
-						aria-pressed={playbackRate === 200}
-						onclick={makeTogglePlaybackRate(200)}
-					>
-						<span class:active={playbackRate === 200}>2x</span>
-					</button>
-					<button
-						aria-label="1x speed"
-						aria-pressed={playbackRate === 100}
-						onclick={makeTogglePlaybackRate(100)}
-					>
-						<span class:active={playbackRate === 100}>1x</span>
-					</button>
-					<button
-						aria-label="0.5x speed"
-						aria-pressed={playbackRate === 50}
-						onclick={makeTogglePlaybackRate(50)}
-					>
-						<span class:active={playbackRate === 50}>0.5x</span>
-					</button>
-					<button
-						aria-label="0.25x speed"
-						aria-pressed={playbackRate === 25}
-						onclick={makeTogglePlaybackRate(25)}
-					>
-						<span class:active={playbackRate === 25}>0.25x</span>
-					</button>
-				</div>
-
-				<div class="nc-join" role="group" aria-label="Media orientation">
-					<button
-						aria-label="Landscape"
-						aria-pressed={orientation === 'landscape'}
-						onclick={() => {
-							orientation = 'landscape';
-							onorientationchange?.('landscape');
-						}}
-					>
-						<span class:active={orientation === 'landscape'}
-							><IcRoundCropLandscape /> Landscape</span
-						>
-					</button>
-					<button
-						aria-label="Portrait"
-						aria-pressed={orientation === 'portrait'}
-						onclick={() => {
-							orientation = 'portrait';
-							onorientationchange?.('portrait');
-						}}
-					>
-						<span class:active={orientation === 'portrait'}><IcRoundCropPortrait /> Portrait</span>
-					</button>
-				</div>
-				<div class="nc-join" role="group" aria-label="Video framing">
-					<button
-						aria-label="Crop to fill"
-						aria-pressed={fillFrame}
-						title="Zoom into the center to fill the frame (crops edges)"
-						onclick={() => onfillchange?.(!fillFrame)}
-					>
-						<span class:active={fillFrame}>Crop to fill</span>
-					</button>
+					{#each [200, 100, 50, 25] as rate (rate)}<button
+							aria-label={`${rate / 100}x speed`}
+							aria-pressed={playbackRate === rate}
+							onclick={makeTogglePlaybackRate(rate)}>{rate / 100}x</button
+						>{/each}
 				</div>
 			</div>
-			<p class="settings-help">
-				Loop repeats the clip. Once stops at the end. Orientation changes the frame; Crop to fill
-				zooms in and crops its edges.
-			</p>
-
-			<button class="outline paste-button" onclick={pasteYoutubeId}
-				>Load YouTube URL/ID from clipboard</button
-			>
-			<div>{youtubeIdResultMessage}</div>
-		</center>
-	{/if}
-
+			<div class="setting-row">
+				<span>Sound</span>
+				<div class="nc-join" role="group" aria-label="Sound">
+					<button
+						aria-label="Sound on"
+						aria-pressed={!muted}
+						onclick={() => {
+							if (muted) toggleMute();
+						}}>On</button
+					><button
+						aria-label="Sound off"
+						aria-pressed={muted}
+						onclick={() => {
+							if (!muted) toggleMute();
+						}}>Off</button
+					>
+				</div>
+			</div>
+			<div class="setting-row">
+				<span>Repeat</span>
+				<div class="nc-join" role="group" aria-label="Repeat mode">
+					<button
+						aria-label="Loop"
+						aria-pressed={loop}
+						onclick={() => {
+							if (!loop) toggleLoop();
+						}}>Loop</button
+					><button
+						aria-label="Once"
+						aria-pressed={!loop}
+						onclick={() => {
+							if (loop) toggleLoop();
+						}}>Once</button
+					>
+				</div>
+				<span class="setting-description">Repeat or stop at End</span>
+			</div>
+		</section>
+		<section aria-labelledby="framing-heading" class="settings-section">
+			<h2 id="framing-heading">Framing</h2>
+			<div class="setting-row">
+				<span>Orientation</span>
+				<div class="nc-join" role="group" aria-label="Media orientation">
+					{#each ['landscape', 'portrait'] as frame (frame)}<button
+							aria-label={frame === 'landscape' ? 'Landscape' : 'Portrait'}
+							aria-pressed={orientation === frame}
+							onclick={() => onorientationchange?.(frame as 'landscape' | 'portrait')}
+							>{frame === 'landscape' ? 'Landscape' : 'Portrait'}</button
+						>{/each}
+				</div>
+			</div>
+			<div class="setting-row">
+				<span>Crop to fill</span>
+				<div class="nc-join" role="group" aria-label="Crop to fill">
+					<button
+						aria-label="Crop to fill on"
+						aria-pressed={fillFrame}
+						onclick={() => onfillchange?.(true)}>On</button
+					><button
+						aria-label="Crop to fill off"
+						aria-pressed={!fillFrame}
+						onclick={() => onfillchange?.(false)}>Off</button
+					>
+				</div>
+				<span class="setting-description">Fill the frame, cropping edges</span>
+			</div>
+		</section>
+	</div>
 	{@render layoutReset()}
-	{@render editorActions?.()}
 {/snippet}
 
 {#if minimal}
@@ -1602,21 +1630,108 @@
 	.editor-transport .wrap-sliders {
 		margin-bottom: 0.5rem;
 	}
+	.editor-transport {
+		container: transport / inline-size;
+	}
 	.preview-actions {
 		display: flex;
-		flex-wrap: wrap;
 		align-items: center;
-		gap: 0.5rem;
 	}
-	.preview-playback .nc-join button {
-		width: 44px;
+	.preview-playback {
+		display: flex;
+		flex-wrap: nowrap;
+		width: max-content;
+	}
+	.preview-playback button {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		gap: 6px;
 		height: 44px;
-		padding: 0;
+		width: 44px;
+		min-width: 44px;
+		padding: 4px;
 		margin: 0;
 	}
 	.preview-playback :global(svg) {
-		width: 24px;
-		height: 24px;
+		width: 22px;
+		height: 22px;
+		flex-shrink: 0;
+	}
+	.preview-playback .transport-speed {
+		width: 82px;
+	}
+	.speed-value {
+		min-width: 5ch;
+		font-variant-numeric: tabular-nums;
+		text-align: center;
+	}
+	.play-label,
+	.frame-label,
+	.secondary-label {
+		display: none;
+	}
+	.preview-playback button[data-tooltip] {
+		position: relative;
+	}
+	.preview-playback button[data-tooltip]::after {
+		content: attr(data-tooltip);
+		position: absolute;
+		bottom: calc(100% + 6px);
+		left: 50%;
+		transform: translateX(-50%);
+		padding: 5px 8px;
+		border-radius: 5px;
+		font-size: 0.75rem;
+		white-space: nowrap;
+		background: #222;
+		color: white;
+		pointer-events: none;
+		opacity: 0;
+		z-index: 5;
+	}
+	.preview-playback button[data-tooltip]:hover::after,
+	.preview-playback button[data-tooltip]:focus-visible::after {
+		opacity: 1;
+	}
+	@container transport (max-width: 320px) {
+		.preview-playback .transport-loop {
+			display: none;
+		}
+		.transport-speed :global(svg) {
+			display: none;
+		}
+		.preview-playback .transport-speed {
+			width: 72px;
+		}
+	}
+	@container transport (min-width: 400px) {
+		.play-label {
+			display: inline;
+		}
+		.preview-playback .transport-play {
+			width: 90px;
+		}
+	}
+	@container transport (min-width: 560px) {
+		.secondary-label {
+			display: inline;
+		}
+		.preview-playback .transport-speed {
+			width: 145px;
+		}
+		.preview-playback .transport-sound,
+		.preview-playback .transport-loop {
+			width: 95px;
+		}
+	}
+	@container transport (min-width: 780px) {
+		.frame-label {
+			display: inline;
+		}
+		.preview-playback .transport-frame {
+			width: 145px;
+		}
 	}
 	.preview-corners {
 		position: absolute;
@@ -1633,7 +1748,7 @@
 		min-width: 0;
 		color: white;
 		font-weight: 700;
-		font-size: 0.85rem;
+		font-size: 1rem;
 	}
 	.preview-brand img {
 		height: 1.25em;
@@ -1655,80 +1770,88 @@
 		outline: 2px solid white;
 		outline-offset: 2px;
 	}
-	.bound-actions {
+	.controls {
 		display: grid;
-		grid-template-columns: 1fr 1fr;
-		gap: 8px;
-		width: 100%;
+		gap: 12px;
 		text-align: left;
 	}
-	.bound-action {
+	.settings-section {
+		min-width: 0;
+		padding-bottom: 12px;
+		border-bottom: 1px solid var(--nc-border);
+	}
+	.settings-section h2 {
+		font-size: 1rem;
+		margin: 0 0 8px;
+	}
+	.setting-row {
 		display: flex;
 		align-items: center;
 		gap: 8px;
-		min-width: 0;
+		min-height: 44px;
+		margin-block: 4px;
 	}
-	.bound-action button {
-		background: $zinc-550;
+	.setting-row > span:first-child {
+		width: 85px;
 		flex-shrink: 0;
-		min-height: 44px;
-		margin: 0;
-		padding: 8px;
 		font-size: 0.85rem;
-		font-weight: 600;
 	}
-	.bound-action .a-button {
-		color: $azure-250;
-	}
-	.bound-action .b-button {
-		color: $indigo-300;
-	}
-	.bound-description {
-		min-width: 0;
+	.setting-description {
 		font-size: 0.8rem;
-		line-height: 1.3;
+		opacity: 0.7;
 	}
-	.bound-description output {
-		display: block;
-		font-variant-numeric: tabular-nums;
-	}
-	.settings-help {
-		font-size: 0.85rem;
-		text-align: left;
-	}
-	.controls .nc-join button {
-		min-height: 44px;
-		min-width: 44px;
-		padding: 10px;
-	}
-	.controls .nc-join .control-label {
-		opacity: 1;
-		margin-left: 6px;
-	}
-	.controls button:focus-visible {
-		outline: 2px solid #01aaff;
-		outline-offset: 2px;
-	}
-	@container clip-settings (max-width: 380px) {
-		.bound-actions {
-			grid-template-columns: 1fr;
-		}
-		.speed-buttons {
-			display: flex;
-			flex-wrap: wrap;
-			justify-content: center;
-		}
-	}
-
-	.controls {
+	.precision-choice {
 		display: flex;
-		flex-wrap: wrap;
-		justify-content: center;
-
-		gap: 5px;
-		margin-bottom: 0.25em;
+		align-items: center;
+		gap: 8px;
+		min-height: 44px;
+		font-size: 0.85rem;
+		margin: 4px 0;
 	}
-
+	.precision-choice input {
+		margin: 0;
+	}
+	.policy-row {
+		display: flex;
+		align-items: center;
+		flex-wrap: wrap;
+		gap: 6px;
+		font-size: 0.8rem;
+	}
+	.policy-row select {
+		display: inline-flex;
+		align-items: center;
+		justify-content: space-between;
+		height: 44px;
+		flex: 1;
+		min-width: 150px;
+		width: auto;
+		margin: 0;
+		min-height: 44px;
+		padding: 6px;
+	}
+	.policy-help {
+		font-size: 0.75rem;
+		opacity: 0.7;
+		margin: 6px 0;
+	}
+	@container clip-settings (max-width: 500px) {
+		.setting-description {
+			display: none;
+		}
+	}
+	@container clip-settings (max-width: 340px) {
+		.setting-row {
+			gap: 4px;
+		}
+		.setting-row > span:first-child {
+			width: 48px;
+		}
+		.setting-row .nc-join button {
+			padding-inline: 4px;
+			font-size: 0.75rem;
+		}
+	}
 	.timestamps {
 		display: flex;
 		justify-content: space-between;
@@ -1903,55 +2026,30 @@
 		}
 	}
 
-	div .nc-join {
+	.nc-join {
 		width: auto;
 		border-radius: var(--nc-radius);
-		overflow: hidden;
-
 		button {
-			padding-inline: 18px;
-			padding-block: 16px;
+			min-height: 44px;
+			min-width: 44px;
+			padding: 6px 10px;
 			margin: 0;
-			background-color: $zinc-550;
+			background: $zinc-550;
 			color: white;
-			border: none;
+			border: 1px solid transparent;
 			border-radius: 0;
-
-			&:hover {
-				background-color: $zinc-600;
-			}
-
-			:global(svg) {
-				vertical-align: -0.23em;
-			}
-
-			span {
-				opacity: 40%;
-			}
-
-			:global(.active) {
-				opacity: 100% !important;
-			}
+			font-size: 0.85rem;
 		}
-
-		&.speed-buttons {
-			button:not(:first-child) {
-				span {
-					font-weight: 900;
-				}
-			}
+		button:hover {
+			background: $zinc-600;
 		}
-	}
-
-	// Paste button — neutral outline (matching Pico's secondary outline look)
-	.paste-button {
-		color: var(--nc-text);
-		border-color: var(--nc-border);
-
-		&:hover {
-			background-color: var(--nc-surface-2);
-			color: var(--nc-text);
-			border-color: var(--nc-text);
+		button[aria-pressed='true'] {
+			background: #454b55;
+			border-color: #ababab;
+		}
+		button:focus-visible {
+			outline: 2px solid #79c0ff;
+			outline-offset: -2px;
 		}
 	}
 </style>

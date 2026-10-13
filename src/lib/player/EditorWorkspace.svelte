@@ -175,11 +175,12 @@
 	<div class="workspace-layout" role="group" aria-label="Workspace layout">
 		<button
 			aria-label={layoutAction}
-			title={layoutAction}
+			data-tooltip={width < 660 ? 'Side by side requires at least 660px' : layoutAction}
 			aria-describedby={width < 660 ? 'layout-unavailable' : undefined}
-			disabled={width < 660}
-			onclick={() => choose(layout === 'columns' ? 'rows' : 'columns')}
-			><IcRoundViewAgenda class={layout === 'rows' ? 'columns-icon' : undefined} /></button
+			aria-disabled={width < 660}
+			onclick={() => {
+				if (width >= 660) choose(layout === 'columns' ? 'rows' : 'columns');
+			}}><IcRoundViewAgenda class={layout === 'rows' ? 'columns-icon' : undefined} /></button
 		>
 	</div>
 {/snippet}
@@ -317,6 +318,7 @@
 		overscroll-behavior-y: none;
 	}
 	.workspace-layout {
+		position: relative;
 		display: flex;
 		gap: 0.4rem;
 		flex-shrink: 0;
@@ -331,11 +333,39 @@
 		margin: 0;
 		border: 0;
 		border-radius: 6px;
-		background: rgb(60 60 60 / 80%);
+		background: transparent;
 		color: white;
 	}
-	.workspace-layout button:hover:not(:disabled) {
+	.workspace-layout button::before {
+		content: '';
+		position: absolute;
+		inset: 4px;
+		border-radius: 6px;
+		background: rgb(60 60 60 / 80%);
+		z-index: -1;
+	}
+	.workspace-layout button:hover::before {
 		background: rgb(90 90 90 / 90%);
+	}
+	.workspace-layout button::after {
+		content: attr(data-tooltip);
+		position: absolute;
+		left: 0;
+		top: calc(100% + 4px);
+		width: max-content;
+		max-width: min(260px, calc(100vw - 32px));
+		padding: 6px 8px;
+		border-radius: 6px;
+		background: #222;
+		color: white;
+		font-size: 0.8rem;
+		text-align: left;
+		pointer-events: none;
+		opacity: 0;
+	}
+	.workspace-layout button:hover::after,
+	.workspace-layout button:focus::after {
+		opacity: 1;
 	}
 	.workspace-layout button:focus-visible {
 		outline: 2px solid white;
@@ -348,7 +378,7 @@
 	.workspace-layout :global(.columns-icon) {
 		transform: rotate(90deg);
 	}
-	.workspace-layout button:disabled {
+	.workspace-layout button[aria-disabled='true'] {
 		opacity: 0.5;
 	}
 	.layout-reset {
