@@ -26,6 +26,8 @@ test('source parser supports plain sources and imports YouLoop range/options wit
 	const videoId = 'Dxvrvfyicp0';
 	for (const text of [
 		videoId,
+		`youtu.be/${videoId}`,
+		`www.youtube.com/watch?v=${videoId}`,
 		`https://youtu.be/${videoId}?t=10`,
 		`https://www.youtube.com/watch?v=${videoId}`,
 		`https://m.youtube.com/shorts/${videoId}`,

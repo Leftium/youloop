@@ -9,7 +9,10 @@ export function parseEditorSource(text: string): EditorSource | undefined {
 	if (idPattern.test(input)) return { videoId: input };
 	let url: URL;
 	try {
-		url = new URL(input, 'https://youloop.invalid');
+		const address = /^(?:(?:www|m)\.)?(?:youtube\.com|youtu\.be)\//i.test(input)
+			? `https://${input}`
+			: input;
+		url = new URL(address, 'https://youloop.invalid');
 	} catch {
 		return undefined;
 	}
