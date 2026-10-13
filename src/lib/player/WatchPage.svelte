@@ -14,6 +14,7 @@
 	let runway: HTMLDivElement;
 	let snapEnabled = $state(false);
 	let viewportHeight = $state(0);
+	let runwayHeight = $state<number>();
 	let snapPointCount = $derived(
 		snapEnabled ? Math.floor(((runwayHeight ?? 0) + viewportHeight) / SNAP_SPACING_PX) + 1 : 0
 	);
@@ -23,7 +24,6 @@
 		// This advances the native document, but Safari owns browser-chrome collapse.
 		window.scrollBy({ top: Math.max(80, window.innerHeight / 3), behavior: 'smooth' });
 	}
-	let runwayHeight = $state<number>();
 
 	onMount(() => {
 		const query = window.matchMedia(
