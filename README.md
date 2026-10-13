@@ -350,48 +350,55 @@ faded controls, which may then fade again after inactivity. Theater hides our
 title, controls, and timeline. Fullscreen is independent of those modes. Safari owns toolbar collapse;
 the Theater button only advances the native document scroll.
 
-### Watch runway experiment (#34)
+### Watch runway and mobile scrolling (#34)
 
-Production keeps the `2000svh` initial runway, nine-viewport extension threshold,
-and 25-viewport growth. The runway is one empty element; its height does not
-create snap nodes. Theater still responds after 32px of cumulative travel in
-one direction. A direction reversal starts a new accumulation.
+Watch mode uses **the same 20px native document-scroll snap spacing as the editor**
+on coarse-pointer mobile layouts (viewport width <=900px or height <=500px).
+This shortens momentum coasting while preserving real document scrolling and
+Safari's native browser-toolbar behavior. The watch route's 32px accumulated
+up/down scroll threshold still selects Theater/Default, independent of snap steps.
+Desktop/fine-pointer watch scrolling does not snap.
 
-Local development accepts `watchRunway=small`, `balanced`, or `coarse` on a watch
-URL, for example `/dt-SqNL4z3w/31~38?mute&watchRunway=balanced`. Each trial starts
-with four current viewports and grows when fewer than one remains. Production
-ignores these parameters. Clip URL normalization removes the parameter after
-mount; reappend it when opening a fresh trial. Shared links retain only clip state.
-SSR still renders the baseline height; development trials apply after mount.
+The watch runway begins at **four current viewport heights** after mount (SSR
+uses `400svh` before hydration), grows by 25 viewports when fewer than one
+viewport remains, and freezes prior height so rotating the device does not
+shrink the available scroll room. The previous baseline was 20 initial
+viewports, a nine-viewport extension trigger, and 25-viewport growth.
+The 20px step size is **not** the total runway size: shorter scroll budgets and
+small momentum steps serve different purposes. Snap markers are invisible,
+noninteractive elements and are added as the scroll budget grows.
 
-The browser suite measures native document scrolling in half-viewport steps
-through 100 viewports, at 1280x800, 390x844, and 844x390. Heights below are runway
-budgets; the document also includes the one-viewport sticky stage.
+The [#34](https://github.com/Leftium/youloop/issues/34) comparison measured
+the following budgets over 100 viewports of scripted scrolling in Chromium
+and WebKit **before the production snapping change**:
 
-| Profile             | Initial viewports | Trigger | Growth | Extensions over 100 viewports | Final viewports |
-| ------------------- | ----------------: | ------: | -----: | ----------------------------: | --------------: |
-| Production baseline |                20 |       9 |     25 |                             4 |             120 |
-| Small               |                 4 |       1 |      8 |                            13 |             108 |
-| Balanced            |                 4 |       1 |     25 |                             4 |             104 |
-| Coarse              |                 4 |       1 |     50 |                             2 |             104 |
+| Profile             | Initial viewports | Extension trigger | Growth | Extensions | Final viewports |
+| ------------------- | ----------------: | ----------------: | -----: | ---------: | --------------: |
+| Former baseline     |                20 |                 9 |     25 |          4 |             120 |
+| New balanced default|                 4 |                 1 |     25 |          4 |             104 |
+| Small trial         |                 4 |                 1 |      8 |         13 |             108 |
+| Coarse trial        |                 4 |                 1 |     50 |          2 |             104 |
 
-Reducing the initial budget by 80% saves scroll extent, but smaller growth
-causes more extensions. Coarse growth halves extension count on this path; its
-50-viewport allocations can leave more unused space on shorter paths. These
-measurements establish scroll budgets and counts, not a CPU or memory saving.
-No watch snap markers were added: the editor's 20px spacing addresses a separate,
-physically observed momentum problem and would add thousands of nodes to this
-runway. It does not establish that 20px of total scrolling is sufficient.
+The initial runway budget is 80% smaller; this is not evidence of an 80% CPU,
+memory, or network improvement. Large CSS heights were just one empty element;
+mobile snapping now adds DOM markers at 20px intervals. The initial set is
+smaller than with the old runway, but markers grow with continued scrolling.
 
-Run `pnpm exec playwright test tests/browser/watch-runway.spec.ts` to reproduce
-the measurements and inspect its JSON attachments. The suite also covers Theater
-direction, wheel input, the Theater button, orientation/viewport changes,
-provider/iframe identity, centered `16000px` framing, and route Back/Forward.
-Chromium additionally injects native touch swipes in a coarse-pointer context.
-WebKit automation and touch emulation cannot establish Safari toolbar collapse.
-Physical iPhone Safari portrait/landscape and Android Chrome checks remain
-manual work before selecting any reduced production default. See
-[#34](https://github.com/Leftium/youloop/issues/34) for experiment acceptance.
+In **local development only**, `watchRunway=legacy|small|coarse` selects the
+former baseline or alternative extension sizes for comparison; no parameter
+selects the balanced default, including on Vercel preview and production.
+Example: `/dt-SqNL4z3w/31~38?mute&watchRunway=legacy`. Production ignores
+trial parameters and always uses the short runway with mobile snapping.
+The route's URL normalization may strip `watchRunway` after mount; reappend it
+when starting a new local comparison. Shared URLs never include it.
+
+Run `pnpm exec playwright test tests/browser/watch-runway.spec.ts` for runway,
+direction, native touch, snap, resize, media identity, and history coverage.
+The maintainer confirmed **Safari toolbar collapse** on a physical iPhone in
+the earlier editor and watch implementations. The combined smaller-runway/snap
+change is easy to revert if a mobile browser regression appears; it still
+merits a quick physical Safari check when convenient, but an exhaustive
+manual-device matrix is not a prerequisite for the change.
 
 The time button at the left of the control row switches between VIDEO and A:B
 without seeking or changing playback or the share URL. The blue `A:B` label
