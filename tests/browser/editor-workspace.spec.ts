@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import { parsePlayerUrl, serializeEditorUrl } from '../../src/lib/share-url';
 
 const id = 'dt-SqNL4z3w';
 const storageKey = 'youloop.editor-workspace';
@@ -26,6 +27,11 @@ async function openEditor(page: Page, path = `/?v=${id}&t=5-50&mute&speed=1.5&fi
 		};
 		return media?.duration > 0 && media.paused && media.shadowRoot?.querySelector('iframe');
 	});
+	// The provider's first pause precedes settled duration and canonical sharing.
+	await expect(page.getByRole('button', { name: 'Copy Link', exact: true })).toBeEnabled();
+	const parsed = parsePlayerUrl(new URL(path, page.url()));
+	if (parsed.ok)
+		await expect(page).toHaveURL(new URL(serializeEditorUrl(parsed.value), page.url()).href);
 	await page.evaluate(() => {
 		const media = document.querySelector('youtube-video') as HTMLElement & { engine: unknown };
 		Object.assign(window, {
@@ -255,7 +261,7 @@ for (const viewport of [
 		for (const orientation of ['Portrait', 'Landscape']) {
 			await page.getByRole('button', { name: orientation, exact: true }).click();
 			for (let i = 0; i < 2; i++) {
-				await page.getByRole('button', { name: 'Crop to fill' }).click();
+				await page.getByRole('button', { name: 'Crop to fill on', exact: true }).click();
 				await geometry(page);
 				await identity(page);
 			}
@@ -418,7 +424,7 @@ for (const viewport of [
 					return (
 						box.width >= 44 &&
 						box.height >= 44 &&
-						button.getAttribute('title') &&
+						button.getAttribute('data-tooltip') &&
 						button.getAttribute('aria-label')
 					);
 				})
@@ -427,7 +433,7 @@ for (const viewport of [
 		if (viewport.width < 660) {
 			const side = group.getByRole('button', { name: 'Switch to side-by-side layout' });
 			await expect(side).toBeDisabled();
-			await expect(side).toHaveAttribute('title', 'Switch to side-by-side layout');
+			await expect(side).toHaveAttribute('data-tooltip', 'Side by side requires at least 660px');
 			await expect(page.locator('#layout-unavailable')).toContainText('at least 660px');
 		}
 		await expect(preview.locator('.preview-brand')).toContainText('YouLoop');
@@ -1008,71 +1014,36 @@ test('layout stays in the upper-left over picture without reserving height throu
 	}
 });
 
-test('named bound actions edit fractional playhead bounds and preserve Once and provider identity', async ({
+test('named bound actions respect precision, retain Once, and share direct speed state', async ({
 	page
 }) => {
 	await page.setViewportSize({ width: 1280, height: 800 });
 	await openEditor(page);
-	await page.getByRole('button', { name: 'Loop', exact: true }).click();
+	await page.getByRole('button', { name: 'Once', exact: true }).click();
+	await page.getByRole('checkbox', { name: 'Sub-second times' }).check();
 	await page.getByRole('slider', { name: 'Current time', exact: true }).fill('12.5');
-	await page.getByRole('button', { name: 'A Start', exact: true }).press('Enter');
+	await page.getByRole('button', { name: 'Set start at playhead' }).press('Enter');
 	await expect(page.getByRole('slider', { name: 'Repeat start', exact: true })).toHaveValue('12.5');
-	await expect(page.getByRole('status', { name: 'Start bound' })).toHaveText('12.5 s');
+	await expect(page.getByRole('button', { name: 'Edit start from start', exact: true })).toHaveText(
+		'0:12.5'
+	);
 	await expect(page).toHaveURL(/t=12\.5~50.*once/);
 	await page.getByRole('slider', { name: 'Current time', exact: true }).fill('30.5');
-	await page.getByRole('button', { name: 'B End', exact: true }).click();
+	await page.getByRole('button', { name: 'Set end at playhead' }).click();
 	await expect(page.getByRole('slider', { name: 'Repeat end', exact: true })).toHaveValue('30.5');
-	await expect(page.getByRole('status', { name: 'End bound' })).toHaveText('30.5 s');
 	await page.getByRole('slider', { name: 'Repeat start', exact: true }).fill('15.25');
-	await expect(page.getByRole('status', { name: 'Start bound' })).toHaveText('15.25 s');
-	await expect(page.locator('.bound-feedback')).toHaveCount(0);
+	await expect(page.getByRole('button', { name: 'Edit start from start', exact: true })).toHaveText(
+		'0:15.25'
+	);
 	await expect(page).toHaveURL(/t=15\.25~30\.5.*once/);
-	await expect(page.getByRole('button', { name: 'Loop', exact: true })).toContainText('Once');
-	await identity(page);
-	const description = page.locator('.bound-description').first();
-	await expect(description).toBeVisible();
+	await expect(page.getByRole('button', { name: 'Once', exact: true })).toHaveAttribute(
+		'aria-pressed',
+		'true'
+	);
 	await divider(page).press('End');
-	await expect(description).toBeVisible();
 	await geometry(page);
-	await expect(page.getByRole('button', { name: 'A Start', exact: true })).toBeVisible();
 	await identity(page);
-	const open = page.getByRole('link', { name: 'Open video', exact: true });
-	expect(
-		await open.evaluate((el) => {
-			const css = getComputedStyle(el);
-			return (
-				el.tagName === 'A' &&
-				el.getBoundingClientRect().height >= 44 &&
-				css.backgroundColor !== 'rgba(0, 0, 0, 0)' &&
-				parseFloat(css.borderRadius) > 0
-			);
-		})
-	).toBe(true);
-	const chrome = (el: Element) => {
-		const css = getComputedStyle(el);
-		return Object.fromEntries(
-			[
-				'paddingTop',
-				'paddingBottom',
-				'paddingLeft',
-				'paddingRight',
-				'fontSize',
-				'lineHeight',
-				'backgroundColor',
-				'borderRadius',
-				'borderWidth'
-			].map((key) => [key, css[key as keyof CSSStyleDeclaration]])
-		);
-	};
-	expect(await open.evaluate(chrome)).toEqual(
-		await page.getByRole('button', { name: 'Copy Link', exact: true }).evaluate(chrome)
-	);
-	expect((await open.boundingBox())!.height).toBe(
-		(await page.getByRole('button', { name: 'Copy Link', exact: true }).boundingBox())!.height
-	);
-	const cycle = page.getByRole('button', { name: 'Cycle playback speed', exact: true });
-	await expect(cycle).toHaveAttribute('title', 'Cycle playback speed');
-	expect((await cycle.textContent())?.trim()).toBe('');
+	const cycle = page.getByRole('button', { name: /^Cycle playback speed/ });
 	await page.getByRole('button', { name: '1x speed', exact: true }).click();
 	await cycle.click();
 	await expect(page.getByRole('button', { name: '0.5x speed', exact: true })).toHaveAttribute(
@@ -1081,9 +1052,9 @@ test('named bound actions edit fractional playhead bounds and preserve Once and 
 	);
 	for (const rate of [2, 1, 0.5, 0.25]) {
 		const speed = page.getByRole('button', { name: `${rate}x speed`, exact: true });
-		await expect(speed).toBeVisible();
 		await speed.click();
 		await expect(speed).toHaveAttribute('aria-pressed', 'true');
+		await expect(cycle).toContainText(`${rate}x`);
 		await expect
 			.poll(() =>
 				page
@@ -1105,7 +1076,11 @@ test('destination layout icon, tooltip and name follow keyboard switches and res
 	const checkDestination = async (columns: boolean) => {
 		const action = columns ? 'Switch to stacked layout' : 'Switch to side-by-side layout';
 		await expect(toggle).toHaveAttribute('aria-label', action);
-		await expect(toggle).toHaveAttribute('title', action);
+		await expect(toggle).not.toHaveAttribute('title');
+		await expect(toggle).toHaveAttribute(
+			'data-tooltip',
+			(await page.viewportSize())!.width < 660 ? 'Side by side requires at least 660px' : action
+		);
 		await expect(toggle).not.toHaveAttribute('aria-pressed');
 		await expect(toggle.locator('.columns-icon')).toHaveCount(columns ? 0 : 1);
 		expect(await toggle.textContent()).toBe('');
@@ -1143,7 +1118,7 @@ test('layout action accepts touch and reset lives only in settings', async ({ br
 		await expect(page.locator('.workspace-grid')).toHaveAttribute('data-layout', 'rows');
 		await expect(
 			page.getByRole('button', { name: 'Switch to side-by-side layout', exact: true })
-		).toHaveAttribute('title', 'Switch to side-by-side layout');
+		).toHaveAttribute('data-tooltip', 'Switch to side-by-side layout');
 		await expect(
 			page.locator('#editor-preview').getByRole('button', { name: 'Restore default layout' })
 		).toHaveCount(0);
@@ -1158,31 +1133,37 @@ test('layout action accepts touch and reset lives only in settings', async ({ br
 	}
 });
 
-test('compact bounds retain signed fractional end intent and refresh after source navigation', async ({
+test('compact bounds retain signed fractions and refresh after source navigation', async ({
 	page
 }) => {
 	await openEditor(page, `/?v=${id}&t=-30.5~-5.25&once&mute`);
-	const playhead = page.getByRole('slider', { name: 'Current time', exact: true });
-	await expect(playhead).toBeVisible();
-	const duration = Number(await playhead.getAttribute('max'));
+	await expect(page.getByRole('checkbox', { name: 'Sub-second times' })).not.toBeChecked();
+	await page.getByRole('checkbox', { name: 'Sub-second times' }).check();
+	await expect(page.getByRole('button', { name: 'Edit end from end', exact: true })).toHaveText(
+		'(-0:05.25)'
+	);
+	const duration = Number(
+		await page.getByRole('slider', { name: 'Current time', exact: true }).getAttribute('max')
+	);
 	const start = Math.floor(duration) - 20.5;
-	await expect(page.getByRole('status', { name: 'End bound' })).toHaveText(`${duration - 5.25} s`);
 	await page.getByRole('slider', { name: 'Current time', exact: true }).fill(String(start));
-	await page.getByRole('button', { name: 'A Start', exact: true }).click();
-	await expect(page.getByRole('status', { name: 'Start bound' })).toHaveText(`${start} s`);
+	await page.getByRole('button', { name: 'Set start at playhead' }).click();
 	expect(new URL(page.url()).searchParams.get('t')).toBe(`${start}~-5.25`);
-	await expect(page.getByRole('button', { name: 'Loop', exact: true })).toContainText('Once');
+	await expect(page.getByRole('button', { name: 'Once', exact: true })).toHaveAttribute(
+		'aria-pressed',
+		'true'
+	);
 	await identity(page);
 	const lastValidUrl = page.url();
 	await page.getByRole('slider', { name: 'Repeat end', exact: true }).fill('5.75');
-	await expect(page.getByRole('status', { name: 'Start bound' })).toHaveText('5.75 s');
-	await expect(page.getByRole('status', { name: 'End bound' })).toHaveText('5.75 s');
-	await expect(page.getByRole('link', { name: 'Open video', exact: true })).toHaveCount(0);
 	await expect(page.getByRole('button', { name: 'Copy Link', exact: true })).toBeDisabled();
 	expect(page.url()).toBe(lastValidUrl);
 	await identity(page);
 	await openEditor(page, '/?v=M7lc1UVf-VE&t=2.5~8.75&once&mute');
-	await expect(page.getByRole('status', { name: 'Start bound' })).toHaveText('2.5 s');
-	await expect(page.getByRole('status', { name: 'End bound' })).toHaveText('8.75 s');
-	await expect(page.locator('.bound-feedback')).toHaveCount(0);
+	await expect(page.getByRole('button', { name: 'Edit start from start', exact: true })).toHaveText(
+		'≈0:03'
+	);
+	await expect(page.getByRole('button', { name: 'Edit end from start', exact: true })).toHaveText(
+		'≈0:09'
+	);
 });
