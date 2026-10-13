@@ -161,7 +161,7 @@ export function parseShareUrl(input: string | URL): ShareUrlResult {
 }
 
 // Number.toString uses exponents for small/large numbers; the URL grammar uses decimals.
-function decimal(value: number): string {
+export function decimal(value: number): string {
 	if (value < 0) return `-${decimal(-value)}`;
 	const [mantissa, exponent] = String(value).split('e');
 	if (exponent === undefined) return mantissa;
@@ -171,6 +171,58 @@ function decimal(value: number): string {
 	if (point <= 0) return `0.${'0'.repeat(-point)}${digits}`;
 	if (point >= digits.length) return digits + '0'.repeat(point - digits.length);
 	return `${digits.slice(0, point)}.${digits.slice(point)}`;
+}
+
+export type TimestampPolicy = 'preserve' | 'shortest' | 'from-start' | 'mixed' | 'from-end';
+
+/** Convert only settled, valid bounds. Preserve keeps even clamped incoming expressions. */
+export function formatShareBounds(
+	state: ShareUrlState,
+	duration: number | undefined,
+	policy: TimestampPolicy
+): ShareUrlState | undefined {
+	if (duration === undefined) return undefined;
+	const range = resolveClipRange(state, duration);
+	if (!range.ok || !normalizeShareUrl(state).ok) return undefined;
+	if (policy === 'preserve') return state;
+	// Decimal subtraction avoids binary artifacts such as 600 - 593.2 = 6.7999999999999545.
+	const relative = (value: number) => subtractSeconds(value, duration);
+	const shortest = (positive: number, original: number | undefined, end = false) => {
+		const negative = relative(positive);
+		if (!end && positive === 0 && (original ?? 0) < 0) return negative;
+		if (negative === 0) return end && original === undefined ? undefined : positive;
+		const difference = decimal(positive).length - decimal(negative).length;
+		return difference > 0 || (difference === 0 && (original ?? 0) < 0) ? negative : positive;
+	};
+	const start =
+		policy === 'shortest'
+			? shortest(range.start, state.start)
+			: policy === 'from-end'
+				? relative(range.start)
+				: range.start;
+	const end =
+		policy === 'shortest'
+			? shortest(range.end, state.end, true)
+			: policy === 'from-start'
+				? range.end
+				: range.end === duration
+					? undefined
+					: relative(range.end);
+	return { ...state, start, end };
+}
+
+/** Subtract decimal seconds without manufacturing extra fractional digits. */
+export function subtractSeconds(value: number, other: number): number {
+	const a = decimal(value);
+	const b = decimal(other);
+	const places = Math.max(a.split('.')[1]?.length ?? 0, b.split('.')[1]?.length ?? 0);
+	const integer = (text: string) =>
+		BigInt(text.replace('.', '') + '0'.repeat(places - (text.split('.')[1]?.length ?? 0)));
+	const result = integer(a) - integer(b);
+	const digits = String(result < 0n ? -result : result).padStart(places + 1, '0');
+	return Number(
+		`${result < 0n ? '-' : ''}${places ? `${digits.slice(0, -places)}.${digits.slice(-places)}` : digits}`
+	);
 }
 
 function validatedState(state: ShareUrlState): ShareUrlState {
@@ -231,7 +283,7 @@ export function resolveClipRange(
 	)
 		return { ok: false };
 	const resolve = (value: number) =>
-		Math.max(0, Math.min(duration, value < 0 ? duration + value : value));
+		Math.max(0, Math.min(duration, value < 0 ? subtractSeconds(duration, -value) : value));
 	const start = resolve(state.start ?? 0);
 	const end = state.end === undefined ? duration : resolve(state.end);
 	return Number.isFinite(start) && Number.isFinite(end) && end > start

@@ -17,7 +17,7 @@
 		"test:metadata": "node --test tests/video-metadata.test.js tests/youtube-thumbnail.test.js",
 		"test:social": "node --test tests/social-smoke.test.js",
 		"test:browser": "playwright test",
-		"test:clip": "node --test tests/clip-bounds.test.js tests/watch-playback-scope.test.js",
+		"test:clip": "node --test tests/clip-bounds.test.js tests/watch-playback-scope.test.js tests/editor-controls.test.js",
 		"knip": "svelte-kit sync && knip",
 		"fallow": "node scripts/fallow.mjs",
 		"fallow:full": "fallow --dupes-baseline fallow-baselines/dupes.json --health-baseline fallow-baselines/health.json --baseline-mode identity",
