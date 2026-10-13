@@ -1,6 +1,7 @@
 // Run from the Vite page's browser console:
 // await (await import('/src/lib/player/media-geometry.browser-test.ts')).run()
 // Exercises the mounted player and its framing without requiring YouTube playback.
+import { tick } from 'svelte';
 import { calculateFrameVideoWidth } from './video-framing';
 
 export async function run() {
@@ -15,23 +16,33 @@ export async function run() {
 	const originalOrientation = buttons.find(
 		(button) => button.getAttribute('aria-pressed') === 'true'
 	)!;
-	const fillInput = document.querySelector<HTMLInputElement>(
-		'[role="switch"][aria-label="Crop to fill"]'
-	)!;
-	if (!fillInput) throw new Error('Missing Crop to fill switch');
-	const toggleFill = () => fillInput.click();
+	const cropButtons = Array.from(
+		document.querySelectorAll<HTMLButtonElement>('[aria-label="Crop"] button')
+	);
+	const chooseCrop = (label: string) =>
+		cropButtons.find((button) => button.textContent?.trim() === label)!.click();
+	const toggleFill = () => chooseCrop(pressed() ? 'Fit' : 'Fill');
 	const originalFit = new URL(window.location.href).searchParams.get('fill');
 	const originalWidth = container.style.width;
 	const results: string[] = [];
-	const settle = () =>
-		new Promise<void>((resolve) =>
+	const settle = async () => {
+		await tick();
+		await new Promise<void>((resolve) =>
 			requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
 		);
+	};
 	const assert = (condition: boolean, message: string) => {
 		if (!condition) throw new Error(message);
 		results.push(message);
 	};
-	const pressed = () => fillInput.checked;
+	const pressed = () => new URL(window.location.href).searchParams.get('fill') === '';
+	const effectiveFill = () => {
+		const value = new URL(window.location.href).searchParams.get('fill');
+		return value === null
+			? Number(getComputedStyle(container).getPropertyValue('--media-ratio')) < 1 !==
+					sourceRatio() < 1
+			: value === '';
+	};
 	const sourceRatio = () =>
 		Number(getComputedStyle(container).getPropertyValue('--video-source-ratio'));
 	const fitParameter = () => new URL(window.location.href).searchParams.get('fill');
@@ -44,19 +55,19 @@ export async function run() {
 
 	try {
 		for (const orientation of ['Landscape', 'Portrait', 'Landscape', 'Portrait']) {
-			const button = buttons.find(
-				(candidate) => candidate.getAttribute('aria-label') === orientation
-			)!;
+			const button = buttons.find((candidate) => candidate.textContent?.trim() === orientation)!;
+			chooseCrop('Auto');
+			await settle();
 			button.click();
 			await settle();
 			const sourceOrientation = sourceRatio() < 1 ? 'Portrait' : 'Landscape';
 			assert(
-				pressed() === (orientation !== sourceOrientation) && fitParameter() === null,
-				`${orientation}: automatic Fill default and URL reset`
+				effectiveFill() === (orientation !== sourceOrientation) && fitParameter() === null,
+				`${orientation}: automatic crop rule and omitted URL`
 			);
 
 			for (const fill of [false, true]) {
-				if (pressed() !== fill) toggleFill();
+				chooseCrop(fill ? 'Fill' : 'Fit');
 				await settle();
 				assert(pressed() === fill, `${orientation}: ${fill ? 'Fill' : 'Fit'} selected`);
 
@@ -112,11 +123,7 @@ export async function run() {
 		container.style.width = originalWidth;
 		originalOrientation.click();
 		await settle();
-		if (originalFit === '' || originalFit === '0') {
-			const desired = originalFit === '';
-			if (pressed() === desired) toggleFill();
-			toggleFill();
-			await settle();
-		}
+		chooseCrop(originalFit === null ? 'Auto' : originalFit === '' ? 'Fill' : 'Fit');
+		await settle();
 	}
 }

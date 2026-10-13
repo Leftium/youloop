@@ -80,7 +80,11 @@ test('editor aliases, live state, canonical sharing, reload and Back/Forward', a
 		'aria-pressed',
 		'true'
 	);
-	await expect(page.getByRole('switch', { name: 'Crop to fill', exact: true })).not.toBeChecked();
+	await expect(
+		page
+			.getByRole('group', { name: 'Crop', exact: true })
+			.getByRole('button', { name: 'Fit', exact: true })
+	).toHaveAttribute('aria-pressed', 'true');
 	await expect(page.getByRole('button', { name: 'Loop', exact: true })).toHaveAttribute(
 		'aria-pressed',
 		'false'
@@ -93,7 +97,10 @@ test('editor aliases, live state, canonical sharing, reload and Back/Forward', a
 	});
 	await page.getByRole('slider', { name: 'Repeat start', exact: true }).fill('25.5');
 	await page.getByRole('slider', { name: 'Repeat end', exact: true }).fill('33.2');
-	await page.getByRole('switch', { name: 'Crop to fill', exact: true }).check();
+	await page
+		.getByRole('group', { name: 'Crop', exact: true })
+		.getByRole('button', { name: 'Fill', exact: true })
+		.click();
 	await page.getByRole('switch', { name: 'Sound', exact: true }).uncheck();
 	const expected = `/${id}/25.5~33.2?once&mute&speed=1.5&vertical&fill`;
 	await expect(page.getByRole('link', { name: 'Open video', exact: true })).toHaveAttribute(
@@ -149,7 +156,11 @@ test('new editor parameters win over aliases, seek/step/loop/once work with real
 		'aria-pressed',
 		'true'
 	);
-	await expect(page.getByRole('switch', { name: 'Crop to fill', exact: true })).not.toBeChecked();
+	await expect(
+		page
+			.getByRole('group', { name: 'Crop', exact: true })
+			.getByRole('button', { name: 'Fit', exact: true })
+	).toHaveAttribute('aria-pressed', 'true');
 	await expect(page.getByRole('button', { name: 'Loop', exact: true })).toHaveAttribute(
 		'aria-pressed',
 		'true'
@@ -302,7 +313,7 @@ test('benign root queries retain the empty editor and generic metadata', async (
 	}
 });
 
-const editorPath = `/?v=${id}&t=31~38&once&mute=0&speed=1.5&vertical=0&fill=0`;
+const editorPath = `/?v=${id}&t=31~38&once&speed=1.5&vertical=0&fill=0`;
 const editAction = (page: Page) =>
 	page.locator('media-controls .watch-actions a[aria-label="Edit"]');
 

@@ -7,7 +7,7 @@ export default defineConfig({
 		{ name: 'chromium', use: { browserName: 'chromium', channel: 'chromium' } },
 		{
 			name: 'webkit',
-			testMatch: ['**/editor-polish.spec.ts', '**/video-picker.spec.ts'],
+			testMatch: ['**/editor-polish.spec.ts', '**/video-picker.spec.ts', '**/framing.spec.ts'],
 			use: { browserName: 'webkit', channel: undefined }
 		}
 	],

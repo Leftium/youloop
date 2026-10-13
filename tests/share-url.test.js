@@ -231,12 +231,14 @@ test('flags, alias precedence, ordering and speed limits', () => {
 		vertical: false,
 		fill: false
 	});
-	for (const flag of ['once', 'mute', 'vertical', 'fill']) {
+	for (const flag of ['once', 'mute', 'vertical', 'fill', 'mirror']) {
 		for (const suffix of ['', '=', '=1', '=0']) {
 			const enabled = suffix !== '=0';
 			assert.deepEqual(
 				parse(`${path}?${flag}${suffix}`),
-				flag === 'once' && !enabled ? { videoId } : { videoId, [flag]: enabled }
+				['once', 'mute', 'mirror'].includes(flag) && !enabled
+					? { videoId }
+					: { videoId, [flag]: enabled }
 			);
 		}
 		for (const value of ['true', 'false', '2', '-1', '01', 'yes', ' '])
@@ -258,6 +260,7 @@ test('all recognized duplicates fail, including identical or shadowed aliases', 
 		b: '32',
 		once: '',
 		mute: '0',
+		mirror: '0',
 		speed: '1',
 		vertical: '1',
 		fill: '0',
@@ -274,7 +277,7 @@ test('all recognized duplicates fail, including identical or shadowed aliases', 
 
 test('typed state validation and signed decimal expansion', () => {
 	const state = Object.freeze({ videoId, start: 0, once: false, speed: 1, mute: false });
-	assert.deepEqual(normalizeShareUrl(state), { ok: true, value: { videoId, mute: false } });
+	assert.deepEqual(normalizeShareUrl(state), { ok: true, value: { videoId } });
 	for (const override of [
 		{ videoId: 'bad' },
 		{ start: NaN },
@@ -284,6 +287,7 @@ test('typed state validation and signed decimal expansion', () => {
 		{ start: -30, end: -60 },
 		{ speed: 0 },
 		{ mute: 'false' },
+		{ mirror: 'false' },
 		{ once: 1 },
 		{ start: '24' }
 	]) {
@@ -315,4 +319,43 @@ test('demo root accepts unrelated queries but never hides invalid clip parameter
 		for (const query of ['v=bad', 'v=', 't=bad', 'mute=bad', 'a=1&a=2', 'speed=3'])
 			assert.equal(parsePlayerUrl(new URL(`https://example.com${route}?${query}`)).ok, false);
 	}
+});
+
+test('mirror ordering and default cleanup preserve explicit framing in editor and watch', () => {
+	for (const vertical of [undefined, false, true]) {
+		for (const fill of [undefined, false, true]) {
+			for (const mirror of [undefined, false, true]) {
+				const state = { videoId, start: 31, end: 38, mute: false, mirror, vertical, fill };
+				const normalized = normalizeShareUrl(state).value;
+				for (const serialize of [serializeEditorUrl, serializeShareUrl]) {
+					const url = serialize(state);
+					assert.deepEqual(parse(url), normalized);
+					assert.equal(url.includes('mute=0'), false);
+					assert.equal(url.includes('mirror=0'), false);
+					assert.equal(url.includes('vertical=0'), vertical === false);
+					assert.equal(url.includes('fill=0'), fill === false);
+					assert.equal(
+						new URL(url, 'https://example.com').searchParams.has('mirror'),
+						mirror === true
+					);
+				}
+			}
+		}
+	}
+	assert.equal(
+		serializeShareUrl(parse(`${path}?mute=0&mirror=0&vertical=0&fill=0`)),
+		`${path}?vertical=0&fill=0`
+	);
+	assert.equal(
+		serializeShareUrl({
+			videoId,
+			once: true,
+			mute: true,
+			speed: 0.5,
+			vertical: false,
+			fill: true,
+			mirror: true
+		}),
+		`${path}?once&mute&speed=0.5&vertical=0&fill&mirror`
+	);
 });

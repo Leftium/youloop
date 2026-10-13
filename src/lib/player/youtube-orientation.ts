@@ -39,9 +39,17 @@ export function createOrientationController(
 	let version = 0;
 	let disposed = false;
 	let frameOverride: Orientation | null = null;
+	let currentSource: SourceGeometry = { orientation: 'landscape', aspectRatio: null };
+
+	function setOverride(override: Orientation | null) {
+		if (disposed) return;
+		frameOverride = override;
+		publish(override ?? currentSource.orientation, override, currentSource);
+	}
 
 	function publishSource(source: SourceGeometry, ticket: number, cacheId?: string) {
 		if (!disposed && ticket === version) {
+			currentSource = source;
 			if (cacheId !== undefined) results.set(cacheId, source);
 			publish(frameOverride ?? source.orientation, frameOverride, source);
 		}
@@ -117,17 +125,22 @@ export function createOrientationController(
 
 	return {
 		setSource(videoId: string, override: Orientation | null = null, force = false) {
-			if (disposed || (videoId === currentId && !force)) return;
+			if (disposed) return;
+			if (videoId === currentId && !force) {
+				setOverride(override);
+				return;
+			}
 			currentId = videoId;
 			const ticket = ++version;
-			frameOverride = override;
-			publish(override ?? 'landscape', override, { orientation: 'landscape', aspectRatio: null });
+			currentSource = { orientation: 'landscape', aspectRatio: null };
+			setOverride(override);
 			void detect(videoId, ticket);
 		},
 		choose(orientation: Orientation) {
-			if (disposed) return;
-			frameOverride = orientation;
-			publish(orientation, orientation);
+			setOverride(orientation);
+		},
+		clearOverride() {
+			setOverride(null);
 		},
 		dispose() {
 			disposed = true;
