@@ -2,13 +2,21 @@
 	import { onMount, tick } from 'svelte';
 	import ClipPlayer from './ClipPlayer.svelte';
 
-	// Keep production defaults until physical-device toolbar testing supports a change.
+	// Match the editor's native 20px snap spacing on coarse-pointer mobile layouts.
+	// The short runway and snap points are complementary, independent behaviors.
 	const THEATER_SCROLL_TRIGGER_PX = 32;
-	const RUNWAY_EXTENSION_TRIGGER_VIEWPORTS = 9;
+	const INITIAL_RUNWAY_VIEWPORTS = 4;
+	const RUNWAY_EXTENSION_TRIGGER_VIEWPORTS = 1;
 	const RUNWAY_EXTENSION_INCREMENT_VIEWPORTS = 25;
+	const SNAP_SPACING_PX = 20;
 
 	let theater = $state(false);
 	let runway: HTMLDivElement;
+	let snapEnabled = $state(false);
+	let viewportHeight = $state(0);
+	let snapPointCount = $derived(
+		snapEnabled ? Math.floor(((runwayHeight ?? 0) + viewportHeight) / SNAP_SPACING_PX) + 1 : 0
+	);
 
 	function enterTheater() {
 		theater = true;
@@ -18,17 +26,26 @@
 	let runwayHeight = $state<number>();
 
 	onMount(() => {
-		// Freeze the initial CSS height in pixels so rotation never shrinks the runway.
-		runwayHeight = runway.getBoundingClientRect().height;
+		const query = window.matchMedia(
+			'(pointer: coarse) and (max-width: 900px), (pointer: coarse) and (max-height: 500px)'
+		);
+		const updateSnapMode = () => (snapEnabled = query.matches);
+		updateSnapMode();
+		query.addEventListener('change', updateSnapMode);
+
+		// Freeze the runway budget in pixels so rotation never shrinks it.
+		viewportHeight = window.innerHeight;
+		runwayHeight = INITIAL_RUNWAY_VIEWPORTS * viewportHeight;
 		let extensionTrigger = RUNWAY_EXTENSION_TRIGGER_VIEWPORTS;
 		let extensionIncrement = RUNWAY_EXTENSION_INCREMENT_VIEWPORTS;
 		if (import.meta.env.DEV) {
-			// Local #34 trials only: ignored by production and excluded from shared clip state.
+			// Optional local regression profiles; production always uses balanced.
 			const trial = new URLSearchParams(window.location.search).get('watchRunway');
-			if (trial === 'small' || trial === 'balanced' || trial === 'coarse') {
-				runwayHeight = 4 * window.innerHeight;
-				extensionTrigger = 1;
-				extensionIncrement = trial === 'small' ? 8 : trial === 'balanced' ? 25 : 50;
+			if (trial === 'legacy') {
+				runwayHeight = 20 * viewportHeight;
+				extensionTrigger = 9;
+			} else if (trial === 'small' || trial === 'coarse') {
+				extensionIncrement = trial === 'small' ? 8 : 50;
 			}
 		}
 		let extending = false;
@@ -65,17 +82,26 @@
 			}
 			extendRunway();
 		}
+		const handleResize = () => {
+			viewportHeight = window.innerHeight;
+			extendRunway();
+		};
 		window.addEventListener('scroll', handleScroll, { passive: true });
-		window.addEventListener('resize', extendRunway);
+		window.addEventListener('resize', handleResize);
 		extendRunway();
 		return () => {
+			query.removeEventListener('change', updateSnapMode);
 			window.removeEventListener('scroll', handleScroll);
-			window.removeEventListener('resize', extendRunway);
+			window.removeEventListener('resize', handleResize);
 		};
 	});
 </script>
 
-<div class="share-prototype" data-mode={theater ? 'theater' : 'default'}>
+<div
+	class="share-prototype"
+	class:document-snap={snapEnabled}
+	data-mode={theater ? 'theater' : 'default'}
+>
 	<div class="stage">
 		<ClipPlayer minimal {theater} ontheater={enterTheater} />
 	</div>
@@ -86,9 +112,32 @@
 		bind:this={runway}
 		style:height={runwayHeight === undefined ? undefined : `${runwayHeight}px`}
 	></div>
+	{#if snapEnabled}
+		<div class="document-snap-points" aria-hidden="true">
+			{#each Array.from({ length: snapPointCount }, (_, index) => index) as index (index)}
+				<span class="document-snap-point" style:top={`${index * SNAP_SPACING_PX}px`}></span>
+			{/each}
+		</div>
+	{/if}
 </div>
 
 <style>
+	:global(html:has(.share-prototype.document-snap)) {
+		scroll-snap-type: y mandatory;
+	}
+	.document-snap-points {
+		position: absolute;
+		inset: 0;
+		pointer-events: none;
+	}
+	.document-snap-point {
+		position: absolute;
+		left: 0;
+		width: 1px;
+		height: 1px;
+		scroll-snap-align: start;
+		scroll-snap-stop: always;
+	}
 	:global(html:has(.share-prototype)) {
 		margin: 0;
 		padding: 0;
@@ -110,6 +159,7 @@
 	}
 	.share-prototype {
 		/* Override Nimble's body-child gutters without a grid-spanning bleed utility. */
+		position: relative;
 		margin: 0;
 		padding: 0;
 		width: 100%;
@@ -127,8 +177,8 @@
 		overflow: hidden;
 	}
 	.scroll-runway {
-		/* Initial scroll room; larger pixel heights are applied in chunks before its end. */
-		height: 2000svh;
+		/* Initial four-small-viewport SSR budget; hydration uses four current viewports. */
+		height: 400svh;
 		pointer-events: none;
 	}
 </style>
