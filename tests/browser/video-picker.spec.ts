@@ -261,7 +261,7 @@ test('candidate metadata is debounced, stale-safe, optional, and never commits p
 	await expect(page.locator('youtube-video')).toHaveCount(1);
 });
 
-test('clipboard and welcome presets preview without committing until Load', async ({ page }) => {
+test('clipboard preview does not commit until Load', async ({ page }) => {
 	await page.route('**/api/video-metadata?*', (route) =>
 		route.fulfill({
 			json: {
@@ -271,15 +271,9 @@ test('clipboard and welcome presets preview without committing until Load', asyn
 		})
 	);
 	await page.goto('/');
-	await page.locator('.cards a').first().click();
+	await page.getByRole('button', { name: 'Choose video', exact: true }).click();
 	const dialog = page.getByRole('dialog');
 	const input = dialog.getByRole('textbox');
-	await expect(input).toHaveValue(videoExamples[0].href);
-	await expect(dialog.locator('.candidate-preview')).toContainText('Selected candidate');
-	await expect(page).toHaveURL('http://localhost:5173/');
-	await expect(page.locator('youtube-video')).toHaveCount(0);
-	await dialog.getByRole('button', { name: 'Close video picker' }).click();
-	await page.getByRole('button', { name: 'Choose video', exact: true }).click();
 	await expect(input).toHaveValue('');
 	await page.evaluate(() =>
 		Object.defineProperty(navigator, 'clipboard', {
@@ -314,4 +308,18 @@ test.describe('invisible touch targets', () => {
 		await page.touchscreen.tap(box.x + box.width / 2, box.y - 3);
 		await expect(dialog).not.toBeVisible();
 	});
+});
+
+test('landing cards directly open canonical editor clips without the picker', async ({ page }) => {
+	for (const [index, example] of videoExamples.entries()) {
+		await page.goto('/');
+		const card = page.locator('.cards a').nth(index);
+		await expect(card).toHaveAttribute('href', example.href);
+		await card.click();
+		await expect(page).toHaveURL(
+			'http://localhost:5173' + serializeEditorUrl(parseEditorSource(example.href)!.clip!)
+		);
+		await expect(page.locator('youtube-video')).toHaveCount(1);
+		await expect(page.getByRole('dialog')).not.toBeVisible();
+	}
 });

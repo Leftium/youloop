@@ -55,8 +55,8 @@
 		};
 	});
 
-	export function open(trigger?: HTMLElement, initialDraft = '') {
-		draft = initialDraft;
+	export function open(trigger?: HTMLElement) {
+		draft = '';
 		opener = trigger ?? (document.activeElement as HTMLElement);
 		message = '';
 		opening += 1;
@@ -193,7 +193,7 @@
 				autocapitalize="none"
 				spellcheck="false"
 			/>
-			<button class="secondary outline" type="submit">Load</button>
+			<button type="submit">Load</button>
 		</div>
 		<button
 			class="plain-action clipboard"
@@ -306,9 +306,6 @@
 		flex: 1;
 	}
 	.source-entry button {
-		--nc-primary: var(--nc-secondary);
-		--nc-primary-hover: var(--nc-secondary-hover);
-		--nc-primary-focus: var(--nc-secondary-focus);
 		flex-shrink: 0;
 	}
 	.candidate-preview {
