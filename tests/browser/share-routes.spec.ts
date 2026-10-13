@@ -305,104 +305,138 @@ test('benign root queries retain the demo/editor and generic metadata', async ({
 	}
 });
 
-for (const viewport of [
-	{ width: 320, height: 568 },
-	{ width: 375, height: 667 },
-	{ width: 1280, height: 800 }
-]) {
-	for (const nativeFullscreen of [true, false]) {
-		test(`Edit is a measured watch action at ${viewport.width}px, fullscreen=${nativeFullscreen}`, async ({
-			page,
-			context
-		}) => {
-			await page.setViewportSize(viewport);
-			if (!nativeFullscreen)
-				await page.addInitScript(() => {
-					Object.defineProperty(document, 'fullscreenEnabled', { get: () => false });
-				});
-			await page.goto(`/${id}/31~38?once&mute&speed=1.5&vertical=0&fill=0`);
-			await settled(page);
-			await expect(page.getByRole('button', { name: 'Copy Link', exact: true })).toHaveCount(0);
-			await expect(page.locator('.watch-navigation')).toHaveCount(0);
-			const edit = page.locator('media-controls .watch-actions a[aria-label="Edit"]');
-			await expect(edit).toHaveCount(1);
-			await expect(edit).toHaveAttribute('title', 'Edit');
-			await expect(edit).toHaveText('');
-			expect(
-				await page
-					.locator('.watch-actions :is(button,a)')
-					.evaluateAll((elements) => elements.map((el) => el.getAttribute('aria-label')))
-			).toEqual(
-				nativeFullscreen
-					? ['Unmute video', 'Edit', 'Theater mode', 'Enter fullscreen']
-					: ['Unmute video', 'Edit', 'Theater mode']
+const editorPath = `/?v=${id}&t=31~38&once&mute=0&speed=1.5&vertical=0&fill=0`;
+const editAction = (page: Page) =>
+	page.locator('media-controls .watch-actions a[aria-label="Edit"]');
+
+async function assertEditTargets(page: Page) {
+	expect(
+		await page.evaluate(() => {
+			const targets = [...document.querySelectorAll('media-controls :is(button,a)')].map((el) =>
+				el.getBoundingClientRect()
 			);
-			await expect(page.locator('.watch-actions :is(button,a)')).toHaveCount(
-				nativeFullscreen ? 4 : 3
+			const groups = [...document.querySelectorAll('.watch-time,.watch-actions')].map((el) =>
+				el.getBoundingClientRect()
 			);
-			await page.getByRole('button', { name: 'Unmute video', exact: true }).click();
-			const editorPath = `/?v=${id}&t=31~38&once&mute=0&speed=1.5&vertical=0&fill=0`;
-			await expect(edit).toHaveAttribute('href', editorPath);
-			expect(
-				await page.evaluate(() => {
-					const targets = [...document.querySelectorAll('media-controls :is(button,a)')].map((el) =>
-						el.getBoundingClientRect()
-					);
-					const groups = [...document.querySelectorAll('.watch-time,.watch-actions')].map((el) =>
-						el.getBoundingClientRect()
-					);
-					return (
-						targets.every(
-							(r) =>
-								r.width >= 44 &&
-								r.height >= 44 &&
-								r.left >= 0 &&
-								r.right <= innerWidth &&
-								r.top >= 0 &&
-								r.bottom <= innerHeight
-						) &&
-						groups[0].right <= groups[1].left &&
-						document.documentElement.scrollWidth <= innerWidth
-					);
-				})
-			).toBe(true);
-			// Cancel one click to observe its media effects without leaving the player.
-			await edit.evaluate((link) => {
-				(window as unknown as { savedMedia: Element | null }).savedMedia =
-					document.querySelector('youtube-video');
-				link.addEventListener('click', (event) => event.preventDefault(), { once: true });
-			});
-			await edit.click();
-			expect((await mediaState(page)).paused).toBe(true);
-			expect(
-				await page.evaluate(
-					() =>
-						(window as unknown as { savedMedia: Element }).savedMedia ===
-						document.querySelector('youtube-video')
-				)
-			).toBe(true);
-			await page.evaluate(() => window.scrollTo(0, 100));
-			await expect(page.locator('.share-prototype')).toHaveAttribute('data-mode', 'theater');
-			await expect(edit).toBeHidden();
-			await page.evaluate(() => window.scrollTo(0, 0));
-			await expect(edit).toBeVisible();
-			await page.keyboard.press('Tab');
-			await edit.focus();
-			expect(await edit.evaluate((el) => getComputedStyle(el).outlineStyle)).toBe('solid');
-			// Standard link navigation also supports opening an independent browser tab.
-			const opened = context.waitForEvent('page');
-			await edit.click({ modifiers: ['ControlOrMeta'] });
-			const tab = await opened;
-			await tab.waitForLoadState();
-			await expect(tab).toHaveURL('http://localhost:5173' + editorPath);
-			await tab.close();
-			await edit.press('Enter');
-			await settled(page);
-			await expect(page.getByRole('button', { name: 'Next frame' })).toBeVisible();
-			await expect(page.getByRole('button', { name: 'Copy Link', exact: true })).toBeVisible();
-			await page.goBack();
-			await settled(page);
-			await expect(edit).toHaveAttribute('href', editorPath);
-		});
-	}
+			return (
+				targets.every(
+					(r) =>
+						r.width >= 44 &&
+						r.height >= 44 &&
+						r.left >= 0 &&
+						r.right <= innerWidth &&
+						r.top >= 0 &&
+						r.bottom <= innerHeight
+				) &&
+				groups[0].right <= groups[1].left &&
+				document.documentElement.scrollWidth <= innerWidth
+			);
+		})
+	).toBe(true);
 }
+
+async function assertEditLayout(page: Page, nativeFullscreen: boolean) {
+	await expect(page.getByRole('button', { name: 'Copy Link', exact: true })).toHaveCount(0);
+	await expect(page.locator('.watch-navigation')).toHaveCount(0);
+	const edit = editAction(page);
+	await expect(edit).toHaveCount(1);
+	await expect(edit).toHaveAttribute('title', 'Edit');
+	await expect(edit).toHaveText('');
+	expect(
+		await page
+			.locator('.watch-actions :is(button,a)')
+			.evaluateAll((elements) => elements.map((el) => el.getAttribute('aria-label')))
+	).toEqual(
+		nativeFullscreen
+			? ['Unmute video', 'Edit', 'Theater mode', 'Enter fullscreen']
+			: ['Unmute video', 'Edit', 'Theater mode']
+	);
+	await expect(page.locator('.watch-actions :is(button,a)')).toHaveCount(nativeFullscreen ? 4 : 3);
+	await page.getByRole('button', { name: 'Unmute video', exact: true }).click();
+	await expect(edit).toHaveAttribute('href', editorPath);
+	await assertEditTargets(page);
+	await page.keyboard.press('Tab');
+	await edit.focus();
+	expect(await edit.evaluate((el) => getComputedStyle(el).outlineStyle)).toBe('solid');
+	await page.evaluate(() => window.scrollTo(0, 100));
+	await expect(page.locator('.share-prototype')).toHaveAttribute('data-mode', 'theater');
+	await expect(edit).toBeHidden();
+	await page.evaluate(() => window.scrollTo(0, 0));
+	await expect(edit).toBeVisible();
+}
+
+for (const nativeFullscreen of [true, false]) {
+	test(`Edit layout across viewports, fullscreen=${nativeFullscreen}`, async ({ page }) => {
+		if (!nativeFullscreen)
+			await page.addInitScript(() => {
+				Object.defineProperty(document, 'fullscreenEnabled', { get: () => false });
+			});
+		await page.goto(`/${id}/31~38?once&mute&speed=1.5&vertical=0&fill=0`);
+		await settled(page);
+		// Resize one settled provider instead of repeating navigation and playback at every width.
+		for (const viewport of [
+			{ width: 320, height: 568 },
+			{ width: 375, height: 667 },
+			{ width: 1280, height: 800 }
+		]) {
+			await test.step(`${viewport.width}px hit targets, actions, focus and Theater`, async () => {
+				await page.setViewportSize(viewport);
+				await assertEditLayout(page, nativeFullscreen);
+			});
+			// Restore muted state for the next layout's label and link assertions.
+			await page.getByRole('button', { name: 'Mute video', exact: true }).click();
+		}
+	});
+}
+
+test('Edit link preserves playback, provider identity, new tab and Back/Forward', async ({
+	page,
+	context
+}) => {
+	await page.setViewportSize({ width: 320, height: 568 });
+	await page.goto(`/${id}/31~38?once&mute&speed=1.5&vertical=0&fill=0`);
+	await settled(page);
+	await page.getByRole('button', { name: 'Unmute video', exact: true }).click();
+	const edit = editAction(page);
+	await expect(edit).toHaveAttribute('href', editorPath);
+
+	await page.getByRole('button', { name: 'Play video', exact: true }).press('Space');
+	await expect.poll(async () => (await mediaState(page)).state).toBe(1);
+	// Focusing the full-frame playback button can scroll a narrow watch page into Theater.
+	await page.evaluate(() => window.scrollTo(0, 0));
+	await expect(page.locator('.share-prototype')).toHaveAttribute('data-mode', 'default');
+	// Keyboard focus keeps auto-hiding watch actions interactive during playback.
+	await edit.focus();
+	// Cancel one click to observe its media effects without leaving the player.
+	await edit.evaluate((link) => {
+		(window as unknown as { savedMedia: Element | null }).savedMedia =
+			document.querySelector('youtube-video');
+		link.addEventListener('click', (event) => event.preventDefault(), { once: true });
+	});
+	await edit.click();
+	await expect.poll(async () => (await mediaState(page)).paused).toBe(true);
+	expect(
+		await page.evaluate(
+			() =>
+				(window as unknown as { savedMedia: Element }).savedMedia ===
+				document.querySelector('youtube-video')
+		)
+	).toBe(true);
+	// Standard link navigation also supports opening an independent browser tab.
+	const opened = context.waitForEvent('page');
+	await edit.click({ modifiers: ['ControlOrMeta'] });
+	const tab = await opened;
+	await tab.waitForLoadState();
+	await expect(tab).toHaveURL('http://localhost:5173' + editorPath);
+	await tab.close();
+	await edit.press('Enter');
+	await settled(page);
+	await expect(page.getByRole('button', { name: 'Next frame' })).toBeVisible();
+	await expect(page.getByRole('button', { name: 'Copy Link', exact: true })).toBeVisible();
+	await page.goBack();
+	await settled(page);
+	await expect(edit).toHaveAttribute('href', editorPath);
+	await page.goForward();
+	await settled(page);
+	await expect(page.getByRole('button', { name: 'Next frame' })).toBeVisible();
+});

@@ -73,12 +73,14 @@ Use Node 24 and the pinned pnpm version in `package.json`. Install with
 `pnpm knip` first runs `svelte-kit sync` because its TypeScript config loader
 needs the generated `$app/tsconfig`, including on a fresh checkout.
 
-| Command            | Purpose                                                                                                  |
-| ------------------ | -------------------------------------------------------------------------------------------------------- |
-| `pnpm knip`        | Unused files, exports, types, and dependencies.                                                          |
-| `pnpm fallow`      | Summary of dead code, duplication, and health, compared with the committed duplication/health baselines. |
-| `pnpm fallow:full` | Individual findings and structural context with the same baselines.                                      |
-| `pnpm code-qc`     | Run both tools even if Knip reports issues; return Knip's native exit status and print Fallow failures.  |
+| Command            | Purpose                                                                                                          |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------- |
+| `pnpm knip`        | Unused files, exports, types, and dependencies; succeeds when clean.                                             |
+| `pnpm fallow`      | New dead-code, clone, and health findings after accepted baselines; succeeds when only accepted findings remain. |
+| `pnpm code-qc`     | Run both audits even if one fails; return the highest local exit status.                                         |
+| `pnpm knip:raw`    | Native Knip output, with the same framework setup and no baseline.                                               |
+| `pnpm fallow:full` | Native detailed Fallow output with committed baselines and aggregate context.                                    |
+| `pnpm fallow:raw`  | Native unfiltered Fallow summary; use standalone commands below for individual findings.                         |
 
 Knip is the primary dead-code signal. Fallow is a secondary signal; independently
 verify reachability before removing anything it flags. Both audits are permanently
@@ -86,11 +88,16 @@ advisory for merge and deployment. They supplement `pnpm check`, `pnpm lint`,
 tests, and the build. They are not invoked by those commands, the required hosting
 workflow, or Vercel. If CI reporting is added, keep it optional and nonrequired,
 separate from the deployment job, and report failures visibly. A nonzero local
-Knip or `code-qc` exit status does not make the audit a required check.
-The pinned Fallow CLI also returns 1 in human output for the retained dead-code
-findings and aggregate health thresholds, even with the known health identities
-filtered. Its baseline-filtered JSON report shows zero new clones and health
-findings; use that report to distinguish new findings from aggregate counts.
+audit exit status does not make the audit a required check.
+
+The pinned Fallow CLI's human reports return 1 for aggregate historical health
+totals, even when baselines remove every known finding. `scripts/fallow.mjs`
+uses its baseline-filtered JSON with `--fail-on-issues`, prints new findings and
+unexpected workspace diagnostics, and preserves the CLI's exit status. Spawn
+failures, unreadable reports, and incompatible versions fail visibly. The native
+`fallow:full` and `fallow:raw` commands retain their original exit behavior.
+Architecture boundaries and policy packs are not configured; their two known
+workspace notices are omitted from the routine report.
 
 The framework/tool plugins discover SvelteKit routes and hooks, SSR metadata,
 Node tests, Playwright tests, and build configuration. Both configs explicitly
@@ -110,26 +117,30 @@ coverage estimates, not measured test coverage, so they do not establish that
 code is untested. Architecture boundaries and policy rule packs are not
 configured; zero counts for those checks do not establish architectural health.
 
-### Initial findings and deferred cleanup
+### Accepted findings and selective cleanup
 
-The tooling adoption for [#33](https://github.com/Leftium/youloop/issues/33)
-retains source and tests. It records the following inventory for
-[#32](https://github.com/Leftium/youloop/issues/32):
+The first cleanup for [#32](https://github.com/Leftium/youloop/issues/32)
+removes only the unused export exposure of `loadOriginalAspect` and
+`ShareUrlError`. Their internally used implementations remain. There are no
+accepted Knip findings or Knip suppressions.
 
-- Knip reports the externally unused `loadOriginalAspect` function export and
-  `ShareUrlError` type export. Both declarations are used within their own files;
-  cleanup should consider removing the export, not deleting the implementation
-  or type. These findings stay visible, with local Knip exit status 1.
-- Fallow also reports the empty `src/lib/index.ts` placeholder. Knip treats this
-  as the package import entry. Confirm its alias/manifest role before cleanup.
-- The duplication baseline contains 12 clone groups, 199 duplicated lines
-  (2.34%), across six files. Most are in the browser specs, alongside orientation
-  setup and viewport restoration in the browser regression modules.
-- The health baseline captures 52 above-threshold findings in 623 analyzed
-  functions, including the large watch-control regression, player templates,
-  URL parsing, and orientation logic. Baseline comparison removes those known
-  findings from the detailed list; aggregate health scores, large-function
-  context, and dead-code findings remain visible.
+Fallow explicitly seeds `src/lib/index.ts` because `package.json` declares it as
+the bare `#lib` import entry. Current callers use `#lib/*`; retaining the empty
+placeholder preserves the manifest contract without excluding it from analysis.
+The duplication baseline retains 12 known clone groups. The health baseline
+retains 52 above-threshold findings, including watch-control regressions, player
+templates, URL parsing, and orientation logic. These broad refactors are deferred
+to keep this pass small. Neither baseline was refreshed to absorb new findings.
+
+The Edit-action matrix checks 320px, 375px, and 1280px widths with fullscreen
+available and unavailable by resizing two settled providers. One 320px journey
+covers playback pause, provider identity, opening a new tab, keyboard navigation,
+and Back/Forward. Every matrix cell retains action order, link state, 44px hit
+targets, bounds, focus outline, and Theater visibility checks, with named steps
+for failure location. This replaces six complete journeys while leaving all
+other playback, signed-range, framing, mobile scroll, and SSR regressions in
+place. Full browser coverage still runs with `pnpm test:browser`; Chromium does
+not verify the physical Safari checks documented below.
 
 ### Maintaining baselines
 

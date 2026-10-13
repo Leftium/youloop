@@ -10,7 +10,7 @@ export interface ShareUrlState {
 	fill?: boolean;
 }
 
-export interface ShareUrlError {
+interface ShareUrlError {
 	parameter: string;
 	code: 'invalid' | 'duplicate';
 }

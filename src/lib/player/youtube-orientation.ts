@@ -4,7 +4,7 @@ export type SourceGeometry = { orientation: Orientation; aspectRatio: number | n
 type Fetch = typeof fetch;
 type Dimensions = { width: number; height: number };
 
-export function loadOriginalAspect(videoId: string): Promise<Dimensions | null> {
+function loadOriginalAspect(videoId: string): Promise<Dimensions | null> {
 	return new Promise((resolve) => {
 		const image = new Image();
 		const finish = (dimensions: Dimensions | null) => {
