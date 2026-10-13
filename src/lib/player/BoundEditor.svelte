@@ -37,7 +37,7 @@
 		if (fromEnd && expression === 0) {
 			// There is no signed -0 in the codec. Open end is a separate explicit choice.
 			draft = 'End of video';
-		} else draft = editorTime(expression, true, 2).replace(/^\u2248/, '');
+		} else draft = editorTime(expression, true, 2);
 		original = draft;
 		message = '';
 		editing = true;

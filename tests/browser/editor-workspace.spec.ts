@@ -1023,26 +1023,49 @@ test('named bound actions respect precision, retain Once, and share direct speed
 	await page.setViewportSize({ width: 1280, height: 800 });
 	await openEditor(page);
 	await page.getByRole('button', { name: 'Once', exact: true }).click();
+	await page.getByRole('button', { name: 'Edit clip range', exact: true }).click();
 	await page.getByRole('checkbox', { name: 'Sub-second times' }).check();
+	await page
+		.getByRole('dialog', { name: 'Edit clip range' })
+		.getByRole('button', { name: 'Close', exact: true })
+		.click();
 	await page.getByRole('slider', { name: 'Current time', exact: true }).fill('12.5');
+	await page.getByRole('button', { name: 'Edit clip range', exact: true }).click();
 	await page.getByRole('button', { name: 'Set start at playhead' }).press('Enter');
-	await expect(page.getByRole('slider', { name: 'Repeat start', exact: true })).toHaveValue('12.5');
+	await expect(
+		page.getByRole('slider', { name: 'Repeat start', exact: true, includeHidden: true })
+	).toHaveValue('12.5');
 	await expect(page.getByRole('button', { name: 'Edit start from start', exact: true })).toHaveText(
 		'0:12.5'
 	);
 	await expect(page).toHaveURL(/t=12\.5~50.*once/);
+	await page
+		.getByRole('dialog', { name: 'Edit clip range' })
+		.getByRole('button', { name: 'Close', exact: true })
+		.click();
 	await page.getByRole('slider', { name: 'Current time', exact: true }).fill('30.5');
+	await page.getByRole('button', { name: 'Edit clip range', exact: true }).click();
 	await page.getByRole('button', { name: 'Set end at playhead' }).click();
-	await expect(page.getByRole('slider', { name: 'Repeat end', exact: true })).toHaveValue('30.5');
+	await expect(
+		page.getByRole('slider', { name: 'Repeat end', exact: true, includeHidden: true })
+	).toHaveValue('30.5');
+	await page
+		.getByRole('dialog', { name: 'Edit clip range' })
+		.getByRole('button', { name: 'Close', exact: true })
+		.click();
 	await page.getByRole('slider', { name: 'Repeat start', exact: true }).fill('15.25');
+	await page.getByRole('button', { name: 'Edit clip range', exact: true }).click();
 	await expect(page.getByRole('button', { name: 'Edit start from start', exact: true })).toHaveText(
 		'0:15.25'
 	);
 	await expect(page).toHaveURL(/t=15\.25~30\.5.*once/);
-	await expect(page.getByRole('button', { name: 'Once', exact: true })).toHaveAttribute(
-		'aria-pressed',
-		'true'
-	);
+	await page
+		.getByRole('dialog', { name: 'Edit clip range' })
+		.getByRole('button', { name: 'Close', exact: true })
+		.click();
+	await expect(
+		page.getByRole('button', { name: 'Once', exact: true, includeHidden: true })
+	).toHaveAttribute('aria-pressed', 'true');
 	await divider(page).press('End');
 	await geometry(page);
 	await identity(page);
@@ -1140,33 +1163,48 @@ test('compact bounds retain signed fractions and refresh after source navigation
 	page
 }) => {
 	await openEditor(page, `/?v=${id}&t=-30.5~-5.25&once&mute`);
+	await page.getByRole('button', { name: 'Edit clip range', exact: true }).click();
 	await expect(page.getByRole('checkbox', { name: 'Sub-second times' })).not.toBeChecked();
 	await page.getByRole('checkbox', { name: 'Sub-second times' }).check();
 	await expect(page.getByRole('button', { name: 'Edit end from end', exact: true })).toHaveText(
 		'(-0:05.25)'
 	);
 	const duration = Number(
-		await page.getByRole('slider', { name: 'Current time', exact: true }).getAttribute('max')
+		await page
+			.getByRole('slider', { name: 'Current time', exact: true, includeHidden: true })
+			.getAttribute('max')
 	);
 	const start = Math.floor(duration) - 20.5;
+	await page
+		.getByRole('dialog', { name: 'Edit clip range' })
+		.getByRole('button', { name: 'Close', exact: true })
+		.click();
 	await page.getByRole('slider', { name: 'Current time', exact: true }).fill(String(start));
+	await page.getByRole('button', { name: 'Edit clip range', exact: true }).click();
 	await page.getByRole('button', { name: 'Set start at playhead' }).click();
 	expect(new URL(page.url()).searchParams.get('t')).toBe(`${start}~-5.25`);
-	await expect(page.getByRole('button', { name: 'Once', exact: true })).toHaveAttribute(
-		'aria-pressed',
-		'true'
-	);
+	await expect(
+		page.getByRole('button', { name: 'Once', exact: true, includeHidden: true })
+	).toHaveAttribute('aria-pressed', 'true');
 	await identity(page);
 	const lastValidUrl = page.url();
+	await page
+		.getByRole('dialog', { name: 'Edit clip range' })
+		.getByRole('button', { name: 'Close', exact: true })
+		.click();
 	await page.getByRole('slider', { name: 'Repeat end', exact: true }).fill('5.75');
-	await expect(page.getByRole('button', { name: 'Copy Link', exact: true })).toBeDisabled();
+	await page.getByRole('button', { name: 'Edit clip range', exact: true }).click();
+	await expect(
+		page.getByRole('button', { name: 'Copy Link', exact: true, includeHidden: true })
+	).toBeDisabled();
 	expect(page.url()).toBe(lastValidUrl);
 	await identity(page);
 	await openEditor(page, '/?v=M7lc1UVf-VE&t=2.5~8.75&once&mute');
+	await page.getByRole('button', { name: 'Edit clip range', exact: true }).click();
 	await expect(page.getByRole('button', { name: 'Edit start from start', exact: true })).toHaveText(
-		'≈0:03'
+		'0:03'
 	);
 	await expect(page.getByRole('button', { name: 'Edit end from start', exact: true })).toHaveText(
-		'≈0:09'
+		'0:09'
 	);
 });

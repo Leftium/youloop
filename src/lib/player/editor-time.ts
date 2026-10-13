@@ -15,7 +15,7 @@ export function editorTime(value: number, precise = true, decimalPlaces?: number
 	const hours = Math.floor(whole / 3600);
 	const minutes = Math.floor(whole / 60) % 60;
 	const clock = `${hours ? `${hours}:${String(minutes).padStart(2, '0')}` : Math.floor(whole / 60)}:${String(Math.floor(seconds)).padStart(2, '0')}${tail}`;
-	return `${rounded !== value ? '\u2248' : ''}${value < 0 ? '-' : ''}${clock}`;
+	return `${value < 0 ? '-' : ''}${clock}`;
 }
 
 /** Negative zero is intentionally invalid: use the explicit open-end action. */

@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { parseEditorTime } from '../../src/lib/player/editor-time';
+import { editorTime, parseEditorTime } from '../../src/lib/player/editor-time';
 import {
 	formatShareBounds,
 	serializeShareUrl,
@@ -11,6 +11,14 @@ const secondId = 'jNQXAC9IVRw';
 const preview = (page: Page) => page.getByLabel('Share URL preview', { exact: true });
 const input = (page: Page, endpoint = 'start') =>
 	page.getByRole('textbox', { name: `Edit ${endpoint}`, exact: true });
+const openRange = (page: Page) =>
+	page.getByRole('button', { name: 'Edit clip range', exact: true }).click();
+const closeRange = (page: Page) =>
+	page
+		.getByRole('dialog', { name: 'Edit clip range' })
+		.getByRole('button', { name: 'Close', exact: true })
+		.click();
+
 async function choosePolicy(page: Page, policy: TimestampPolicy) {
 	await page.getByRole('combobox', { name: 'URL timestamp format' }).click();
 	await page.locator(`[role="option"][data-policy="${policy}"]`).click();
@@ -66,17 +74,129 @@ async function clipboard(page: Page, text = '') {
 }
 
 test.describe('editor polish', () => {
+	test('read-only range, modal focus and narrow layout preserve exact bounds and active playback', async ({
+		page
+	}) => {
+		await open(page, '1.2345~59.25');
+		const original = page.url();
+		const share = await preview(page).textContent();
+		const summary = page.getByRole('group', { name: 'Clip range', exact: true });
+		await expect(summary.locator('dd')).toHaveText(['0:01', '0:59']);
+		await expect(summary.getByRole('button')).toHaveCount(1);
+		await expect(page.getByRole('button', { name: 'Set start at playhead' })).toHaveCount(0);
+		for (const text of await summary.locator('dt, dd, .marker').all()) {
+			await text.click();
+			expect(page.url()).toBe(original);
+			await expect(page.getByRole('dialog')).toHaveCount(0);
+		}
+		await page.getByRole('button', { name: 'Play', exact: true }).click();
+		await openRange(page);
+		const dialog = page.getByRole('dialog', { name: 'Edit clip range' });
+		await expect(dialog).toBeVisible();
+		expect(await dialog.evaluate((el) => getComputedStyle(el).backgroundColor)).not.toBe(
+			'rgba(0, 0, 0, 0)'
+		);
+		await page.waitForFunction(
+			() => !(document.querySelector('youtube-video') as HTMLMediaElement).paused
+		);
+		await page.getByRole('checkbox', { name: 'Sub-second times' }).check();
+		await page.getByRole('button', { name: 'Edit start from start', exact: true }).click();
+		await input(page).fill('invalid draft');
+		await input(page).press('Escape');
+		await expect(dialog).toBeVisible();
+		await page.keyboard.press('Escape');
+		await expect(dialog).toBeHidden();
+		await expect(page.getByRole('button', { name: 'Edit clip range', exact: true })).toBeFocused();
+		await expect(summary.locator('dd')).toHaveText(['0:01', '0:59']);
+		expect(page.url()).toBe(original);
+		await expect(preview(page)).toHaveText(share!);
+		await openRange(page);
+		await expect(page.getByRole('checkbox', { name: 'Sub-second times' })).toBeChecked();
+		for (const [width, height] of [
+			[320, 568],
+			[390, 280],
+			[844, 390]
+		]) {
+			await page.setViewportSize({ width, height });
+			await page.getByRole('button', { name: 'Edit end from end', exact: true }).click();
+			await input(page, 'end').focus();
+			expect(
+				await dialog.evaluate((el) => {
+					const rect = el.getBoundingClientRect();
+					return (
+						el.scrollWidth <= el.clientWidth + 1 &&
+						rect.width <= innerWidth &&
+						rect.height <= innerHeight
+					);
+				})
+			).toBe(true);
+			await input(page, 'end').press('Escape');
+		}
+		await closeRange(page);
+		await expect(page.getByRole('button', { name: 'Edit clip range', exact: true })).toBeFocused();
+		await expect(page.getByRole('button', { name: 'Pause', exact: true })).toBeVisible();
+		await identity(page);
+	});
+
+	test('signed range edits, open end and Back/Forward refresh the read-only summary', async ({
+		page
+	}) => {
+		await open(page);
+		const original = page.url();
+		const media = page.locator('youtube-video');
+		const duration = await media.evaluate((el) => (el as HTMLMediaElement).duration);
+		const summary = page.getByRole('group', { name: 'Clip range', exact: true });
+		await expect(summary.locator('dd')).toHaveText([
+			editorTime(duration - 30.5, false),
+			editorTime(duration - 5.25, false)
+		]);
+		await openRange(page);
+		await page.getByRole('button', { name: 'Edit start from end', exact: true }).click();
+		await input(page).fill('-40');
+		await input(page).press('Enter');
+		await page.getByRole('button', { name: 'Edit end from end', exact: true }).click();
+		await page.getByRole('button', { name: 'End of video', exact: true }).click();
+		await closeRange(page);
+		await expect(summary.locator('dd')).toHaveText([
+			editorTime(duration - 40, false),
+			editorTime(duration, false)
+		]);
+		await expect(page).toHaveURL(/t=-40~(?:&|$)/);
+		// Individual edits replace history. Follow a same-route link to create the next entry.
+		await page.evaluate((href) => {
+			const link = document.createElement('a');
+			link.href = href;
+			document.body.append(link);
+			link.click();
+			link.remove();
+		}, original);
+		await expect(page).toHaveURL(original);
+		await expect(summary.locator('dd').first()).toHaveText(editorTime(duration - 30.5, false));
+		await page.goBack();
+		await expect(page).toHaveURL(/t=-40~(?:&|$)/);
+		await expect(summary.locator('dd')).toHaveText([
+			editorTime(duration - 40, false),
+			editorTime(duration, false)
+		]);
+		await page.goForward();
+		await expect(page).toHaveURL(original);
+		await expect(summary.locator('dd').first()).toHaveText(editorTime(duration - 30.5, false));
+		await identity(page);
+	});
+
 	test('compact settings align pills and switches, preserve precise drafts, and fill the transport', async ({
 		page,
 		browserName
 	}) => {
 		await page.setViewportSize({ width: 1920, height: 1080 });
 		await open(page, '12.5~59.25');
+		await openRange(page);
 		await page.getByRole('checkbox', { name: 'Sub-second times' }).check();
 		const originalUrl = page.url();
 		await expect(page.getByRole('button', { name: 'Edit start from end', exact: true })).toHaveText(
-			/^\(≈?-\d+(?::\d{2}){1,2}(?:\.\d{1,2})?\)$/
+			/^\(-\d+(?::\d{2}){1,2}(?:\.\d{1,2})?\)$/
 		);
+		await closeRange(page);
 		const content = page.locator('.settings-content');
 		expect(
 			await content.evaluate((el) => {
@@ -141,10 +261,13 @@ test.describe('editor polish', () => {
 		await expect(page.getByRole('button', { name: 'Portrait', exact: true })).toHaveText(
 			'Portrait'
 		);
+		await openRange(page);
 		await page.getByRole('button', { name: 'Edit start from end', exact: true }).click();
 		await expect(page.getByRole('button', { name: 'Set start at playhead' })).toHaveCount(0);
 		const duration = Number(
-			await page.getByRole('slider', { name: 'Current time', exact: true }).getAttribute('max')
+			await page
+				.getByRole('slider', { name: 'Current time', exact: true, includeHidden: true })
+				.getAttribute('max')
 		);
 		expect(parseEditorTime(await input(page).inputValue())! + duration).toBeCloseTo(12.5, 1);
 		await input(page).press('Enter');
@@ -192,6 +315,7 @@ test.describe('editor polish', () => {
 		page
 	}) => {
 		await open(page, '1.2345~12.3456');
+		await openRange(page);
 		const original = page.url();
 		for (const [endpoint, draft] of [
 			['start', '0:01.23'],
@@ -220,10 +344,11 @@ test.describe('editor polish', () => {
 		await open(page);
 		const original = page.url();
 		const originalPreview = await preview(page).textContent();
+		await openRange(page);
 		const precision = page.getByRole('checkbox', { name: 'Sub-second times' });
 		await expect(precision).not.toBeChecked();
 		await expect(page.getByRole('button', { name: 'Edit end from end', exact: true })).toHaveText(
-			'(≈-0:05)'
+			'(-0:05)'
 		);
 		await page.getByRole('button', { name: 'Edit end from end', exact: true }).click();
 		await expect(input(page, 'end')).toHaveValue('-0:05.25');
@@ -270,7 +395,9 @@ test.describe('editor polish', () => {
 			page.getByRole('button', { name: 'Edit end from end', exact: true })
 		).toBeFocused();
 		await precision.uncheck();
+		await closeRange(page);
 		await page.getByRole('slider', { name: 'Current time', exact: true }).fill('15.5');
+		await openRange(page);
 		await page.getByRole('button', { name: 'Set start at playhead' }).click();
 		await expect(page).toHaveURL(/t=16~-5\.25/);
 		await precision.check();
@@ -282,6 +409,7 @@ test.describe('editor polish', () => {
 			() => !(document.querySelector('youtube-video') as HTMLMediaElement).seeking
 		);
 		await page.getByRole('button', { name: 'Set start at playhead' }).click();
+		await closeRange(page);
 		const preciseStart = Number(
 			await page.getByRole('slider', { name: 'Repeat start', exact: true }).inputValue()
 		);
@@ -315,6 +443,7 @@ test.describe('editor polish', () => {
 			'from-end',
 			'preserve'
 		] as TimestampPolicy[]) {
+			await openRange(page);
 			await page.getByRole('combobox', { name: 'URL timestamp format' }).click();
 			for (const option of [
 				'preserve',
@@ -336,6 +465,7 @@ test.describe('editor polish', () => {
 			await page.keyboard.press('Escape');
 			await expect(page.getByRole('combobox', { name: 'URL timestamp format' })).toBeFocused();
 			await choosePolicy(page, policy);
+			await closeRange(page);
 			const expected = serializeShareUrl(formatShareBounds(committed, duration, policy)!);
 			await expect(page.getByRole('link', { name: 'Open video', exact: true })).toHaveAttribute(
 				'href',
@@ -354,26 +484,32 @@ test.describe('editor polish', () => {
 			);
 			await identity(page);
 		}
+		await openRange(page);
 		await page.getByRole('button', { name: 'Edit end from end', exact: true }).click();
 		await page.getByRole('button', { name: 'End of video', exact: true }).click();
+		await closeRange(page);
 		await expect(page.getByRole('link', { name: 'Open video', exact: true })).toHaveAttribute(
 			'href',
 			`/${id}/12.5?once&mute&speed=1.5&fill=0`
 		);
+		await openRange(page);
 		await expect(page.getByRole('button', { name: 'Edit end from end', exact: true })).toHaveText(
 			'End of video'
 		);
 		await choosePolicy(page, 'from-start');
+		await closeRange(page);
 		await expect(page.getByRole('link', { name: 'Open video', exact: true })).toHaveAttribute(
 			'href',
 			`/${id}/12.5~${duration}?once&mute&speed=1.5&fill=0`
 		);
 		await page.reload();
 		await expect(page.getByRole('button', { name: 'Copy Link', exact: true })).toBeEnabled();
+		await openRange(page);
 		await expect(page.getByRole('combobox', { name: 'URL timestamp format' })).toHaveAttribute(
 			'data-value',
 			'preserve'
 		);
+		await closeRange(page);
 		await expect(page.getByRole('link', { name: 'Open video', exact: true })).toHaveAttribute(
 			'href',
 			`/${id}/12.5~${duration}?once&mute&speed=1.5&fill=0`

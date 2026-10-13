@@ -15,12 +15,12 @@ test('clock editing preserves signed fractional precision and marks whole-second
 		assert.equal(editorTime(value), expected);
 		assert.equal(parseEditorTime(expected), value);
 	}
-	assert.equal(editorTime(51.72639455782313, true, 2), '\u22480:51.73');
-	assert.equal(editorTime(-51.72639455782313, true, 2), '\u2248-0:51.73');
-	assert.equal(editorTime(59.9999, true, 2), '\u22481:00');
+	assert.equal(editorTime(51.72639455782313, true, 2), '0:51.73');
+	assert.equal(editorTime(-51.72639455782313, true, 2), '-0:51.73');
+	assert.equal(editorTime(59.9999, true, 2), '1:00');
 	assert.equal(editorTime(12.5, true, 2), '0:12.5');
-	assert.equal(editorTime(12.5, false), '\u22480:13');
-	assert.equal(editorTime(-6.75, false), '\u2248-0:07');
+	assert.equal(editorTime(12.5, false), '0:13');
+	assert.equal(editorTime(-6.75, false), '-0:07');
 	assert.equal(parseEditorTime('-30.25'), -30.25);
 	for (const text of ['', '-', '-0', '-0:00', '0:60', '1e3', 'abc', '1:2', '1.'])
 		assert.equal(parseEditorTime(text), undefined);
