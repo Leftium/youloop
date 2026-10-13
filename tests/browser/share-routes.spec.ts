@@ -83,10 +83,7 @@ test('editor aliases, live state, canonical sharing, reload and Back/Forward', a
 		'aria-pressed',
 		'true'
 	);
-	await expect(page.getByRole('button', { name: 'Crop to fill on' })).toHaveAttribute(
-		'aria-pressed',
-		'false'
-	);
+	await expect(page.getByRole('switch', { name: 'Crop to fill', exact: true })).not.toBeChecked();
 	await expect(page.getByRole('button', { name: 'Loop', exact: true })).toHaveAttribute(
 		'aria-pressed',
 		'false'
@@ -99,8 +96,8 @@ test('editor aliases, live state, canonical sharing, reload and Back/Forward', a
 	});
 	await page.getByRole('slider', { name: 'Repeat start', exact: true }).fill('25.5');
 	await page.getByRole('slider', { name: 'Repeat end', exact: true }).fill('33.2');
-	await page.getByRole('button', { name: 'Crop to fill on' }).click();
-	await page.getByRole('button', { name: 'Sound off', exact: true }).click();
+	await page.getByRole('switch', { name: 'Crop to fill', exact: true }).check();
+	await page.getByRole('switch', { name: 'Sound', exact: true }).uncheck();
 	const expected = `/${id}/25.5~33.2?once&mute&speed=1.5&vertical&fill`;
 	await expect(page.getByRole('link', { name: 'Open video', exact: true })).toHaveAttribute(
 		'href',
@@ -155,10 +152,7 @@ test('new editor parameters win over aliases, seek/step/loop/once work with real
 		'aria-pressed',
 		'true'
 	);
-	await expect(page.getByRole('button', { name: 'Crop to fill on' })).toHaveAttribute(
-		'aria-pressed',
-		'false'
-	);
+	await expect(page.getByRole('switch', { name: 'Crop to fill', exact: true })).not.toBeChecked();
 	await expect(page.getByRole('button', { name: 'Loop', exact: true })).toHaveAttribute(
 		'aria-pressed',
 		'true'

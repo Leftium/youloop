@@ -102,13 +102,15 @@
 	<div class="bound-label">
 		<span class="marker">{endpoint === 'start' ? 'A' : 'B'}</span>{label}
 	</div>
-	<button
-		class="set-bound"
-		aria-label={`Set ${endpoint} at playhead`}
-		onclick={onset}
-		disabled={duration === undefined}>Set at playhead</button
-	>
-	<div class="bound-values">
+	{#if !editing}
+		<button
+			class="set-bound"
+			aria-label={`Set ${endpoint} at playhead`}
+			onclick={onset}
+			disabled={duration === undefined}>Set at playhead</button
+		>
+	{/if}
+	<div class="bound-values" class:editing>
 		{#if editing}
 			<div class="draft-actions">
 				<input
@@ -142,7 +144,7 @@
 				aria-label={`Edit ${endpoint} from start`}
 				disabled={duration === undefined}
 				onclick={() => edit(false)}
-				>{duration === undefined ? '?:??' : editorTime(value, precise)}</button
+				>{duration === undefined ? '?:??' : editorTime(value, precise, 2)}</button
 			>
 			<button
 				class="time-display secondary"
@@ -154,7 +156,7 @@
 					? '(?:??)'
 					: relative === 0
 						? 'End of video'
-						: `(${editorTime(relative, precise)})`}</button
+						: `(${editorTime(relative, precise, 2)})`}</button
 			>
 		{/if}
 	</div>
@@ -164,7 +166,7 @@
 <style>
 	.bound-row {
 		display: grid;
-		grid-template-columns: 1fr auto;
+		grid-template-columns: minmax(0, 1fr) auto;
 		gap: 4px 8px;
 		margin-block: 8px;
 	}
@@ -173,6 +175,7 @@
 		align-items: center;
 		gap: 8px;
 		font-weight: 600;
+		min-height: 44px;
 	}
 	.marker {
 		border: 1px solid currentColor;
@@ -196,8 +199,8 @@
 	}
 	.bound-values {
 		grid-column: 1 / -1;
-		display: flex;
-		flex-wrap: wrap;
+		display: grid;
+		grid-template-columns: max-content max-content;
 		align-items: center;
 		gap: 4px;
 	}
@@ -207,6 +210,8 @@
 		border-color: transparent;
 		font-variant-numeric: tabular-nums;
 		padding-inline: 6px;
+		white-space: nowrap;
+		font-size: 0.85rem;
 	}
 	.secondary {
 		opacity: 0.75;
@@ -216,7 +221,8 @@
 		border-color: var(--nc-border);
 	}
 	.draft-actions {
-		display: flex;
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) auto auto;
 		gap: 4px;
 		width: 100%;
 		align-items: center;
@@ -228,12 +234,21 @@
 		margin: 0;
 		padding: 8px;
 	}
+	.bound-values.editing {
+		display: flex;
+		flex-direction: column;
+		align-items: stretch;
+	}
+	.open-end {
+		align-self: flex-start;
+		font-size: 0.8rem;
+	}
 	p {
 		grid-column: 1 / -1;
 		font-size: 0.8rem;
 		margin: 0;
 	}
-	@container clip-settings (min-width: 380px) {
+	@container clip-settings (min-width: 400px) {
 		.bound-row {
 			grid-template-columns: 70px minmax(0, 1fr) auto;
 			align-items: center;
@@ -244,6 +259,10 @@
 		}
 		.set-bound {
 			grid-column: 3;
+			grid-row: 1;
+		}
+		.bound-values.editing {
+			grid-column: 2 / -1;
 		}
 	}
 </style>

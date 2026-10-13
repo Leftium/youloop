@@ -1,8 +1,13 @@
 import { decimal, subtractSeconds } from '../share-url.ts';
 
 /** Clock text retains decimal seconds, including precision finer than tenths. */
-export function editorTime(value: number, precise = true): string {
-	const magnitude = Math.abs(precise ? value : Math.round(value));
+export function editorTime(value: number, precise = true, decimalPlaces?: number): string {
+	const rounded = !precise
+		? Math.round(value)
+		: decimalPlaces === undefined
+			? value
+			: Math.round(value * 10 ** decimalPlaces) / 10 ** decimalPlaces;
+	const magnitude = Math.abs(rounded);
 	const seconds = magnitude % 60;
 	const whole = Math.floor(magnitude);
 	const fraction = subtractSeconds(magnitude, whole);
@@ -10,7 +15,7 @@ export function editorTime(value: number, precise = true): string {
 	const hours = Math.floor(whole / 3600);
 	const minutes = Math.floor(whole / 60) % 60;
 	const clock = `${hours ? `${hours}:${String(minutes).padStart(2, '0')}` : Math.floor(whole / 60)}:${String(Math.floor(seconds)).padStart(2, '0')}${tail}`;
-	return `${!precise && !Number.isInteger(value) ? '\u2248' : ''}${value < 0 ? '-' : ''}${clock}`;
+	return `${rounded !== value ? '\u2248' : ''}${value < 0 ? '-' : ''}${clock}`;
 }
 
 /** Negative zero is intentionally invalid: use the explicit open-end action. */

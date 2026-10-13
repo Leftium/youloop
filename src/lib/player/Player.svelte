@@ -38,6 +38,7 @@
 	import IcRoundFullscreen from '~icons/ic/round-fullscreen';
 	import IcRoundFullscreenExit from '~icons/ic/round-fullscreen-exit';
 	import IcRoundCropLandscape from '~icons/ic/round-crop-landscape';
+	import IcRoundCropPortrait from '~icons/ic/round-crop-portrait';
 
 	let player = $state<YouTubeVideoElement>(undefined!);
 	let playerContainer: HTMLDivElement;
@@ -1035,7 +1036,7 @@
 		<div class="editor-transport">
 			<div class="timestamps">
 				<div>{formatVideoTime(currentTime)} / {formatVideoTime(duration)}</div>
-				<div>{editorTime(repeatA, subSeconds)}A - {editorTime(repeatB, subSeconds)}B</div>
+				<div>{editorTime(repeatA, subSeconds, 2)}A - {editorTime(repeatB, subSeconds, 2)}B</div>
 			</div>
 
 			<div class="wrap-sliders">
@@ -1140,6 +1141,7 @@
 							class="secondary-label">Loop</span
 						></button
 					>
+					<button class="transport-fill" disabled aria-hidden="true" tabindex="-1"></button>
 				</div>
 			</div>
 		</div>
@@ -1207,7 +1209,7 @@
 			<h2 id="playback-heading">Playback</h2>
 			<div class="setting-row">
 				<span>Speed</span>
-				<div class="speed-buttons nc-join" role="group" aria-label="Playback speed">
+				<div class="speed-buttons choice-pills" role="group" aria-label="Playback speed">
 					{#each [200, 100, 50, 25] as rate (rate)}<button
 							aria-label={`${rate / 100}x speed`}
 							aria-pressed={playbackRate === rate}
@@ -1215,34 +1217,26 @@
 						>{/each}
 				</div>
 			</div>
+			<label class="setting-row switch-row"
+				><span>Sound</span><input
+					type="checkbox"
+					role="switch"
+					aria-label="Sound"
+					checked={!muted}
+					onchange={toggleMute}
+				/></label
+			>
 			<div class="setting-row">
-				<span>Sound</span>
-				<div class="nc-join" role="group" aria-label="Sound">
-					<button
-						aria-label="Sound on"
-						aria-pressed={!muted}
-						onclick={() => {
-							if (muted) toggleMute();
-						}}>On</button
-					><button
-						aria-label="Sound off"
-						aria-pressed={muted}
-						onclick={() => {
-							if (!muted) toggleMute();
-						}}>Off</button
-					>
-				</div>
-			</div>
-			<div class="setting-row">
-				<span>Repeat</span>
-				<div class="nc-join" role="group" aria-label="Repeat mode">
+				<span>Repeat</span><span class="setting-description">Repeat or stop at End</span>
+				<div class="choice-pills" role="group" aria-label="Repeat mode">
 					<button
 						aria-label="Loop"
 						aria-pressed={loop}
 						onclick={() => {
 							if (!loop) toggleLoop();
 						}}>Loop</button
-					><button
+					>
+					<button
 						aria-label="Once"
 						aria-pressed={!loop}
 						onclick={() => {
@@ -1250,37 +1244,37 @@
 						}}>Once</button
 					>
 				</div>
-				<span class="setting-description">Repeat or stop at End</span>
 			</div>
 		</section>
 		<section aria-labelledby="framing-heading" class="settings-section">
 			<h2 id="framing-heading">Framing</h2>
 			<div class="setting-row">
 				<span>Orientation</span>
-				<div class="nc-join" role="group" aria-label="Media orientation">
+				<div class="choice-pills orientation-pills" role="group" aria-label="Media orientation">
 					{#each ['landscape', 'portrait'] as frame (frame)}<button
 							aria-label={frame === 'landscape' ? 'Landscape' : 'Portrait'}
 							aria-pressed={orientation === frame}
+							title={frame === 'landscape' ? 'Landscape' : 'Portrait'}
 							onclick={() => onorientationchange?.(frame as 'landscape' | 'portrait')}
-							>{frame === 'landscape' ? 'Landscape' : 'Portrait'}</button
-						>{/each}
+						>
+							{#if frame === 'landscape'}<IcRoundCropLandscape />{:else}<IcRoundCropPortrait
+								/>{/if}<span class="pill-label"
+								>{frame === 'landscape' ? 'Landscape' : 'Portrait'}</span
+							>
+						</button>{/each}
 				</div>
 			</div>
-			<div class="setting-row">
-				<span>Crop to fill</span>
-				<div class="nc-join" role="group" aria-label="Crop to fill">
-					<button
-						aria-label="Crop to fill on"
-						aria-pressed={fillFrame}
-						onclick={() => onfillchange?.(true)}>On</button
-					><button
-						aria-label="Crop to fill off"
-						aria-pressed={!fillFrame}
-						onclick={() => onfillchange?.(false)}>Off</button
-					>
-				</div>
-				<span class="setting-description">Fill the frame, cropping edges</span>
-			</div>
+			<label class="setting-row switch-row"
+				><span>Crop to fill</span><span class="setting-description"
+					>Fill the frame, cropping edges</span
+				><input
+					type="checkbox"
+					role="switch"
+					aria-label="Crop to fill"
+					checked={fillFrame}
+					onchange={(event) => onfillchange?.(event.currentTarget.checked)}
+				/></label
+			>
 		</section>
 	</div>
 	{@render layoutReset()}
@@ -1637,10 +1631,10 @@
 		display: flex;
 		align-items: center;
 	}
-	.preview-playback {
+	.preview-playback.nc-join {
 		display: flex;
 		flex-wrap: nowrap;
-		width: max-content;
+		width: 100%;
 	}
 	.preview-playback button {
 		display: inline-flex;
@@ -1650,8 +1644,17 @@
 		height: 44px;
 		width: 44px;
 		min-width: 44px;
+		flex-shrink: 0;
 		padding: 4px;
 		margin: 0;
+	}
+	.preview-playback .transport-fill {
+		flex: 1;
+		width: auto;
+		min-width: 0;
+		padding: 0;
+		opacity: 1;
+		cursor: default;
 	}
 	.preview-playback :global(svg) {
 		width: 22px;
@@ -1792,7 +1795,6 @@
 		margin-block: 4px;
 	}
 	.setting-row > span:first-child {
-		width: 85px;
 		flex-shrink: 0;
 		font-size: 0.85rem;
 	}
@@ -1840,16 +1842,53 @@
 			display: none;
 		}
 	}
+	.choice-pills {
+		display: flex;
+		align-items: center;
+		gap: 4px;
+		margin-inline-start: auto;
+		flex-shrink: 0;
+	}
+	.choice-pills button {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		gap: 6px;
+		min-height: 36px;
+		min-width: 44px;
+		padding: 4px 10px;
+		margin: 0;
+		border: 1px solid var(--nc-border);
+		border-radius: 999px;
+		color: var(--nc-text);
+		background: var(--nc-surface-2);
+		font-size: 0.85rem;
+	}
+	.choice-pills button[aria-pressed='true'] {
+		background: var(--nc-surface-4);
+		border-color: var(--nc-text);
+	}
+	.choice-pills button:hover {
+		background: var(--nc-surface-3);
+	}
+	.choice-pills :global(svg) {
+		width: 18px;
+		height: 18px;
+		flex-shrink: 0;
+	}
+	.switch-row input {
+		margin-inline-start: auto;
+	}
 	@container clip-settings (max-width: 340px) {
 		.setting-row {
 			gap: 4px;
 		}
-		.setting-row > span:first-child {
-			width: 48px;
-		}
-		.setting-row .nc-join button {
+		.choice-pills button {
 			padding-inline: 4px;
 			font-size: 0.75rem;
+		}
+		.orientation-pills .pill-label {
+			display: none;
 		}
 	}
 	.timestamps {
@@ -2037,7 +2076,6 @@
 			background: $zinc-550;
 			color: white;
 			border: 1px solid transparent;
-			border-radius: 0;
 			font-size: 0.85rem;
 		}
 		button:hover {

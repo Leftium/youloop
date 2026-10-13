@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import { parseEditorTime } from '../../src/lib/player/editor-time';
 import {
 	formatShareBounds,
 	serializeShareUrl,
@@ -60,6 +61,115 @@ async function clipboard(page: Page, text = '') {
 }
 
 test.describe('editor polish', () => {
+	test('compact settings align pills and switches, preserve precise drafts, and fill the transport', async ({
+		page,
+		browserName
+	}) => {
+		await page.setViewportSize({ width: 1920, height: 1080 });
+		await open(page, '12.5~59.25');
+		await page.getByRole('checkbox', { name: 'Sub-second times' }).check();
+		const originalUrl = page.url();
+		await expect(page.getByRole('button', { name: 'Edit start from end', exact: true })).toHaveText(
+			/^\(≈?-\d+(?::\d{2}){1,2}(?:\.\d{1,2})?\)$/
+		);
+		const content = page.locator('.settings-content');
+		expect(
+			await content.evaluate(
+				(el) => el.getBoundingClientRect().width <= parseFloat(getComputedStyle(el).maxWidth) + 1
+			)
+		).toBe(true);
+		expect(
+			await page.locator('.source-link a').evaluate((el) => {
+				const range = document.createRange();
+				range.selectNodeContents(el);
+				return el.getBoundingClientRect().width <= range.getBoundingClientRect().width + 1;
+			})
+		).toBe(true);
+		await expect(
+			page.getByRole('button', { name: 'Edit', exact: true }).locator('svg')
+		).toHaveCount(1);
+		await expect(page.getByRole('button', { name: 'Edit', exact: true })).toHaveText('');
+		expect(
+			await page.locator('.source-link').evaluate((el) => {
+				const children = Array.from(el.children).map((item) => item.getBoundingClientRect());
+				return children.every(
+					(box) => Math.abs(box.top + box.height / 2 - children[0].top - children[0].height / 2) < 1
+				);
+			})
+		).toBe(true);
+		for (const name of ['Sound', 'Crop to fill']) {
+			const control = page.getByRole('switch', { name, exact: true });
+			expect(await control.evaluate((el) => getComputedStyle(el).appearance)).toBe('none');
+		}
+		for (const label of ['Playback speed', 'Repeat mode', 'Media orientation']) {
+			const group = page.getByRole('group', { name: label, exact: true });
+			expect(
+				await group.evaluate((el) => {
+					const row = el.closest('.setting-row')!.getBoundingClientRect();
+					return (
+						Math.abs(el.getBoundingClientRect().right - row.right) < 1 &&
+						Array.from(el.querySelectorAll('button')).every(
+							(button) =>
+								parseFloat(getComputedStyle(button).borderRadius) >=
+								button.getBoundingClientRect().height / 2
+						)
+					);
+				})
+			).toBe(true);
+		}
+		await expect(
+			page.getByRole('button', { name: 'Landscape', exact: true }).locator('svg')
+		).toHaveCount(1);
+		await expect(
+			page.getByRole('button', { name: 'Portrait', exact: true }).locator('svg')
+		).toHaveCount(1);
+		await page.getByRole('button', { name: 'Edit start from end', exact: true }).click();
+		await expect(page.getByRole('button', { name: 'Set start at playhead' })).toHaveCount(0);
+		const duration = Number(
+			await page.getByRole('slider', { name: 'Current time', exact: true }).getAttribute('max')
+		);
+		expect(parseEditorTime(await input(page).inputValue())! + duration).toBeCloseTo(12.5, 10);
+		await input(page).press('Enter');
+		expect(page.url()).toBe(originalUrl);
+		for (const width of [320, 390, 660, 1280]) {
+			await page.setViewportSize({ width, height: 844 });
+			await expect
+				.poll(() =>
+					page.locator('.preview-playback').evaluate((el) => {
+						const parent = el.parentElement!.getBoundingClientRect();
+						const box = el.getBoundingClientRect();
+						const fill = el.querySelector('.transport-fill') as HTMLButtonElement;
+						return (
+							Math.abs(box.width - parent.width) < 1 &&
+							Math.abs(box.right - parent.right) < 1 &&
+							fill.disabled &&
+							fill.tabIndex === -1
+						);
+					})
+				)
+				.toBe(true);
+			await page.getByRole('button', { name: 'Edit end from end', exact: true }).click();
+			await expect(page.getByRole('button', { name: 'Set end at playhead' })).toHaveCount(0);
+			expect(
+				await page.locator('[data-endpoint="end"]').evaluate((el) => {
+					const row = el.getBoundingClientRect();
+					return Array.from(el.querySelectorAll('input,button')).every((child) => {
+						const box = child.getBoundingClientRect();
+						return box.left >= row.left - 1 && box.right <= row.right + 1;
+					});
+				})
+			).toBe(true);
+			await input(page, 'end').press('Escape');
+			await expect
+				.poll(() =>
+					page.locator('#editor-settings').evaluate((el) => el.scrollWidth <= el.clientWidth + 1)
+				)
+				.toBe(true);
+			await identity(page);
+		}
+		await page.setViewportSize({ width: 1280, height: 800 });
+		await page.screenshot({ path: `/tmp/youloop39-refined-${browserName}.png` });
+	});
 	test('fractional presentation, unchanged drafts, signed edits, safe blur and repair', async ({
 		page
 	}) => {
@@ -341,10 +451,7 @@ test.describe('editor polish', () => {
 		expect(await positions()).toEqual(original);
 		await page.getByRole('button', { name: 'Pause', exact: true }).click();
 		await transport.locator('.transport-sound').click();
-		await expect(page.getByRole('button', { name: 'Sound on', exact: true })).toHaveAttribute(
-			'aria-pressed',
-			'true'
-		);
+		await expect(page.getByRole('switch', { name: 'Sound', exact: true })).toBeChecked();
 		await transport.locator('.transport-loop').click();
 		await expect(page.getByRole('button', { name: 'Loop', exact: true })).toHaveAttribute(
 			'aria-pressed',

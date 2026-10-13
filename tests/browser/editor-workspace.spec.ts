@@ -261,7 +261,7 @@ for (const viewport of [
 		for (const orientation of ['Portrait', 'Landscape']) {
 			await page.getByRole('button', { name: orientation, exact: true }).click();
 			for (let i = 0; i < 2; i++) {
-				await page.getByRole('button', { name: 'Crop to fill on', exact: true }).click();
+				await page.getByRole('switch', { name: 'Crop to fill', exact: true }).check();
 				await geometry(page);
 				await identity(page);
 			}

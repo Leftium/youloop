@@ -15,10 +15,11 @@ export async function run() {
 	const originalOrientation = buttons.find(
 		(button) => button.getAttribute('aria-pressed') === 'true'
 	)!;
-	const fillButton = document.querySelector<HTMLButtonElement>('[aria-label="Crop to fill on"]')!;
-	const fitButton = document.querySelector<HTMLButtonElement>('[aria-label="Crop to fill off"]')!;
-	const toggleFill = () => (pressed() ? fitButton : fillButton).click();
-	if (!fillButton) throw new Error('Missing Crop to fill button');
+	const fillInput = document.querySelector<HTMLInputElement>(
+		'[role="switch"][aria-label="Crop to fill"]'
+	)!;
+	if (!fillInput) throw new Error('Missing Crop to fill switch');
+	const toggleFill = () => fillInput.click();
 	const originalFit = new URL(window.location.href).searchParams.get('fill');
 	const originalWidth = container.style.width;
 	const results: string[] = [];
@@ -30,7 +31,7 @@ export async function run() {
 		if (!condition) throw new Error(message);
 		results.push(message);
 	};
-	const pressed = () => fillButton.getAttribute('aria-pressed') === 'true';
+	const pressed = () => fillInput.checked;
 	const sourceRatio = () =>
 		Number(getComputedStyle(container).getPropertyValue('--video-source-ratio'));
 	const fitParameter = () => new URL(window.location.href).searchParams.get('fill');

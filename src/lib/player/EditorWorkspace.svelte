@@ -413,7 +413,6 @@
 		background: var(--nc-surface-1);
 	}
 	.settings-pane {
-		container: clip-settings / inline-size;
 		background: var(--nc-surface-1);
 		/* Keep pane boundary gestures from chaining into the document where supported. */
 		overscroll-behavior-y: contain;
@@ -423,6 +422,12 @@
 			max(1rem, env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-left));
 		overflow-wrap: anywhere;
 		scrollbar-gutter: stable;
+	}
+	.settings-content {
+		container: clip-settings / inline-size;
+		width: 100%;
+		max-width: var(--size-content-3, 60ch);
+		margin-inline: auto;
 	}
 	.settings-edge {
 		display: none;

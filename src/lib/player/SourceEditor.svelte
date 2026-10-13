@@ -1,5 +1,7 @@
 <script lang="ts">
 	import { tick } from 'svelte';
+	import IcRoundEdit from '~icons/ic/round-edit';
+	import IcRoundContentPaste from '~icons/ic/round-content-paste';
 	import { parseEditorSource, type EditorSource } from './editor-source';
 	let {
 		videoId,
@@ -77,9 +79,20 @@
 	{:else}
 		<div class="source-link">
 			<a href={`https://youtu.be/${videoId}`} target="_blank" rel="noreferrer">youtu.be/{videoId}</a
-			><button bind:this={editButton} onclick={edit}>Edit</button>
+			><button
+				class="source-edit"
+				bind:this={editButton}
+				aria-label="Edit"
+				title="Edit YouTube source"
+				onclick={edit}><IcRoundEdit /></button
+			>
+			<button
+				class="clipboard-load"
+				aria-label="Load from clipboard"
+				title="Load from clipboard"
+				onclick={() => paste(true)}><IcRoundContentPaste /><span>Load from clipboard</span></button
+			>
 		</div>
-		<button class="clipboard-load" onclick={() => paste(true)}>Load from clipboard</button>
 	{/if}
 	<p class="source-title" aria-label="YouTube video title" title={title || undefined}>
 		{title || (unavailable ? 'Video title unavailable' : 'Loading video title...')}
@@ -99,9 +112,9 @@
 		gap: 6px;
 	}
 	.source-link a {
-		flex: 1;
 		min-width: 0;
-		overflow-wrap: anywhere;
+		width: max-content;
+		white-space: nowrap;
 		font-size: 0.9rem;
 	}
 	button {
@@ -110,8 +123,43 @@
 		padding: 6px 10px;
 		font-size: 0.85rem;
 	}
+	.source-edit {
+		width: 44px;
+		flex-shrink: 0;
+		padding: 8px;
+		background: transparent;
+		border-color: transparent;
+		color: inherit;
+	}
+	.source-link :global(svg) {
+		width: 20px;
+		height: 20px;
+		flex-shrink: 0;
+	}
 	.clipboard-load {
-		margin-top: 4px;
+		margin-inline-start: auto;
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		gap: 6px;
+		flex-shrink: 0;
+	}
+	@container clip-settings (max-width: 410px) {
+		.clipboard-load span {
+			display: none;
+		}
+		.clipboard-load {
+			width: 44px;
+			padding: 8px;
+		}
+	}
+	@container clip-settings (max-width: 260px) {
+		.source-link {
+			gap: 2px;
+		}
+		.source-link a {
+			font-size: 0.75rem;
+		}
 	}
 	.source-title {
 		font-size: 0.85rem;
