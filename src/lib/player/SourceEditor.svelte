@@ -1,8 +1,9 @@
 <script lang="ts">
-	import { tick } from 'svelte';
+	import { onMount } from 'svelte';
 	import IcRoundEdit from '~icons/ic/round-edit';
-	import IcRoundContentPaste from '~icons/ic/round-content-paste';
-	import { parseEditorSource, type EditorSource } from './editor-source';
+	import IcRoundOpenInNew from '~icons/ic/round-open-in-new';
+	import VideoPicker from './VideoPicker.svelte';
+	import type { EditorSource } from './editor-source';
 	let {
 		videoId,
 		title,
@@ -14,173 +15,115 @@
 		unavailable: boolean;
 		onapply: (source: EditorSource) => void;
 	} = $props();
-	let editing = $state(false);
-	let draft = $state('');
-	let message = $state('');
-	let input = $state<HTMLInputElement>(undefined!);
-	let editButton = $state<HTMLButtonElement>(undefined!);
-	async function edit() {
-		draft = `https://youtu.be/${videoId}`;
-		message = '';
-		editing = true;
-		await tick();
-		input.focus();
-		input.select();
-	}
-	function cancel() {
-		editing = false;
-		message = '';
-		void tick().then(() => editButton.focus());
-	}
-	function apply(text = draft) {
-		const source = parseEditorSource(text);
-		if (!source) {
-			message = 'Enter a YouTube ID/address or a valid YouLoop link.';
-			return;
-		}
-		const restoreFocus = editing;
-		onapply(source);
-		editing = false;
-		message = 'Video loaded';
-		if (restoreFocus) void tick().then(() => editButton.focus());
-	}
-	async function paste(load = false) {
-		try {
-			const text = await navigator.clipboard.readText();
-			if (load) apply(text);
-			else {
-				draft = text.trim();
-				message = '';
-				input.focus();
-			}
-		} catch {
-			message = 'Clipboard unavailable. Use Edit and paste the link into the input.';
-		}
-	}
+	let picker: VideoPicker;
+	let ready = $state(false);
+	onMount(() => {
+		ready = true;
+	});
 </script>
 
-<div class="source-area">
-	{#if editing}
-		<label for="source-draft">YouTube source</label>
-		<input
-			id="source-draft"
-			bind:this={input}
-			bind:value={draft}
-			placeholder="YouTube ID/address or YouLoop link"
-			onkeydown={(event) => {
-				if (event.key === 'Enter') {
-					event.preventDefault();
-					apply();
-				} else if (event.key === 'Escape') cancel();
-			}}
-		/>
-		<div class="source-actions">
-			<button onclick={() => apply()}>Load / Apply</button><button onclick={cancel}>Cancel</button
-			><button onclick={() => paste()}>Paste</button>
-		</div>
-	{:else}
-		<div class="source-link">
-			<a href={`https://youtu.be/${videoId}`} target="_blank" rel="noreferrer">youtu.be/{videoId}</a
-			><button
-				class="source-edit"
-				bind:this={editButton}
-				aria-label="Edit"
-				title="Edit YouTube source"
-				onclick={edit}><IcRoundEdit /></button
-			>
-			<button
-				class="clipboard-load"
-				aria-label="Load from clipboard"
-				title="Load from clipboard"
-				onclick={() => paste(true)}><IcRoundContentPaste /><span>Load from clipboard</span></button
-			>
-		</div>
-	{/if}
+<fieldset>
+	<legend>Video</legend>
 	<p class="source-title" aria-label="YouTube video title" title={title || undefined}>
 		{title || (unavailable ? 'Video title unavailable' : 'Loading video title...')}
 	</p>
-	{#if message}<p class="source-message" role="status">{message}</p>{/if}
-</div>
+	<div class="source-link">
+		<a
+			href={`https://youtu.be/${videoId}`}
+			target="_blank"
+			rel="noreferrer"
+			aria-describedby="source-new-tab">youtu.be/{videoId}<IcRoundOpenInNew aria-hidden="true" /></a
+		>
+		<span id="source-new-tab" class="visually-hidden">Opens in a new tab</span>
+		<button
+			class="inline secondary outline change-video"
+			disabled={!ready}
+			aria-label="Change video"
+			title="Change video"
+			onclick={(event) => picker.open(event.currentTarget)}
+			><IcRoundEdit aria-hidden="true" /><span class="change-label">Change</span></button
+		>
+	</div>
+</fieldset>
+<VideoPicker bind:this={picker} {onapply} />
 
 <style>
-	.source-area {
+	fieldset {
 		min-width: 0;
-		margin-bottom: 8px;
+		border: 1px solid var(--nc-border, #777);
+		border-radius: 8px;
+		padding: 8px 12px 12px;
+		margin: 0 0 12px;
 	}
-	.source-link,
-	.source-actions {
-		display: flex;
-		align-items: center;
-		gap: 6px;
-	}
-	.source-link a {
-		min-width: 0;
-		width: max-content;
-		white-space: nowrap;
-		font-size: 0.9rem;
-	}
-	button {
-		margin: 0;
-		min-height: 44px;
-		padding: 6px 10px;
-		font-size: 0.85rem;
-	}
-	.source-edit {
-		width: 44px;
-		flex-shrink: 0;
-		padding: 8px;
-		background: transparent;
-		border-color: transparent;
-		color: inherit;
-	}
-	.source-link :global(svg) {
-		width: 20px;
-		height: 20px;
-		flex-shrink: 0;
-	}
-	.clipboard-load {
-		margin-inline-start: auto;
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
-		gap: 6px;
-		flex-shrink: 0;
-	}
-	@container clip-settings (max-width: 410px) {
-		.clipboard-load span {
-			display: none;
-		}
-		.clipboard-load {
-			width: 44px;
-			padding: 8px;
-		}
-	}
-	@container clip-settings (max-width: 260px) {
-		.source-link {
-			gap: 2px;
-		}
-		.source-link a {
-			font-size: 0.75rem;
-		}
+	legend {
+		padding-inline: 4px;
 	}
 	.source-title {
 		font-size: 0.85rem;
-		opacity: 0.75;
-		margin: 6px 0;
-		line-height: 1.35;
+		margin: 0 0 6px;
 		overflow-wrap: anywhere;
 		display: -webkit-box;
 		-webkit-line-clamp: 2;
 		line-clamp: 2;
 		-webkit-box-orient: vertical;
 		overflow: hidden;
+		line-height: 1.35;
 	}
-	.source-message {
-		font-size: 0.8rem;
-		margin: 4px 0;
+	.source-link {
+		/* Contain the hidden description so it cannot extend the mobile scroll runway. */
+		position: relative;
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 6px;
 	}
-	input {
-		width: 100%;
-		margin: 4px 0;
+	a {
+		width: max-content;
+		font-size: 0.85rem;
+		overflow-wrap: anywhere;
+	}
+	button.change-video {
+		--nc-primary: var(--nc-secondary);
+		--nc-primary-hover: var(--nc-secondary-hover);
+		--nc-primary-focus: var(--nc-secondary-focus);
+		position: relative;
+		display: inline-flex;
+		align-items: center;
+		gap: 4px;
+		margin: 0;
+		flex-shrink: 0;
+	}
+	a {
+		display: inline-flex;
+		align-items: center;
+		gap: 4px;
+		min-width: 0;
+	}
+	a :global(svg) {
+		width: 14px;
+		height: 14px;
+		flex-shrink: 0;
+	}
+	.change-video :global(svg) {
+		width: 1em;
+		height: 1em;
+	}
+	@media (pointer: coarse) {
+		.source-link {
+			gap: 12px;
+		}
+		.change-video::after {
+			content: '';
+			position: absolute;
+			inset: 50% auto auto 50%;
+			width: max(100%, 44px);
+			height: max(100%, 44px);
+			transform: translate(-50%, -50%);
+		}
+	}
+	@container clip-settings (max-width: 330px) {
+		.change-label {
+			display: none;
+		}
 	}
 </style>

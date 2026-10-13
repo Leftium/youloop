@@ -131,7 +131,23 @@ export function createVideoMetadataResolver({
 	};
 }
 
-const resolveVideo = createVideoMetadataResolver();
+export const resolveVideo = createVideoMetadataResolver();
+
+/** Picker lookups share the social resolver cache and return only validated preview fields. */
+export async function videoMetadataResponse(
+	videoId: string | null,
+	resolve = resolveVideo
+): Promise<Response> {
+	if (!videoId || !videoIdPattern.test(videoId))
+		return Response.json({ error: 'Invalid video ID' }, { status: 400 });
+	const video = await resolve(videoId);
+	return Response.json(
+		video
+			? { videoId, title: video.title, image: video.image }
+			: { videoId, title: null, image: null },
+		{ headers: { 'cache-control': video ? 'private, max-age=60' : 'no-store' } }
+	);
+}
 
 /** Metadata shares playback's validated URL contract and canonical video identity. */
 export async function resolveSocialMetadata(

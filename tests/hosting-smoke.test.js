@@ -29,7 +29,7 @@ for (const path of [
 			ids.add(id);
 			const html = await response.text();
 			assert.match(html, /width=device-width, initial-scale=1/);
-			assert.match(html, /media-canvas/);
+			assert.match(html, path === '/' ? /Find your moment/ : /media-canvas/);
 		}
 		assert.equal(ids.size, 2, 'Each request must execute the server hook again');
 	});

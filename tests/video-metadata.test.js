@@ -5,7 +5,8 @@ import { compile } from 'svelte/compiler';
 import { render } from 'svelte/server';
 import {
 	createVideoMetadataResolver as createResolver,
-	resolveSocialMetadata
+	resolveSocialMetadata,
+	videoMetadataResponse
 } from '../src/lib/server/video-metadata.ts';
 
 // Existing resolver tests isolate oEmbed; native discovery has its own network tests.
@@ -298,4 +299,31 @@ test('signed watch metadata preserves expressions and rejects obsolete watch que
 	}
 	const editor = await resolveSocialMetadata(url(`v=${id}&t=-120~-30&mute`), resolve);
 	assert.equal(editor.url, `https://youloop.leftium.com/${id}/-120~-30`);
+});
+
+test('picker metadata validates IDs, shares resolver results, and exposes only preview fields', async () => {
+	let calls = 0;
+	const resolve = async (videoId) => {
+		calls++;
+		assert.equal(videoId, id);
+		return {
+			title: 'Candidate',
+			image: `https://i.ytimg.com/vi/${id}/hqdefault.jpg`,
+			description: 'Private implementation detail'
+		};
+	};
+	for (const value of [null, '', 'bad', 'https://example.com/video', '../anything']) {
+		assert.equal((await videoMetadataResponse(value, resolve)).status, 400);
+	}
+	assert.equal(calls, 0);
+	const response = await videoMetadataResponse(id, resolve);
+	assert.deepEqual(await response.json(), {
+		videoId: id,
+		title: 'Candidate',
+		image: `https://i.ytimg.com/vi/${id}/hqdefault.jpg`
+	});
+	assert.match(response.headers.get('cache-control'), /private/);
+	const unavailable = await videoMetadataResponse(id, async () => null);
+	assert.deepEqual(await unavailable.json(), { videoId: id, title: null, image: null });
+	assert.equal(unavailable.headers.get('cache-control'), 'no-store');
 });

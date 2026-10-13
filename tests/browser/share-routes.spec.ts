@@ -54,12 +54,9 @@ async function runModule(page: Page, file: string, method = 'run', options: obje
 
 test('bare root stays generic; malformed and reserved routes are safe', async ({ page }) => {
 	await page.goto('/');
-	await settled(page);
+	await expect(page.getByRole('button', { name: 'Choose video', exact: true })).toBeVisible();
+	await expect(page.locator('youtube-video')).toHaveCount(0);
 	await expect(page).toHaveURL('http://localhost:5173/');
-	await expect(page.getByRole('link', { name: 'Open video', exact: true })).toHaveAttribute(
-		'href',
-		`/${id}/31~38`
-	);
 	for (const path of [`/?v=${id}&t=bad`, `/${id}?mute=0&mute`, `/?v=bad`]) {
 		await page.goto(path);
 		await expect(page.getByRole('alert')).toContainText('Invalid link');
@@ -219,7 +216,9 @@ test('source changes and out-of-duration validation retain editor parity', async
 	await expect(page.locator('nav[aria-label="Clip navigation"] a')).not.toHaveAttribute('href');
 	await expect(page.getByRole('button', { name: 'Copy Link', exact: true })).toBeDisabled();
 	await page.evaluate(() => navigator.clipboard.writeText('https://youtu.be/jNQXAC9IVRw'));
-	await page.getByRole('button', { name: 'Load from clipboard' }).click();
+	await page.getByRole('button', { name: 'Change video' }).click();
+	await page.getByRole('button', { name: 'Paste from clipboard' }).click();
+	await page.getByRole('dialog').getByRole('button', { name: 'Load', exact: true }).click();
 	await settled(page);
 	await expect(page.getByRole('link', { name: 'Open video', exact: true })).toHaveAttribute(
 		'href',
@@ -283,13 +282,13 @@ for (const viewport of [
 	});
 }
 
-test('benign root queries retain the demo/editor and generic metadata', async ({ page }) => {
+test('benign root queries retain the empty editor and generic metadata', async ({ page }) => {
 	for (const query of ['?utm_source=test', '?foo=1&foo=2']) {
 		await page.goto('/' + query);
-		await settled(page);
+		await expect(page.locator('youtube-video')).toHaveCount(0);
 		await expect(page).toHaveURL('http://localhost:5173/' + query);
 		await expect(page.getByRole('alert')).toHaveCount(0);
-		await expect(page.getByRole('button', { name: 'Copy Link', exact: true })).toBeVisible();
+		await expect(page.getByRole('button', { name: 'Choose video', exact: true })).toBeVisible();
 		await expect(page.locator('meta[property="og:type"]')).toHaveAttribute('content', 'website');
 		await expect(page.locator('meta[property="og:url"]')).toHaveAttribute(
 			'content',
