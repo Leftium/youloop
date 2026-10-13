@@ -37,7 +37,7 @@
 		if (fromEnd && expression === 0) {
 			// There is no signed -0 in the codec. Open end is a separate explicit choice.
 			draft = 'End of video';
-		} else draft = editorTime(expression);
+		} else draft = editorTime(expression, true, 2).replace(/^\u2248/, '');
 		original = draft;
 		message = '';
 		editing = true;
@@ -59,6 +59,10 @@
 		const expression = openEnd ? undefined : parseEditorTime(draft);
 		if (!openEnd && expression === undefined) {
 			message = 'Enter seconds or a signed clock time. Use End of video instead of -0.';
+			return;
+		}
+		if (!openEnd && (draft.trim().split('.')[1]?.length ?? 0) > 2) {
+			message = 'Use at most 2 decimal places.';
 			return;
 		}
 		if (!openEnd && !precise && !Number.isInteger(expression)) {
@@ -94,9 +98,15 @@
 	}}
 	onfocusout={(event) => {
 		const target = event.relatedTarget as HTMLElement | null;
+		const row = event.currentTarget;
 		// Pointer blur can move a target between mousedown and click. Only keyboard exits are safe.
-		if (editing && keyboardFocus && target && !event.currentTarget.contains(target))
-			commit(false, false);
+		if (editing && keyboardFocus) {
+			// WebKit can omit relatedTarget. Wait for the next focused element to settle.
+			void tick().then(() => {
+				if (editing && keyboardFocus && !row.contains(target ?? document.activeElement))
+					commit(false, false);
+			});
+		}
 	}}
 >
 	<div class="bound-label">

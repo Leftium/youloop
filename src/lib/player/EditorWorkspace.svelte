@@ -426,7 +426,10 @@
 	.settings-content {
 		container: clip-settings / inline-size;
 		width: 100%;
-		max-width: var(--size-content-3, 60ch);
+		max-width: var(--size-content-2, 45ch);
+		margin-inline: 0;
+	}
+	[data-layout='rows'] .settings-content {
 		margin-inline: auto;
 	}
 	.settings-edge {

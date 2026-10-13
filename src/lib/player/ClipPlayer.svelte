@@ -79,6 +79,23 @@
 	let editorPath = $derived(normalized.ok ? serializeEditorUrl(formatted ?? clip) : undefined);
 	let shareUrl = $derived(sharePath ? new URL(sharePath, page.url.origin).href : undefined);
 
+	const timestampPolicies: { value: TimestampPolicy; label: string }[] = [
+		{ value: 'preserve', label: 'As entered' },
+		{ value: 'shortest', label: 'Shortest' },
+		{ value: 'from-start', label: 'Both from start' },
+		{ value: 'mixed', label: 'Start + end' },
+		{ value: 'from-end', label: 'Both from end' }
+	];
+	let timestampOptions = $derived(
+		timestampPolicies.map((option) => {
+			const formatted = formatShareBounds(clip, settledDuration, option.value);
+			return {
+				...option,
+				preview: formatted && !clipInvalid ? serializeShareUrl(formatted) : undefined
+			};
+		})
+	);
+
 	onMount(() => {
 		controller = createOrientationController((frame, _override, source) => {
 			orientation = frame;
@@ -172,6 +189,7 @@
 			bind:repeatB
 			{requestedBounds}
 			{timestampPolicy}
+			{timestampOptions}
 			onpolicychange={(value) => (timestampPolicy = value)}
 			ondurationresolved={(value) => (settledDuration = value)}
 			onboundsresolved={(valid) => (clipInvalid = !valid)}

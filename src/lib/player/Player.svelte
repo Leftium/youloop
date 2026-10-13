@@ -5,6 +5,7 @@
 	import EditorWorkspace from './EditorWorkspace.svelte';
 	import BoundEditor from './BoundEditor.svelte';
 	import SourceEditor from './SourceEditor.svelte';
+	import TimestampFormat from './TimestampFormat.svelte';
 	import type { EditorSource } from './editor-source';
 	import { editorTime } from './editor-time';
 	import type { TimestampPolicy } from '../share-url.ts';
@@ -94,6 +95,7 @@
 		onsourcechange?: (videoId: string, clip?: ShareUrlState) => void;
 		ondurationresolved?: (duration: number | undefined) => void;
 		timestampPolicy?: TimestampPolicy;
+		timestampOptions?: { value: TimestampPolicy; label: string; preview?: string }[];
 		onpolicychange?: (policy: TimestampPolicy) => void;
 	}
 
@@ -125,6 +127,7 @@
 		onsourcechange,
 		ondurationresolved,
 		timestampPolicy = 'preserve',
+		timestampOptions = [],
 		onpolicychange
 	}: Props = $props();
 
@@ -1121,6 +1124,13 @@
 							>{playbackRate / 100}x</span
 						></button
 					>
+					{#each [200, 100, 50, 25] as rate (rate)}<button
+							class="transport-rate"
+							aria-label={`Set playback speed to ${rate / 100}x`}
+							aria-pressed={playbackRate === rate}
+							data-tooltip={`${rate / 100}x speed`}
+							onclick={makeTogglePlaybackRate(rate)}>{rate / 100}x</button
+						>{/each}
 					<button
 						class="transport-sound"
 						aria-label={muted ? 'Sound off, turn on' : 'Sound on, turn off'}
@@ -1187,19 +1197,14 @@
 			<label class="precision-choice"
 				><input type="checkbox" bind:checked={subSeconds} />Sub-second times</label
 			>
-			<label class="policy-row"
-				>URL timestamp format<select
-					aria-label="URL timestamp format"
+			<div class="policy-row">
+				<span>URL timestamp format</span><TimestampFormat
 					value={timestampPolicy}
+					options={timestampOptions}
 					disabled={duration === undefined || !!boundsError}
-					onchange={(event) => onpolicychange?.(event.currentTarget.value as TimestampPolicy)}
-				>
-					<option value="preserve">As entered</option><option value="shortest">Shortest</option
-					><option value="from-start">Both from start</option><option value="mixed"
-						>Start + end</option
-					><option value="from-end">Both from end</option>
-				</select></label
-			>
+					onchange={(value) => onpolicychange?.(value)}
+				/>
+			</div>
 			<p class="policy-help">
 				Format keeps this clip, but changes how bounds follow a future video duration.
 			</p>
@@ -1648,6 +1653,15 @@
 		padding: 4px;
 		margin: 0;
 	}
+	.preview-playback .transport-rate {
+		display: none;
+		width: 56px;
+	}
+	@container transport (min-width: 1000px) {
+		.preview-playback .transport-rate {
+			display: inline-flex;
+		}
+	}
 	.preview-playback .transport-fill {
 		flex: 1;
 		width: auto;
@@ -1784,7 +1798,7 @@
 		border-bottom: 1px solid var(--nc-border);
 	}
 	.settings-section h2 {
-		font-size: 1rem;
+		font-size: 1.2rem;
 		margin: 0 0 8px;
 	}
 	.setting-row {
@@ -1820,18 +1834,6 @@
 		gap: 6px;
 		font-size: 0.8rem;
 	}
-	.policy-row select {
-		display: inline-flex;
-		align-items: center;
-		justify-content: space-between;
-		height: 44px;
-		flex: 1;
-		min-width: 150px;
-		width: auto;
-		margin: 0;
-		min-height: 44px;
-		padding: 6px;
-	}
 	.policy-help {
 		font-size: 0.75rem;
 		opacity: 0.7;
@@ -1854,9 +1856,9 @@
 		align-items: center;
 		justify-content: center;
 		gap: 6px;
-		min-height: 36px;
-		min-width: 44px;
-		padding: 4px 10px;
+		min-height: 28px;
+		min-width: 36px;
+		padding: 1px 8px;
 		margin: 0;
 		border: 1px solid var(--nc-border);
 		border-radius: 999px;

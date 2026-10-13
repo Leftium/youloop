@@ -11,6 +11,11 @@ const secondId = 'jNQXAC9IVRw';
 const preview = (page: Page) => page.getByLabel('Share URL preview', { exact: true });
 const input = (page: Page, endpoint = 'start') =>
 	page.getByRole('textbox', { name: `Edit ${endpoint}`, exact: true });
+async function choosePolicy(page: Page, policy: TimestampPolicy) {
+	await page.getByRole('combobox', { name: 'URL timestamp format' }).click();
+	await page.locator(`[role="option"][data-policy="${policy}"]`).click();
+}
+
 async function open(page: Page, range = '-30.5~-5.25') {
 	await page.goto(`/?v=${id}&t=${range}&once&mute&speed=1.5&fill=0`);
 	await expect(page.getByRole('button', { name: 'Copy Link', exact: true })).toBeEnabled({
@@ -74,6 +79,18 @@ test.describe('editor polish', () => {
 		);
 		const content = page.locator('.settings-content');
 		expect(
+			await content.evaluate((el) => {
+				const pane = el.parentElement!;
+				return (
+					Math.abs(
+						el.getBoundingClientRect().left -
+							pane.getBoundingClientRect().left -
+							parseFloat(getComputedStyle(pane).paddingLeft)
+					) < 1
+				);
+			})
+		).toBe(true);
+		expect(
 			await content.evaluate(
 				(el) => el.getBoundingClientRect().width <= parseFloat(getComputedStyle(el).maxWidth) + 1
 			)
@@ -128,7 +145,7 @@ test.describe('editor polish', () => {
 		const duration = Number(
 			await page.getByRole('slider', { name: 'Current time', exact: true }).getAttribute('max')
 		);
-		expect(parseEditorTime(await input(page).inputValue())! + duration).toBeCloseTo(12.5, 10);
+		expect(parseEditorTime(await input(page).inputValue())! + duration).toBeCloseTo(12.5, 1);
 		await input(page).press('Enter');
 		expect(page.url()).toBe(originalUrl);
 		for (const width of [320, 390, 660, 1280]) {
@@ -170,6 +187,32 @@ test.describe('editor polish', () => {
 		await page.setViewportSize({ width: 1280, height: 800 });
 		await page.screenshot({ path: `/tmp/youloop39-refined-${browserName}.png` });
 	});
+	test('two-decimal drafts preserve incoming precision until an explicit edit', async ({
+		page
+	}) => {
+		await open(page, '1.2345~12.3456');
+		const original = page.url();
+		for (const [endpoint, draft] of [
+			['start', '0:01.23'],
+			['end', '0:12.35']
+		]) {
+			await page.getByRole('button', { name: `Edit ${endpoint} from start`, exact: true }).click();
+			await expect(input(page, endpoint)).toHaveValue(draft);
+			await input(page, endpoint).press('Enter');
+			expect(page.url()).toBe(original);
+		}
+		await page.getByRole('checkbox', { name: 'Sub-second times' }).check();
+		await page.getByRole('button', { name: 'Edit start from start', exact: true }).click();
+		await input(page).fill('3.456');
+		await input(page).press('Enter');
+		await expect(page.getByRole('alert')).toContainText('at most 2 decimal places');
+		expect(page.url()).toBe(original);
+		await input(page).fill('3.45');
+		await input(page).press('Enter');
+		await expect(page).toHaveURL(/t=3\.45~12\.3456/);
+		await identity(page);
+	});
+
 	test('fractional presentation, unchanged drafts, signed edits, safe blur and repair', async ({
 		page
 	}) => {
@@ -208,10 +251,11 @@ test.describe('editor polish', () => {
 		await expect(page).toHaveURL(/t=10\.25~-5\.25/);
 		await page.getByRole('button', { name: 'Edit start from start', exact: true }).click();
 		await input(page).fill('12');
-		await input(page).press('Tab');
-		await page.keyboard.press('Tab');
-		await page.keyboard.press('Tab');
-		await page.keyboard.press('Tab'); // Exit the bound row by keyboard.
+		// Traverse the actual focus order, which differs with WebKit keyboard preferences.
+		for (let step = 0; step < 8; step++) {
+			await page.keyboard.press('Tab');
+			if (!(await input(page).count())) break;
+		}
 		await expect(page).toHaveURL(/t=12~-5\.25/);
 		await page.getByRole('button', { name: 'Edit end from end', exact: true }).click();
 		await input(page, 'end').fill('-0');
@@ -270,7 +314,27 @@ test.describe('editor polish', () => {
 			'from-end',
 			'preserve'
 		] as TimestampPolicy[]) {
-			await page.getByRole('combobox', { name: 'URL timestamp format' }).selectOption(policy);
+			await page.getByRole('combobox', { name: 'URL timestamp format' }).click();
+			for (const option of [
+				'preserve',
+				'shortest',
+				'from-start',
+				'mixed',
+				'from-end'
+			] as TimestampPolicy[]) {
+				await expect(page.locator(`[role=option][data-policy="${option}"] small`)).toHaveText(
+					serializeShareUrl(formatShareBounds(committed, duration, option)!)
+				);
+			}
+			await page.keyboard.press('End');
+			await expect(page.locator('[role=option][data-policy="from-end"]')).toBeFocused();
+			await page.keyboard.press('ArrowUp');
+			await expect(page.locator('[role=option][data-policy="mixed"]')).toBeFocused();
+			await page.keyboard.press('Home');
+			await expect(page.locator('[role=option][data-policy="preserve"]')).toBeFocused();
+			await page.keyboard.press('Escape');
+			await expect(page.getByRole('combobox', { name: 'URL timestamp format' })).toBeFocused();
+			await choosePolicy(page, policy);
 			const expected = serializeShareUrl(formatShareBounds(committed, duration, policy)!);
 			await expect(page.getByRole('link', { name: 'Open video', exact: true })).toHaveAttribute(
 				'href',
@@ -298,14 +362,15 @@ test.describe('editor polish', () => {
 		await expect(page.getByRole('button', { name: 'Edit end from end', exact: true })).toHaveText(
 			'End of video'
 		);
-		await page.getByRole('combobox', { name: 'URL timestamp format' }).selectOption('from-start');
+		await choosePolicy(page, 'from-start');
 		await expect(page.getByRole('link', { name: 'Open video', exact: true })).toHaveAttribute(
 			'href',
 			`/${id}/12.5~${duration}?once&mute&speed=1.5&fill=0`
 		);
 		await page.reload();
 		await expect(page.getByRole('button', { name: 'Copy Link', exact: true })).toBeEnabled();
-		await expect(page.getByRole('combobox', { name: 'URL timestamp format' })).toHaveValue(
+		await expect(page.getByRole('combobox', { name: 'URL timestamp format' })).toHaveAttribute(
+			'data-value',
 			'preserve'
 		);
 		await expect(page.getByRole('link', { name: 'Open video', exact: true })).toHaveAttribute(
@@ -487,6 +552,32 @@ test.describe('editor polish', () => {
 		await layout.press('Enter');
 		await expect(page.locator('.workspace-grid')).toHaveAttribute('data-layout', 'rows');
 		await expect(layout).toHaveAttribute('data-tooltip', 'Switch to side-by-side layout');
+		const content = page.locator('.settings-content');
+		expect(
+			await content.evaluate(
+				(el) =>
+					Math.abs(
+						parseFloat(getComputedStyle(el).marginLeft) -
+							parseFloat(getComputedStyle(el).marginRight)
+					) < 1
+			)
+		).toBe(true);
+		for (const rate of [2, 1, 0.5, 0.25]) {
+			const button = transport.getByRole('button', {
+				name: `Set playback speed to ${rate}x`,
+				exact: true
+			});
+			await expect(button).toBeVisible();
+			await button.click();
+			await expect(transport.locator('.speed-value')).toHaveText(`${rate}x`);
+			await expect(
+				page.getByRole('button', { name: `${rate}x speed`, exact: true })
+			).toHaveAttribute('aria-pressed', 'true');
+		}
+		await page.setViewportSize({ width: 900, height: 800 });
+		await expect(transport.locator('.frame-label').first()).toBeVisible();
+		await expect(transport.locator('.transport-rate').first()).toBeHidden();
+		await page.setViewportSize({ width: 1280, height: 800 });
 		await identity(page);
 		await page.screenshot({ path: `/tmp/youloop39-${browserName}-stacked.png` });
 	});
