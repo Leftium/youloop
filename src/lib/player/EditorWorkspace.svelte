@@ -3,8 +3,15 @@
 	import IcRoundViewAgenda from '~icons/ic/round-view-agenda';
 	import IcRoundRestartAlt from '~icons/ic/round-restart-alt';
 
-	let { preview, settings }: { preview: Snippet<[Snippet]>; settings: Snippet<[Snippet]> } =
-		$props();
+	let {
+		preview,
+		settings,
+		footer
+	}: {
+		preview: Snippet<[Snippet]>;
+		settings: Snippet<[Snippet]>;
+		footer: Snippet;
+	} = $props();
 	type Layout = 'columns' | 'rows';
 	const storageKey = 'youloop.editor-workspace';
 	const dividerSize = 3;
@@ -236,16 +243,13 @@
 			onpointercancel={endDrag}
 			onlostpointercapture={endDrag}
 		></div>
-		<!-- The scroll region must be reachable for keyboard scrolling. -->
-		<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
-		<div
-			id="editor-settings"
-			class="settings-pane"
-			role="region"
-			aria-label="Clip settings"
-			tabindex="0"
-		>
-			<div class="settings-content">{@render settings(layoutReset)}</div>
+		<div id="editor-settings" class="settings-pane">
+			<!-- The scroll region must be reachable for keyboard scrolling. -->
+			<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+			<div class="settings-scroll" role="region" aria-label="Clip settings" tabindex="0">
+				<div class="settings-content">{@render settings(layoutReset)}</div>
+			</div>
+			<footer class="settings-footer">{@render footer()}</footer>
 		</div>
 	</div>
 	<span
@@ -312,7 +316,7 @@
 		height: 2500svh;
 		pointer-events: none;
 	}
-	.video-scroll .settings-pane {
+	.video-scroll .settings-scroll {
 		/* Suppress both boundary chaining and rubber-band affordances where
 		   supported. Safari can still react to nested gestures independently. */
 		overscroll-behavior-y: none;
@@ -413,7 +417,14 @@
 		background: var(--nc-surface-1);
 	}
 	.settings-pane {
+		display: flex;
+		flex-direction: column;
+		overflow: hidden;
 		background: var(--nc-surface-1);
+	}
+	.settings-scroll {
+		flex: 1;
+		min-height: 0;
 		/* Keep pane boundary gestures from chaining into the document where supported. */
 		overscroll-behavior-y: contain;
 		overflow-y: auto;
@@ -423,6 +434,14 @@
 		overflow-wrap: anywhere;
 		scrollbar-gutter: stable;
 	}
+	.settings-footer {
+		flex-shrink: 0;
+		min-width: 0;
+		padding: 0.25rem max(1rem, env(safe-area-inset-right)) max(0.25rem, env(safe-area-inset-bottom))
+			max(1rem, env(safe-area-inset-left));
+		border-top: 1px solid var(--nc-border);
+	}
+
 	.settings-content {
 		container: clip-settings / inline-size;
 		width: 100%;
@@ -448,10 +467,10 @@
 			display: block;
 		}
 		.video-scroll .settings-pane {
-			/* lvh extends behind expanded bars. A scrollable reserve lifts the
-			   final controls clear of them without resizing the preview. */
+			/* lvh extends behind expanded bars. Reserve room beneath the footer
+			   so sharing and the final controls stay clear without resizing the preview. */
 			--browser-chrome-reserve: max(0px, calc(100lvh - 100svh));
-			padding-bottom: calc(max(1rem, env(safe-area-inset-bottom)) + var(--browser-chrome-reserve));
+			padding-bottom: var(--browser-chrome-reserve);
 		}
 	}
 	.video-scroll .settings-content {

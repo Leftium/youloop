@@ -80,7 +80,8 @@
 		sourceAspectRatio?: number;
 		minimal?: boolean;
 		editorPath?: string;
-		editorActions?: Snippet;
+		editorFeedback?: Snippet;
+		editorFooter?: Snippet<[boolean]>;
 		once?: boolean;
 		mute?: boolean;
 		speed?: number;
@@ -116,7 +117,8 @@
 		sourceAspectRatio = 16 / 9,
 		minimal = false,
 		editorPath,
-		editorActions,
+		editorFeedback,
+		editorFooter,
 		once = false,
 		mute,
 		speed,
@@ -1220,7 +1222,7 @@
 					</p>
 				{/snippet}
 			</ClipRange>
-			{@render editorActions?.()}
+			{@render editorFeedback?.()}
 		</section>
 		<section aria-labelledby="playback-heading" class="settings-section">
 			<h2 id="playback-heading">Playback</h2>
@@ -1307,7 +1309,11 @@
 {#if minimal}
 	{@render media()}
 {:else}
-	<EditorWorkspace {preview} {settings} />
+	<EditorWorkspace {preview} {settings}>
+		{#snippet footer()}
+			{@render editorFooter?.(duration !== undefined && !playerError && !boundsError)}
+		{/snippet}
+	</EditorWorkspace>
 {/if}
 
 <style lang="scss">

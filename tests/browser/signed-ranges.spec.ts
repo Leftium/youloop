@@ -17,10 +17,8 @@ async function settled(page: Page) {
 }
 
 test('signed fractions survive watch/editor/copy/reload/history and explicit bound edits', async ({
-	page,
-	context
+	page
 }) => {
-	await context.grantPermissions(['clipboard-read', 'clipboard-write']);
 	const watch = `/${id}/-30.5~-5.25?once&mute&speed=1.5&vertical=0&fill=0`;
 	const editor = `/?v=${id}&t=-30.5~-5.25&once&mute&speed=1.5&vertical=0&fill=0`;
 	await page.goto(watch);
@@ -72,15 +70,11 @@ test('signed fractions survive watch/editor/copy/reload/history and explicit bou
 			)
 		).toBeLessThan(0.000001);
 	}
-	await page.getByRole('button', { name: 'Copy Link', exact: true }).click();
-	expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
-		'http://localhost:5173' + watch
-	);
 	await page.reload();
 	await settled(page);
-	await expect(page.getByRole('link', { name: 'Open video', exact: true })).toHaveAttribute(
+	await expect(page.getByRole('link', { name: 'Share URL', exact: true })).toHaveAttribute(
 		'href',
-		watch
+		new URL(watch, 'http://localhost:5173').href
 	);
 	await page.goBack();
 	await settled(page);
@@ -88,9 +82,9 @@ test('signed fractions survive watch/editor/copy/reload/history and explicit bou
 	await page.goForward();
 	await settled(page);
 	await page.getByRole('slider', { name: 'Repeat start', exact: true }).fill('20');
-	await expect(page.getByRole('link', { name: 'Open video', exact: true })).toHaveAttribute(
+	await expect(page.getByRole('link', { name: 'Share URL', exact: true })).toHaveAttribute(
 		'href',
-		`/${id}/20~-5.25?once&mute&speed=1.5&vertical=0&fill=0`
+		new URL(`/${id}/20~-5.25?once&mute&speed=1.5&vertical=0&fill=0`, 'http://localhost:5173').href
 	);
 });
 
@@ -136,11 +130,7 @@ test('invalid resolved and collapsed clips pause without rewriting their identit
 });
 
 for (const flags of ['mute', 'once&mute&speed=1.5&vertical=0&fill=0']) {
-	test(`invalid watch clips retain Edit and can be repaired: ${flags}`, async ({
-		page,
-		context
-	}) => {
-		await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+	test(`invalid watch clips retain Edit and can be repaired: ${flags}`, async ({ page }) => {
 		const watch = `/${id}/60~-30?${flags}`;
 		const editor = `/?v=${id}&t=60~-30&${flags}`;
 		await page.goto(watch);
@@ -154,22 +144,17 @@ for (const flags of ['mute', 'once&mute&speed=1.5&vertical=0&fill=0']) {
 		await edit.click();
 		await expect(page).toHaveURL('http://localhost:5173' + editor);
 		await expect(page.getByRole('alert')).toContainText('Invalid clip');
-		await expect(page.getByRole('button', { name: 'Copy Link', exact: true })).toBeDisabled();
-		await expect(page.locator('nav[aria-label="Clip navigation"] a')).not.toHaveAttribute('href');
+		await expect(
+			page.getByRole('link', { name: 'Share URL', exact: true, includeHidden: true })
+		).toHaveCount(0);
 		await page.getByRole('slider', { name: 'Repeat start', exact: true }).fill('5');
 		const repaired = `/${id}/5~-30?${flags}`;
 		await expect(page.getByRole('alert')).toHaveCount(0);
-		await expect(page.getByRole('link', { name: 'Open video', exact: true })).toHaveAttribute(
+		await expect(page.getByRole('link', { name: 'Share URL', exact: true })).toHaveAttribute(
 			'href',
-			repaired
+			new URL(repaired, 'http://localhost:5173').href
 		);
-		const copy = page.getByRole('button', { name: 'Copy Link', exact: true });
-		await expect(copy).toBeEnabled();
-		await copy.click();
-		expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
-			'http://localhost:5173' + repaired
-		);
-		await page.getByRole('link', { name: 'Open video', exact: true }).click();
+		await page.getByRole('link', { name: 'Share URL', exact: true }).click();
 		await settled(page);
 		await expect(page).toHaveURL('http://localhost:5173' + repaired);
 		await expect(page.getByRole('button', { name: 'Play video', exact: true })).toBeEnabled();

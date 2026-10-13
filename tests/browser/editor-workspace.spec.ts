@@ -28,7 +28,9 @@ async function openEditor(page: Page, path = `/?v=${id}&t=5-50&mute&speed=1.5&fi
 		return media?.duration > 0 && media.paused && media.shadowRoot?.querySelector('iframe');
 	});
 	// The provider's first pause precedes settled duration and canonical sharing.
-	await expect(page.getByRole('button', { name: 'Copy Link', exact: true })).toBeEnabled();
+	await expect(
+		page.getByRole('link', { name: 'Share URL', exact: true, includeHidden: true })
+	).toHaveAttribute('href', /^http/, { timeout: 30_000 });
 	const parsed = parsePlayerUrl(new URL(path, page.url()));
 	if (parsed.ok)
 		await expect(page).toHaveURL(new URL(serializeEditorUrl(parsed.value), page.url()).href);
@@ -69,7 +71,7 @@ async function geometry(page: Page) {
 				const picture = document.querySelector('.player')!.getBoundingClientRect();
 				const workspace = document.querySelector('.workspace-grid')!.getBoundingClientRect();
 				const canvas = document.querySelector('.media-canvas')!.getBoundingClientRect();
-				const controls = document.querySelector('#editor-settings')!.getBoundingClientRect();
+				const controls = document.querySelector('.settings-pane')!.getBoundingClientRect();
 				const ratio = Number(
 					getComputedStyle(document.querySelector('.player')!).getPropertyValue('--media-ratio')
 				);
@@ -90,7 +92,7 @@ async function geometry(page: Page) {
 					canvas.width <= preview.width + 1 &&
 					canvas.height <= preview.height + 1 &&
 					document.documentElement.scrollWidth <= innerWidth &&
-					document.querySelector('#editor-settings')!.scrollWidth <= controls.width + 1
+					document.querySelector('.settings-scroll')!.scrollWidth <= controls.width + 1
 				);
 			})
 		)
@@ -219,7 +221,7 @@ test('playing YouTube provider and clip survive resize, layout, scroll and respo
 		previousTime = state.time;
 		expect(page.url()).toBe(originalUrl);
 	}
-	await page.locator('#editor-settings').evaluate((el) => {
+	await page.locator('.settings-scroll').evaluate((el) => {
 		const content = document.createElement('div');
 		content.style.height = '1600px';
 		el.append(content);
@@ -227,7 +229,7 @@ test('playing YouTube provider and clip survive resize, layout, scroll and respo
 	});
 	await geometry(page);
 	await identity(page);
-	expect(await page.locator('#editor-settings').evaluate((el) => el.scrollTop)).toBeGreaterThan(0);
+	expect(await page.locator('.settings-scroll').evaluate((el) => el.scrollTop)).toBeGreaterThan(0);
 	const afterScroll = await snapshot();
 	expect(afterScroll.paused).toBe(false);
 	expect(afterScroll.state).toBe(1);
@@ -269,7 +271,7 @@ for (const viewport of [
 				await identity(page);
 			}
 		}
-		await page.locator('#editor-settings').evaluate((el) => {
+		await page.locator('.settings-scroll').evaluate((el) => {
 			const extra = document.createElement('div');
 			extra.style.height = '1600px';
 			el.prepend(extra);
@@ -277,10 +279,10 @@ for (const viewport of [
 		const before = await page.locator('#editor-preview').boundingBox();
 		const timelineBefore = await page.locator('.wrap-sliders').boundingBox();
 		const transportBefore = await page.locator('.preview-actions').boundingBox();
-		await page.locator('#editor-settings').hover();
+		await page.locator('.settings-scroll').hover();
 		await page.mouse.wheel(0, 800);
 		await expect
-			.poll(() => page.locator('#editor-settings').evaluate((el) => el.scrollTop))
+			.poll(() => page.locator('.settings-scroll').evaluate((el) => el.scrollTop))
 			.toBeGreaterThan(0);
 		expect(await page.locator('#editor-preview').boundingBox()).toEqual(before);
 		expect(await page.locator('.wrap-sliders').boundingBox()).toEqual(timelineBefore);
@@ -403,7 +405,7 @@ for (const viewport of [
 		await openEditor(page);
 		await geometry(page);
 		const preview = page.locator('#editor-preview');
-		const settings = page.locator('#editor-settings');
+		const settings = page.locator('.settings-scroll');
 		await expect(preview.locator('.timestamps')).toHaveCount(1);
 		await expect(preview.locator('.wrap-sliders')).toHaveCount(1);
 		await expect(
@@ -451,7 +453,7 @@ for (const viewport of [
 					picture.left + picture.width / 2,
 					picture.top + picture.height / 2
 				);
-				const settings = document.querySelector('#editor-settings')!;
+				const settings = document.querySelector('.settings-scroll')!;
 				const overlap = (a: DOMRect, b: DOMRect) =>
 					a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
 				return (
@@ -602,7 +604,7 @@ test.describe('mobile pane scrolling', () => {
 				context
 			}) => {
 				await openEditor(page);
-				await page.locator('#editor-settings').evaluate((el) => {
+				await page.locator('.settings-scroll').evaluate((el) => {
 					const tall = document.createElement('div');
 					tall.style.height = '1200px';
 					el.prepend(tall);
@@ -625,7 +627,7 @@ test.describe('mobile pane scrolling', () => {
 					await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
 					await page.waitForTimeout(300); // Let native scroll momentum settle before comparing ownership.
 				}
-				const settings = page.locator('#editor-settings');
+				const settings = page.locator('.settings-scroll');
 				await geometry(page);
 				const box = (await settings.boundingBox())!;
 				await swipe(box.x + box.width / 2, box.y + box.height - 20, box.y + 20);
@@ -691,7 +693,7 @@ test.describe('automatic mobile document scrolling', () => {
 					0
 				);
 				await expect(page.locator('html')).toHaveCSS('scroll-snap-type', 'y mandatory');
-				await expect(page.locator('#editor-settings')).toHaveCSS('scroll-snap-type', 'none');
+				await expect(page.locator('.settings-scroll')).toHaveCSS('scroll-snap-type', 'none');
 				expect(
 					await page
 						.locator('.document-snap-point')
@@ -712,7 +714,7 @@ test.describe('automatic mobile document scrolling', () => {
 								const grid = document.querySelector('.workspace-grid')!.getBoundingClientRect();
 								const preview = document.querySelector('#editor-preview')!.getBoundingClientRect();
 								const timeline = document.querySelector('.wrap-sliders')!.getBoundingClientRect();
-								const settings = document.querySelector('#editor-settings')!;
+								const settings = document.querySelector('.settings-scroll')!;
 								const pane = settings.getBoundingClientRect();
 								const edge = document.querySelector('.settings-edge')!;
 								const divider = edge.getBoundingClientRect();
@@ -743,23 +745,24 @@ test.describe('automatic mobile document scrolling', () => {
 				await pinned();
 				if (viewport.height > viewport.width) {
 					// Chromium has no Safari toolbar. Model a 120px lvh-svh gap
-					// and prove the final controls can scroll clear of that overlay.
+					// and prove both sharing and the final controls clear the overlay.
 					expect(
-						await page.locator('#editor-settings').evaluate((el) => {
+						await page.locator('.settings-pane').evaluate((el) => {
 							const pane = el as HTMLElement;
 							pane.style.setProperty('--browser-chrome-reserve', '120px');
-							pane.scrollTop = pane.scrollHeight;
-							const clearance =
-								pane.getBoundingClientRect().bottom -
-								pane.lastElementChild!.getBoundingClientRect().bottom;
+							const scroll = pane.querySelector('.settings-scroll')!;
+							scroll.scrollTop = scroll.scrollHeight;
+							const footer = pane.querySelector('.settings-footer')!.getBoundingClientRect();
+							const controls = scroll.lastElementChild!.getBoundingClientRect();
+							const clearance = innerHeight - Math.max(footer.bottom, controls.bottom);
 							pane.style.removeProperty('--browser-chrome-reserve');
-							pane.scrollTop = 0;
+							scroll.scrollTop = 0;
 							return clearance;
 						})
 					).toBeGreaterThanOrEqual(120);
 					await identity(page);
 				}
-				await page.locator('#editor-settings').evaluate((el) => {
+				await page.locator('.settings-scroll').evaluate((el) => {
 					const tall = document.createElement('div');
 					tall.style.height = '1400px';
 					el.prepend(tall);
@@ -782,7 +785,7 @@ test.describe('automatic mobile document scrolling', () => {
 					await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
 					await page.waitForTimeout(400);
 				}
-				const settings = page.locator('#editor-settings');
+				const settings = page.locator('.settings-scroll');
 				const pane = (await settings.boundingBox())!;
 				await swipe(pane.x + pane.width / 2, pane.y + pane.height - 25, 0, -120);
 				await expect.poll(() => settings.evaluate((el) => el.scrollTop)).toBeGreaterThan(0);
@@ -940,7 +943,7 @@ for (const viewport of [
 			await openEditor(page);
 			// Model a controls section whose real content fits without replacing media.
 			await page.addStyleTag({ content: '.settings-content > * { display: none !important; }' });
-			const pane = page.locator('#editor-settings');
+			const pane = page.locator('.settings-scroll');
 			expect(await pane.evaluate((el) => el.scrollHeight - el.clientHeight)).toBeGreaterThan(0);
 			expect(await pane.evaluate((el) => el.scrollHeight - el.clientHeight)).toBeLessThanOrEqual(2);
 			const box = (await pane.boundingBox())!;
@@ -1004,7 +1007,7 @@ test('layout stays in the upper-left over picture without reserving height throu
 		async () => dragBy(page, -30),
 		async () => page.setViewportSize({ width: 320, height: 568 }),
 		async () =>
-			page.locator('#editor-settings').evaluate((el) => {
+			page.locator('.settings-scroll').evaluate((el) => {
 				el.scrollTop = 1000;
 			}),
 		async () => page.setViewportSize({ width: 844, height: 390 }),
@@ -1149,7 +1152,7 @@ test('layout action accepts touch and reset lives only in settings', async ({ br
 			page.locator('#editor-preview').getByRole('button', { name: 'Restore default layout' })
 		).toHaveCount(0);
 		await page
-			.locator('#editor-settings')
+			.locator('.settings-scroll')
 			.getByRole('button', { name: 'Restore default layout' })
 			.tap();
 		await expect(page.locator('.workspace-grid')).toHaveAttribute('data-layout', 'columns');
@@ -1195,8 +1198,8 @@ test('compact bounds retain signed fractions and refresh after source navigation
 	await page.getByRole('slider', { name: 'Repeat end', exact: true }).fill('5.75');
 	await page.getByRole('button', { name: 'Edit clip range', exact: true }).click();
 	await expect(
-		page.getByRole('button', { name: 'Copy Link', exact: true, includeHidden: true })
-	).toBeDisabled();
+		page.getByRole('link', { name: 'Share URL', exact: true, includeHidden: true })
+	).toHaveCount(0);
 	expect(page.url()).toBe(lastValidUrl);
 	await identity(page);
 	await openEditor(page, '/?v=M7lc1UVf-VE&t=2.5~8.75&once&mute');

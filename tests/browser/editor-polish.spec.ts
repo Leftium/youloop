@@ -8,7 +8,7 @@ import {
 
 const id = 'dt-SqNL4z3w';
 const secondId = 'jNQXAC9IVRw';
-const preview = (page: Page) => page.getByLabel('Share URL preview', { exact: true });
+const preview = (page: Page) => page.getByRole('link', { name: 'Share URL', exact: true });
 const input = (page: Page, endpoint = 'start') =>
 	page.getByRole('textbox', { name: `Edit ${endpoint}`, exact: true });
 const openRange = (page: Page) =>
@@ -26,7 +26,9 @@ async function choosePolicy(page: Page, policy: TimestampPolicy) {
 
 async function open(page: Page, range = '-30.5~-5.25') {
 	await page.goto(`/?v=${id}&t=${range}&once&mute&speed=1.5&fill=0`);
-	await expect(page.getByRole('button', { name: 'Copy Link', exact: true })).toBeEnabled({
+	await expect(
+		page.getByRole('link', { name: 'Share URL', exact: true, includeHidden: true })
+	).toHaveAttribute('href', /^http/, {
 		timeout: 30_000
 	});
 	await page.waitForFunction(
@@ -83,10 +85,12 @@ test.describe('editor polish', () => {
 		const watch = `http://localhost:5173/${id}/${range}?once&mute&speed=1.5&fill=0`;
 		await expect(preview(page)).toHaveText(watch);
 		await page.reload();
-		await expect(page.getByRole('button', { name: 'Copy Link', exact: true })).toBeEnabled();
+		await expect(
+			page.getByRole('link', { name: 'Share URL', exact: true, includeHidden: true })
+		).toHaveAttribute('href', /^http/);
 		await expect(page).toHaveURL(editor);
 		await expect(preview(page)).toHaveText(watch);
-		await page.getByRole('link', { name: 'Open video', exact: true }).click();
+		await page.getByRole('link', { name: 'Share URL', exact: true }).click();
 		await expect(page).toHaveURL(watch);
 		await page.reload();
 		await expect(page.getByRole('link', { name: 'Edit', exact: true })).toHaveAttribute(
@@ -95,14 +99,18 @@ test.describe('editor polish', () => {
 		);
 		await expect(page).toHaveURL(watch);
 		await page.getByRole('link', { name: 'Edit', exact: true }).click();
-		await expect(page.getByRole('button', { name: 'Copy Link', exact: true })).toBeEnabled();
+		await expect(
+			page.getByRole('link', { name: 'Share URL', exact: true, includeHidden: true })
+		).toHaveAttribute('href', /^http/);
 		await page.getByRole('slider', { name: 'Repeat start', exact: true }).fill('31.204');
 		await expect(preview(page)).toHaveText(
 			`http://localhost:5173/${id}/31.2~-5.251234?once&mute&speed=1.5&fill=0`
 		);
 		// A newly imported link resets generated provenance for both endpoints.
 		await page.goto(`/?v=${id}&t=31.234567~59.251234&once&mute`);
-		await expect(page.getByRole('button', { name: 'Copy Link', exact: true })).toBeEnabled();
+		await expect(
+			page.getByRole('link', { name: 'Share URL', exact: true, includeHidden: true })
+		).toHaveAttribute('href', /^http/);
 		await expect(preview(page)).toHaveText(
 			`http://localhost:5173/${id}/31.234567~59.251234?once&mute`
 		);
@@ -180,16 +188,12 @@ test.describe('editor polish', () => {
 				serializeShareUrl(formatShareBounds(committed, 65.123456789, policy, { start: true })!)
 			).toBe(expected);
 			await expect(preview(page)).toHaveText(`http://localhost:5173${expected}`);
-			await expect(page.getByRole('link', { name: 'Open video', exact: true })).toHaveAttribute(
+			await expect(page.getByRole('link', { name: 'Share URL', exact: true })).toHaveAttribute(
 				'href',
-				expected
+				new URL(expected, 'http://localhost:5173').href
 			);
 			await expect(page).toHaveURL(
 				`http://localhost:5173/?v=${id}&t=${range}&once&mute&speed=1.5&fill=0`
-			);
-			await page.getByRole('button', { name: 'Copy Link', exact: true }).click();
-			expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
-				`http://localhost:5173${expected}`
 			);
 			await expect(page.getByRole('slider', { name: 'Repeat start', exact: true })).toHaveValue(
 				'13.267487'
@@ -213,7 +217,7 @@ test.describe('editor polish', () => {
 		await page.getByRole('slider', { name: 'Repeat start', exact: true }).fill('13.267487');
 		await expect(page).toHaveURL(/t=13\.27~59\.25/);
 		const editor = page.url();
-		await page.getByRole('link', { name: 'Open video', exact: true }).click();
+		await page.getByRole('link', { name: 'Share URL', exact: true }).click();
 		await expect(page).toHaveURL(
 			`http://localhost:5173/${id}/13.27~59.25?once&mute&speed=1.5&fill=0`
 		);
@@ -223,7 +227,9 @@ test.describe('editor polish', () => {
 		await expect(page).toHaveURL(watch);
 		await expect(page.locator('.watch-time')).not.toContainText('?:??');
 		await page.goBack();
-		await expect(page.getByRole('button', { name: 'Copy Link', exact: true })).toBeEnabled();
+		await expect(
+			page.getByRole('link', { name: 'Share URL', exact: true, includeHidden: true })
+		).toHaveAttribute('href', /^http/);
 		await expect(page).toHaveURL(editor);
 		await page.goForward();
 		await expect(page).toHaveURL(watch);
@@ -666,7 +672,7 @@ test.describe('editor polish', () => {
 		await identity(page);
 	});
 
-	test('all live URL policies agree with Open and Copy, preserve bounds and provider', async ({
+	test('all live URL policies agree with the share link, preserve bounds and provider', async ({
 		page
 	}) => {
 		await open(page, '12.5~59.25');
@@ -715,15 +721,11 @@ test.describe('editor polish', () => {
 			await choosePolicy(page, policy);
 			await closeRange(page);
 			const expected = serializeShareUrl(formatShareBounds(committed, duration, policy)!);
-			await expect(page.getByRole('link', { name: 'Open video', exact: true })).toHaveAttribute(
+			await expect(page.getByRole('link', { name: 'Share URL', exact: true })).toHaveAttribute(
 				'href',
-				expected
+				new URL(expected, 'http://localhost:5173').href
 			);
 			await expect(preview(page)).toHaveText(`http://localhost:5173${expected}`);
-			await page.getByRole('button', { name: 'Copy Link', exact: true }).click();
-			expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
-				`http://localhost:5173${expected}`
-			);
 			await expect(page.getByRole('slider', { name: 'Repeat start', exact: true })).toHaveValue(
 				'12.5'
 			);
@@ -736,9 +738,9 @@ test.describe('editor polish', () => {
 		await page.getByRole('button', { name: 'Edit end from end', exact: true }).click();
 		await page.getByRole('button', { name: 'End of video', exact: true }).click();
 		await closeRange(page);
-		await expect(page.getByRole('link', { name: 'Open video', exact: true })).toHaveAttribute(
+		await expect(page.getByRole('link', { name: 'Share URL', exact: true })).toHaveAttribute(
 			'href',
-			`/${id}/12.5?once&mute&speed=1.5&fill=0`
+			new URL(`/${id}/12.5?once&mute&speed=1.5&fill=0`, 'http://localhost:5173').href
 		);
 		await openRange(page);
 		await expect(page.getByRole('button', { name: 'Edit end from end', exact: true })).toHaveText(
@@ -746,21 +748,23 @@ test.describe('editor polish', () => {
 		);
 		await choosePolicy(page, 'from-start');
 		await closeRange(page);
-		await expect(page.getByRole('link', { name: 'Open video', exact: true })).toHaveAttribute(
+		await expect(page.getByRole('link', { name: 'Share URL', exact: true })).toHaveAttribute(
 			'href',
-			`/${id}/12.5~${duration}?once&mute&speed=1.5&fill=0`
+			new URL(`/${id}/12.5~${duration}?once&mute&speed=1.5&fill=0`, 'http://localhost:5173').href
 		);
 		await page.reload();
-		await expect(page.getByRole('button', { name: 'Copy Link', exact: true })).toBeEnabled();
+		await expect(
+			page.getByRole('link', { name: 'Share URL', exact: true, includeHidden: true })
+		).toHaveAttribute('href', /^http/);
 		await openRange(page);
 		await expect(page.getByRole('combobox', { name: 'URL timestamp format' })).toHaveAttribute(
 			'data-value',
 			'preserve'
 		);
 		await closeRange(page);
-		await expect(page.getByRole('link', { name: 'Open video', exact: true })).toHaveAttribute(
+		await expect(page.getByRole('link', { name: 'Share URL', exact: true })).toHaveAttribute(
 			'href',
-			`/${id}/12.5~${duration}?once&mute&speed=1.5&fill=0`
+			new URL(`/${id}/12.5~${duration}?once&mute&speed=1.5&fill=0`, 'http://localhost:5173').href
 		);
 	});
 
@@ -790,9 +794,9 @@ test.describe('editor polish', () => {
 		await page.getByRole('button', { name: 'Paste from clipboard' }).click();
 		await page.getByRole('dialog').getByRole('button', { name: 'Load', exact: true }).click();
 		await expect(page.getByRole('button', { name: 'Change video', exact: true })).toBeFocused();
-		await expect(page.getByRole('link', { name: 'Open video', exact: true })).toHaveAttribute(
+		await expect(page.getByRole('link', { name: 'Share URL', exact: true })).toHaveAttribute(
 			'href',
-			`/${id}/10.25~-3.5?mute&speed=0.5`
+			new URL(`/${id}/10.25~-3.5?mute&speed=0.5`, 'http://localhost:5173').href
 		);
 		await identity(page); // Compatible same-source links only update state.
 		await clipboard(page, `https://www.youtube.com/shorts/${secondId}`);
@@ -804,9 +808,9 @@ test.describe('editor polish', () => {
 		).toHaveAttribute('href', `https://youtu.be/${secondId}`);
 		await expect(title).not.toContainText('BFX 2011');
 		await expect(title).toContainText('Me at the zoo', { timeout: 30_000 });
-		await expect(page.getByRole('link', { name: 'Open video', exact: true })).toHaveAttribute(
+		await expect(page.getByRole('link', { name: 'Share URL', exact: true })).toHaveAttribute(
 			'href',
-			`/${secondId}?mute`
+			new URL(`/${secondId}?mute`, 'http://localhost:5173').href
 		);
 		await expect(page.getByRole('textbox')).toHaveCount(0);
 		await page.getByRole('button', { name: 'Change video', exact: true }).click();
