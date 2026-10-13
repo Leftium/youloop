@@ -102,6 +102,11 @@ for (const once of [false, true]) {
 		await page.locator('youtube-video').evaluate((element, time) => {
 			(element as HTMLElement & { currentTime: number }).currentTime = time;
 		}, end - 0.5);
+		// Let YouTube acknowledge the paused seek before testing boundary playback.
+		await page.waitForFunction(
+			() => !(document.querySelector('youtube-video') as HTMLMediaElement).seeking
+		);
+		await expect.poll(async () => (await state(page)).time).toBeGreaterThan(end - 1);
 		await page.getByRole('button', { name: 'Play video', exact: true }).press('Enter');
 		if (once) {
 			await expect.poll(async () => (await state(page)).time).toBeGreaterThanOrEqual(end - 0.01);

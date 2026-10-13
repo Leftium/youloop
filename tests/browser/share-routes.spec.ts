@@ -83,10 +83,7 @@ test('editor aliases, live state, canonical sharing, reload and Back/Forward', a
 		'aria-pressed',
 		'true'
 	);
-	await expect(page.getByRole('button', { name: 'Crop to fill' })).toHaveAttribute(
-		'aria-pressed',
-		'false'
-	);
+	await expect(page.getByRole('switch', { name: 'Crop to fill', exact: true })).not.toBeChecked();
 	await expect(page.getByRole('button', { name: 'Loop', exact: true })).toHaveAttribute(
 		'aria-pressed',
 		'false'
@@ -99,8 +96,8 @@ test('editor aliases, live state, canonical sharing, reload and Back/Forward', a
 	});
 	await page.getByRole('slider', { name: 'Repeat start', exact: true }).fill('25.5');
 	await page.getByRole('slider', { name: 'Repeat end', exact: true }).fill('33.2');
-	await page.getByRole('button', { name: 'Crop to fill' }).click();
-	await page.getByRole('button', { name: 'Mute', exact: true }).click();
+	await page.getByRole('switch', { name: 'Crop to fill', exact: true }).check();
+	await page.getByRole('switch', { name: 'Sound', exact: true }).uncheck();
 	const expected = `/${id}/25.5~33.2?once&mute&speed=1.5&vertical&fill`;
 	await expect(page.getByRole('link', { name: 'Open video', exact: true })).toHaveAttribute(
 		'href',
@@ -155,10 +152,7 @@ test('new editor parameters win over aliases, seek/step/loop/once work with real
 		'aria-pressed',
 		'true'
 	);
-	await expect(page.getByRole('button', { name: 'Crop to fill' })).toHaveAttribute(
-		'aria-pressed',
-		'false'
-	);
+	await expect(page.getByRole('switch', { name: 'Crop to fill', exact: true })).not.toBeChecked();
 	await expect(page.getByRole('button', { name: 'Loop', exact: true })).toHaveAttribute(
 		'aria-pressed',
 		'true'
@@ -174,7 +168,7 @@ test('new editor parameters win over aliases, seek/step/loop/once work with real
 	});
 	await expect.poll(async () => (await mediaState(page)).time, { timeout: 10000 }).toBeLessThan(32);
 	await expect.poll(async () => (await mediaState(page)).state).toBe(1);
-	await page.getByRole('button', { name: 'Loop', exact: true }).click();
+	await page.getByRole('button', { name: 'Once', exact: true }).click();
 	await expect.poll(async () => (await mediaState(page)).paused, { timeout: 10000 }).toBe(true);
 	expect((await mediaState(page)).time).toBeGreaterThanOrEqual(33);
 	await page.getByRole('button', { name: 'Play', exact: true }).click();
@@ -185,11 +179,15 @@ test('new editor parameters win over aliases, seek/step/loop/once work with real
 		'href',
 		new RegExp('/31~40')
 	);
-	await page.getByRole('button', { name: 'B End', exact: true }).click();
-	await page.getByRole('button', { name: 'A Start', exact: true }).click();
-	// Equal A/B must not silently expand into a different clip.
-	await expect(page.locator('nav[aria-label="Clip navigation"] a')).not.toHaveAttribute('href');
-	await expect(page.getByRole('button', { name: 'Copy Link', exact: true })).toBeDisabled();
+	await page.getByRole('button', { name: 'Set end at playhead', exact: true }).click();
+	await page.getByRole('button', { name: 'Set start at playhead', exact: true }).click();
+	// A collapsed explicit edit is rejected without mutating the committed clip.
+	await expect(page.getByRole('alert')).toContainText('End after Start');
+	await expect(page.getByRole('link', { name: 'Open video', exact: true })).toHaveAttribute(
+		'href',
+		new RegExp('/31~40')
+	);
+	await expect(page.getByRole('button', { name: 'Copy Link', exact: true })).toBeEnabled();
 });
 
 for (const path of [`/s?v=${id}&a=31&b=99999&fit=contain`, `/${id}/31?fill=0`]) {
@@ -221,7 +219,7 @@ test('source changes and out-of-duration validation retain editor parity', async
 	await expect(page.locator('nav[aria-label="Clip navigation"] a')).not.toHaveAttribute('href');
 	await expect(page.getByRole('button', { name: 'Copy Link', exact: true })).toBeDisabled();
 	await page.evaluate(() => navigator.clipboard.writeText('https://youtu.be/jNQXAC9IVRw'));
-	await page.getByRole('button', { name: 'Load YouTube URL/ID from clipboard' }).click();
+	await page.getByRole('button', { name: 'Load from clipboard' }).click();
 	await settled(page);
 	await expect(page.getByRole('link', { name: 'Open video', exact: true })).toHaveAttribute(
 		'href',

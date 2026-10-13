@@ -8,9 +8,45 @@ import {
 	serializeEditorUrl,
 	serializeShareUrl
 } from '../src/lib/share-url.ts';
+import { formatShareBounds, subtractSeconds } from '../src/lib/share-url.ts';
 
 const videoId = 'Dxvrvfyicp0';
 const path = `/${videoId}`;
+
+test('editor policies serialize settled fractional bounds and retain active flags', () => {
+	const state = { videoId, start: 12.5, end: 593.25, mute: true, speed: 0.5 };
+	for (const [policy, range] of [
+		['preserve', '12.5~593.25'],
+		['shortest', '12.5~-6.75'],
+		['from-start', '12.5~593.25'],
+		['mixed', '12.5~-6.75'],
+		['from-end', '-587.5~-6.75']
+	]) {
+		const formatted = formatShareBounds(state, 600, policy);
+		assert.equal(serializeShareUrl(formatted), `${path}/${range}?mute&speed=0.5`);
+		assert.deepEqual(resolveClipRange(formatted, 600), { ok: true, start: 12.5, end: 593.25 });
+	}
+	assert.equal(formatShareBounds(state, undefined, 'mixed'), undefined);
+	assert.equal(formatShareBounds({ videoId, start: 500, end: 10 }, 600, 'shortest'), undefined);
+});
+
+test('policy edges, shortest canonical length and stable sign ties', () => {
+	const converted = (start, end, policy, duration = 600) =>
+		formatShareBounds({ videoId, start, end }, duration, policy);
+	assert.equal(serializeShareUrl(converted(-600, undefined, 'preserve')), `${path}/-600`);
+	assert.equal(serializeShareUrl(converted(-600, undefined, 'shortest')), `${path}/-600`);
+	assert.equal(serializeShareUrl(converted(0, 600, 'shortest')), `${path}/~600`);
+	assert.equal(serializeShareUrl(converted(0, undefined, 'from-start')), `${path}/~600`);
+	assert.equal(serializeShareUrl(converted(0, 600, 'from-end')), `${path}/-600`);
+	assert.equal(serializeShareUrl(converted(0, undefined, 'mixed')), path);
+	assert.equal(converted(-90, -10, 'shortest').start, -90); // "510" ties "-90": retain sign.
+	assert.equal(converted(510, -10, 'shortest').start, 510);
+	assert.equal(converted(49, 98, 'shortest', 100).start, 49); // nearer edge alone is insufficient.
+	assert.equal(converted(49, 198, 'shortest', 200).end, -2);
+	assert.equal(converted(12.5, 593.2, 'mixed').end, -6.8);
+	assert.equal(subtractSeconds(0.00000001, 0.00000003), -0.00000002);
+	assert.equal(converted(0, 700, 'preserve').end, 700); // preserve a clamped incoming expression.
+});
 const parse = (input) => {
 	const result = parseShareUrl(input);
 	assert.equal(result.ok, true, JSON.stringify(result));

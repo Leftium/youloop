@@ -6,6 +6,8 @@
 	import { createOrientationController, type Orientation } from './youtube-orientation';
 	import {
 		parsePlayerUrl,
+		formatShareBounds,
+		type TimestampPolicy,
 		normalizeShareUrl,
 		serializeShareUrl,
 		serializeEditorUrl,
@@ -49,6 +51,8 @@
 		initial.ok ? '' : `Invalid link: ${initial.errors.map((item) => item.parameter).join(', ')}`
 	);
 	let copyMessage = $state('');
+	let settledDuration = $state<number>();
+	let timestampPolicy = $state<TimestampPolicy>('preserve');
 	let controller: ReturnType<typeof createOrientationController>;
 	let loadedHref = '';
 	let bareDemo = false;
@@ -65,10 +69,32 @@
 		fill
 	});
 	let normalized = $derived(normalizeShareUrl(clip));
-	let sharePath = $derived(
-		normalized.ok && !clipInvalid ? serializeShareUrl(normalized.value) : undefined
+	let formatted = $derived(
+		minimal ? clip : formatShareBounds(clip, settledDuration, timestampPolicy)
 	);
-	let editorPath = $derived(normalized.ok ? serializeEditorUrl(normalized.value) : undefined);
+	let sharePath = $derived(
+		normalized.ok && !clipInvalid && formatted ? serializeShareUrl(formatted) : undefined
+	);
+	// Keep invalid clips repairable and their history identity intact.
+	let editorPath = $derived(normalized.ok ? serializeEditorUrl(formatted ?? clip) : undefined);
+	let shareUrl = $derived(sharePath ? new URL(sharePath, page.url.origin).href : undefined);
+
+	const timestampPolicies: { value: TimestampPolicy; label: string }[] = [
+		{ value: 'preserve', label: 'As entered' },
+		{ value: 'shortest', label: 'Shortest' },
+		{ value: 'from-start', label: 'Both from start' },
+		{ value: 'mixed', label: 'Start + end' },
+		{ value: 'from-end', label: 'Both from end' }
+	];
+	let timestampOptions = $derived(
+		timestampPolicies.map((option) => {
+			const formatted = formatShareBounds(clip, settledDuration, option.value);
+			return {
+				...option,
+				preview: formatted && !clipInvalid ? serializeShareUrl(formatted) : undefined
+			};
+		})
+	);
 
 	onMount(() => {
 		controller = createOrientationController((frame, _override, source) => {
@@ -95,6 +121,7 @@
 		const value = result.value;
 		error = '';
 		copyMessage = '';
+		timestampPolicy = 'preserve';
 		youtubeId = value.videoId;
 		startExpression = value.start;
 		endExpression = value.end;
@@ -142,7 +169,7 @@
 	async function copyLink() {
 		if (!sharePath) return;
 		try {
-			await navigator.clipboard.writeText(new URL(sharePath, window.location.origin).href);
+			await navigator.clipboard.writeText(shareUrl!);
 			copyMessage = 'Link copied';
 		} catch {
 			copyMessage = 'Clipboard unavailable. Copy the link below.';
@@ -161,6 +188,10 @@
 			bind:repeatA
 			bind:repeatB
 			{requestedBounds}
+			{timestampPolicy}
+			{timestampOptions}
+			onpolicychange={(value) => (timestampPolicy = value)}
+			ondurationresolved={(value) => (settledDuration = value)}
 			onboundsresolved={(valid) => (clipInvalid = !valid)}
 			onstartchange={(value) => (startExpression = value)}
 			{once}
@@ -183,18 +214,36 @@
 				fill = undefined;
 				controller.choose(value);
 			}}
-			onsourcechange={(videoId) => {
-				startExpression = undefined;
-				endExpression = undefined;
+			onsourcechange={(videoId, imported) => {
+				if (!imported || videoId !== youtubeId) settledDuration = undefined;
+				youtubeId = videoId;
+				timestampPolicy = 'preserve';
+				copyMessage = '';
+				startExpression = imported?.start;
+				endExpression = imported?.end;
+				repeatA = Math.max(0, imported?.start ?? 0);
+				repeatB = imported?.end !== undefined && imported.end > 0 ? imported.end : 99999;
+				if (imported) {
+					once = imported.once ?? false;
+					mute = imported.mute;
+				}
 				clipInvalid = false;
-				vertical = undefined;
-				fill = undefined;
-				speed = undefined;
-				controller.setSource(videoId, null, true);
+				vertical = imported?.vertical;
+				fill = imported?.fill;
+				speed = imported?.speed;
+				controller.setSource(
+					videoId,
+					vertical === undefined ? null : vertical ? 'portrait' : 'landscape',
+					true
+				);
 			}}
 		>
 			{#snippet editorActions()}
-				<a class="secondary" href="https://youtu.be/{youtubeId}">youtu.be/{youtubeId}</a>
+				<div class="share-preview">
+					<span>Share URL</span><output aria-label="Share URL preview"
+						>{shareUrl ?? 'Choose valid bounds after the video loads to share.'}</output
+					>
+				</div>
 				<nav aria-label="Clip navigation">
 					<a class="nc-button" href={sharePath}>Open video</a>
 					<button onclick={copyLink} disabled={!sharePath}>Copy Link</button>
@@ -203,7 +252,7 @@
 						{#if copyMessage.startsWith('Clipboard')}<a href={sharePath}>{sharePath}</a>{/if}
 					{/if}
 				</nav>
-				{#if !normalized.ok}
+				{#if !normalized.ok && !clipInvalid}
 					<p role="alert">Choose an end after the start to share this clip.</p>
 				{/if}
 			{/snippet}
@@ -215,10 +264,23 @@
 {/if}
 
 <style>
+	.share-preview {
+		margin-block: 8px;
+		font-size: 0.8rem;
+	}
+	.share-preview span {
+		display: block;
+		opacity: 0.7;
+	}
+	.share-preview output {
+		display: block;
+		overflow-wrap: anywhere;
+		font-variant-numeric: tabular-nums;
+	}
 	nav {
 		display: flex;
 		align-items: center;
-		gap: 1rem;
+		gap: 0.5rem;
 		flex-wrap: wrap;
 	}
 	.nc-button,

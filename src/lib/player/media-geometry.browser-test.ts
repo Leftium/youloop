@@ -15,8 +15,11 @@ export async function run() {
 	const originalOrientation = buttons.find(
 		(button) => button.getAttribute('aria-pressed') === 'true'
 	)!;
-	const fillButton = document.querySelector<HTMLButtonElement>('[aria-label="Crop to fill"]')!;
-	if (!fillButton) throw new Error('Missing Crop to fill button');
+	const fillInput = document.querySelector<HTMLInputElement>(
+		'[role="switch"][aria-label="Crop to fill"]'
+	)!;
+	if (!fillInput) throw new Error('Missing Crop to fill switch');
+	const toggleFill = () => fillInput.click();
 	const originalFit = new URL(window.location.href).searchParams.get('fill');
 	const originalWidth = container.style.width;
 	const results: string[] = [];
@@ -28,7 +31,7 @@ export async function run() {
 		if (!condition) throw new Error(message);
 		results.push(message);
 	};
-	const pressed = () => fillButton.getAttribute('aria-pressed') === 'true';
+	const pressed = () => fillInput.checked;
 	const sourceRatio = () =>
 		Number(getComputedStyle(container).getPropertyValue('--video-source-ratio'));
 	const fitParameter = () => new URL(window.location.href).searchParams.get('fill');
@@ -53,7 +56,7 @@ export async function run() {
 			);
 
 			for (const fill of [false, true]) {
-				if (pressed() !== fill) fillButton.click();
+				if (pressed() !== fill) toggleFill();
 				await settle();
 				assert(pressed() === fill, `${orientation}: ${fill ? 'Fill' : 'Fit'} selected`);
 
@@ -97,10 +100,10 @@ export async function run() {
 					results.push(`${orientation} at ${width}px, ${fill ? 'Fill' : 'Fit'}`);
 				}
 				// Verify manually toggling Fill/Back provides explicit URL state.
-				fillButton.click();
+				toggleFill();
 				await settle();
 				assert(fitParameter() === (fill ? '0' : ''), 'Manual Fit/Fill URL override');
-				fillButton.click();
+				toggleFill();
 				await settle();
 			}
 		}
@@ -111,8 +114,8 @@ export async function run() {
 		await settle();
 		if (originalFit === '' || originalFit === '0') {
 			const desired = originalFit === '';
-			if (pressed() === desired) fillButton.click();
-			fillButton.click();
+			if (pressed() === desired) toggleFill();
+			toggleFill();
 			await settle();
 		}
 	}
