@@ -4,6 +4,7 @@
 	import { onMount, untrack, type Snippet } from 'svelte';
 	import EditorWorkspace from './EditorWorkspace.svelte';
 	import BoundEditor from './BoundEditor.svelte';
+	import ClipRange from './ClipRange.svelte';
 	import SourceEditor from './SourceEditor.svelte';
 	import TimestampFormat from './TimestampFormat.svelte';
 	import type { EditorSource } from './editor-source';
@@ -1169,53 +1170,56 @@
 {#snippet settings(layoutReset: Snippet)}
 	{#if playerError}<p role="alert">{playerError}</p>{/if}
 	<div class="controls">
-		<section aria-labelledby="clip-heading" class="settings-section">
-			<h2 id="clip-heading">Clip</h2>
+		<section aria-label="Clip settings and sharing" class="settings-section">
 			<SourceEditor
 				videoId={youtubeId ?? ''}
 				title={videoTitle}
 				unavailable={titleUnavailable || !!playerError}
 				onapply={applySource}
 			/>
-			<BoundEditor
-				endpoint="start"
-				value={repeatA}
-				bounds={requestedBounds}
-				{duration}
-				precise={subSeconds}
-				onchange={(value) => {
-					boundEditError = '';
-					onstartchange?.(value);
-				}}
-				onset={() => setAtPlayhead('start')}
-			/>
-			<BoundEditor
-				endpoint="end"
-				value={repeatB}
-				bounds={requestedBounds}
-				{duration}
-				precise={subSeconds}
-				onchange={(value) => {
-					boundEditError = '';
-					onendchange?.(value);
-				}}
-				onset={() => setAtPlayhead('end')}
-			/>
-			{#if boundEditError}<p role="alert">{boundEditError}</p>{/if}
-			<label class="precision-choice"
-				><input type="checkbox" bind:checked={subSeconds} />Sub-second times</label
-			>
-			<div class="policy-row">
-				<span>URL timestamp format</span><TimestampFormat
-					value={timestampPolicy}
-					options={timestampOptions}
-					disabled={duration === undefined || !!boundsError}
-					onchange={(value) => onpolicychange?.(value)}
-				/>
-			</div>
-			<p class="policy-help">
-				Format keeps this clip, but changes how bounds follow a future video duration.
-			</p>
+			<ClipRange start={repeatA} end={repeatB} {duration}>
+				{#snippet controls()}
+					<BoundEditor
+						endpoint="start"
+						value={repeatA}
+						bounds={requestedBounds}
+						{duration}
+						precise={subSeconds}
+						onchange={(value) => {
+							boundEditError = '';
+							onstartchange?.(value);
+						}}
+						onset={() => setAtPlayhead('start')}
+					/>
+					<BoundEditor
+						endpoint="end"
+						value={repeatB}
+						bounds={requestedBounds}
+						{duration}
+						precise={subSeconds}
+						onchange={(value) => {
+							boundEditError = '';
+							onendchange?.(value);
+						}}
+						onset={() => setAtPlayhead('end')}
+					/>
+					{#if boundEditError}<p role="alert">{boundEditError}</p>{/if}
+					<label class="precision-choice"
+						><input type="checkbox" bind:checked={subSeconds} />Sub-second times</label
+					>
+					<div class="policy-row">
+						<span>URL timestamp format</span><TimestampFormat
+							value={timestampPolicy}
+							options={timestampOptions}
+							disabled={duration === undefined || !!boundsError}
+							onchange={(value) => onpolicychange?.(value)}
+						/>
+					</div>
+					<p class="policy-help">
+						Format keeps this clip, but changes how bounds follow a future video duration.
+					</p>
+				{/snippet}
+			</ClipRange>
 			{@render editorActions?.()}
 		</section>
 		<section aria-labelledby="playback-heading" class="settings-section">

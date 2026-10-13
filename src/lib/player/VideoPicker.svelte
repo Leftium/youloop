@@ -1,4 +1,5 @@
 <script lang="ts">
+	import './editor-dialog.css';
 	import { onMount } from 'svelte';
 	import IcRoundContentPaste from '~icons/ic/round-content-paste';
 	import IcRoundClose from '~icons/ic/round-close';
@@ -101,8 +102,8 @@
 	}
 	function updateViewport() {
 		const viewport = window.visualViewport;
-		dialog.style.setProperty('--picker-height', `${viewport?.height ?? window.innerHeight}px`);
-		dialog.style.setProperty('--picker-top', `${viewport?.offsetTop ?? 0}px`);
+		dialog.style.setProperty('--dialog-height', `${viewport?.height ?? window.innerHeight}px`);
+		dialog.style.setProperty('--dialog-top', `${viewport?.offsetTop ?? 0}px`);
 	}
 	onMount(() => {
 		// Capture before input/browser handlers can turn the first Escape into a blur.
@@ -127,7 +128,7 @@
 </script>
 
 <dialog
-	class="video-picker"
+	class="video-picker editor-dialog"
 	bind:this={dialog}
 	aria-labelledby="video-picker-title"
 	tabindex="-1"
@@ -230,23 +231,6 @@
 </dialog>
 
 <style>
-	:global(html:has(dialog.video-picker[open])) {
-		overflow: hidden;
-	}
-	dialog {
-		position: fixed;
-		inset: calc(var(--picker-top, 0px) + var(--picker-height, 100dvh) / 2) 0 auto;
-		transform: translateY(-50%);
-		margin: 0 auto;
-		width: min(520px, calc(100% - 32px));
-		max-height: calc(var(--picker-height, 100dvh) - 32px);
-		overflow-y: auto;
-		overscroll-behavior: contain;
-		padding: 24px;
-	}
-	dialog::backdrop {
-		background: rgb(0 0 0 / 60%);
-	}
 	h2 {
 		margin-top: 0;
 	}
@@ -331,19 +315,6 @@
 	hr {
 		margin-block: 24px;
 	}
-	@media (max-width: 660px), (pointer: coarse) and (max-height: 500px) {
-		dialog {
-			inset: auto 0 calc(100% - var(--picker-top, 0px) - var(--picker-height, 100dvh));
-			margin: 0;
-			transform: none;
-			width: 100%;
-			max-width: none;
-			max-height: calc(var(--picker-height, 100dvh) - 12px);
-			border-radius: 16px 16px 0 0;
-			padding: 20px max(20px, env(safe-area-inset-right)) max(20px, env(safe-area-inset-bottom))
-				max(20px, env(safe-area-inset-left));
-		}
-	}
 	@media (pointer: coarse) {
 		.plain-action::after {
 			content: '';
@@ -352,12 +323,6 @@
 			width: max(100%, 44px);
 			height: max(100%, 44px);
 			transform: translate(-50%, -50%);
-		}
-	}
-	@media (prefers-reduced-motion: reduce) {
-		dialog {
-			animation: none;
-			transition: none;
 		}
 	}
 </style>
