@@ -384,21 +384,19 @@ memory, or network improvement. Large CSS heights were just one empty element;
 mobile snapping now adds DOM markers at 20px intervals. The initial set is
 smaller than with the old runway, but markers grow with continued scrolling.
 
-In **local development only**, `watchRunway=legacy|small|coarse` selects the
-former baseline or alternative extension sizes for comparison; no parameter
-selects the balanced default, including on Vercel preview and production.
-Example: `/dt-SqNL4z3w/31~38?mute&watchRunway=legacy`. Production ignores
-trial parameters and always uses the short runway with mobile snapping.
-The route's URL normalization may strip `watchRunway` after mount; reappend it
-when starting a new local comparison. Shared URLs never include it.
+Run `pnpm exec playwright test tests/browser/watch-runway.spec.ts` for the
+shipped runway, direction, native touch, 20px snap spacing, resize, playback,
+provider identity, and history coverage. Earlier alternative-budget measurements
+above are historical research; the shipped implementation has one configuration.
 
-Run `pnpm exec playwright test tests/browser/watch-runway.spec.ts` for runway,
-direction, native touch, snap, resize, media identity, and history coverage.
-The maintainer confirmed **Safari toolbar collapse** on a physical iPhone in
-the earlier editor and watch implementations. The combined smaller-runway/snap
-change is easy to revert if a mobile browser regression appears; it still
-merits a quick physical Safari check when convenient, but an exhaustive
-manual-device matrix is not a prerequisite for the change.
+The maintainer tested the new PR #41 Vercel preview on a physical iPhone and
+confirmed Safari chrome can collapse in landscape while watch mode remains in
+Default with controls visible. The 32px Theater threshold measures accumulated
+root-document scrolling, not finger travel or visible toolbar movement. Browser
+chrome and Theater remain independent. Browser automation checks scroll and
+player behavior; it cannot establish physical Safari toolbar collapse. Revert
+the change if a mobile regression appears; an exhaustive manual-device matrix
+is not a prerequisite for this reversible change.
 
 The time button at the left of the control row switches between VIDEO and A:B
 without seeking or changing playback or the share URL. The blue `A:B` label

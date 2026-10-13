@@ -36,18 +36,6 @@
 		// Freeze the runway budget in pixels so rotation never shrinks it.
 		viewportHeight = window.innerHeight;
 		runwayHeight = INITIAL_RUNWAY_VIEWPORTS * viewportHeight;
-		let extensionTrigger = RUNWAY_EXTENSION_TRIGGER_VIEWPORTS;
-		let extensionIncrement = RUNWAY_EXTENSION_INCREMENT_VIEWPORTS;
-		if (import.meta.env.DEV) {
-			// Optional local regression profiles; production always uses balanced.
-			const trial = new URLSearchParams(window.location.search).get('watchRunway');
-			if (trial === 'legacy') {
-				runwayHeight = 20 * viewportHeight;
-				extensionTrigger = 9;
-			} else if (trial === 'small' || trial === 'coarse') {
-				extensionIncrement = trial === 'small' ? 8 : 50;
-			}
-		}
 		let extending = false;
 		function extendRunway() {
 			if (extending) return;
@@ -55,13 +43,13 @@
 			const viewportHeight = window.innerHeight;
 			if (!root || viewportHeight <= 0) return;
 			const remaining = root.scrollHeight - root.clientHeight - window.scrollY;
-			if (remaining >= extensionTrigger * viewportHeight) return;
+			if (remaining >= RUNWAY_EXTENSION_TRIGGER_VIEWPORTS * viewportHeight) return;
 
 			// Wait for the larger height to reach the DOM before checking the threshold again.
 			extending = true;
 			runwayHeight =
 				(runwayHeight ?? runway.getBoundingClientRect().height) +
-				extensionIncrement * viewportHeight;
+				RUNWAY_EXTENSION_INCREMENT_VIEWPORTS * viewportHeight;
 			void tick().then(() => {
 				extending = false;
 			});
