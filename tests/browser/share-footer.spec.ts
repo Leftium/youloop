@@ -185,3 +185,72 @@ for (const viewport of [
 		});
 	});
 }
+
+for (const height of [568, 844]) {
+	test.describe(`toolbar reserve at 390x${height}`, () => {
+		test.use({ viewport: { width: 390, height }, hasTouch: true, isMobile: true });
+		test('footer follows simulated toolbar collapse without moving the preview or scroll', async ({
+			page
+		}) => {
+			await open(page);
+			// Headless browsers have no Safari toolbar: substitute viewport measurements
+			// in the actual reserve expression, keeping lvh and svh fixed as dvh changes.
+			await page.locator('.settings-pane').evaluate((el) => {
+				const pane = el as HTMLElement;
+				const reserve = getComputedStyle(pane).getPropertyValue('--browser-chrome-reserve');
+				pane.style.setProperty(
+					'--browser-chrome-reserve',
+					reserve
+						.replace(/100lvh/g, `${innerHeight}px`)
+						.replace(/100svh/g, `${innerHeight - 120}px`)
+						.replace(/100dvh/g, 'var(--test-visible-height)')
+				);
+				pane.style.setProperty('--test-visible-height', `${innerHeight - 120}px`);
+				const scroll = pane.querySelector('.settings-scroll')!;
+				const spacer = document.createElement('div');
+				spacer.style.height = '1400px';
+				scroll.prepend(spacer);
+				scroll.scrollTop = 100;
+			});
+			const measure = () =>
+				page.evaluate(() => {
+					const rect = (selector: string) => {
+						const { top, bottom, height } = document
+							.querySelector(selector)!
+							.getBoundingClientRect();
+						return { top, bottom, height };
+					};
+					return {
+						footer: rect('.settings-footer'),
+						preview: rect('#editor-preview'),
+						grid: rect('.workspace-grid'),
+						edge: rect('.settings-edge'),
+						scroll: document.querySelector('.settings-scroll')!.scrollTop,
+						documentScroll: scrollY
+					};
+				});
+			const before = await measure();
+			for (const reserve of [120, 90, 60, 30, 0, 30, 60, 90, 120]) {
+				await page.locator('.settings-pane').evaluate((el, gap) => {
+					(el as HTMLElement).style.setProperty('--test-visible-height', `${innerHeight - gap}px`);
+				}, reserve);
+				const state = await measure();
+				expect(state.footer.bottom).toBeCloseTo(height - reserve, 0);
+				expect(state.footer.height).toBe(before.footer.height);
+				expect(state.preview).toEqual(before.preview);
+				expect(state.grid).toEqual(before.grid);
+				expect(state.edge.bottom).toBe(height);
+				expect(state.scroll).toBe(before.scroll);
+				expect(state.documentScroll).toBe(before.documentScroll);
+				expect((await geometry(page)).identity).toBe(true);
+			}
+			await page.locator('.settings-scroll').evaluate((el) => {
+				el.scrollTop = el.scrollHeight;
+			});
+			expect(
+				await page.locator('.settings-content').evaluate((el) => el.getBoundingClientRect().bottom)
+			).toBeLessThanOrEqual((await measure()).footer.top + 1);
+			await expect(page.locator('html')).toHaveCSS('scroll-snap-type', 'y mandatory');
+		});
+	});
+}

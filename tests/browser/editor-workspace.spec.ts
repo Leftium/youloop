@@ -744,7 +744,7 @@ test.describe('automatic mobile document scrolling', () => {
 				}
 				await pinned();
 				if (viewport.height > viewport.width) {
-					// Chromium has no Safari toolbar. Model a 120px lvh-svh gap
+					// Chromium has no Safari toolbar. Model a 120px lvh-dvh gap
 					// and prove both sharing and the final controls clear the overlay.
 					expect(
 						await page.locator('.settings-pane').evaluate((el) => {

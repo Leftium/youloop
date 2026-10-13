@@ -467,9 +467,9 @@
 			display: block;
 		}
 		.video-scroll .settings-pane {
-			/* lvh extends behind expanded bars. Reserve room beneath the footer
-			   so sharing and the final controls stay clear without resizing the preview. */
-			--browser-chrome-reserve: max(0px, calc(100lvh - 100svh));
+			/* lvh keeps the preview stable. Reserve only the currently covered space
+			   so the footer follows collapsing bars without resizing the preview. */
+			--browser-chrome-reserve: max(0px, calc(100lvh - 100dvh));
 			padding-bottom: var(--browser-chrome-reserve);
 		}
 	}
