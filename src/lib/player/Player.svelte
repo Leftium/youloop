@@ -87,8 +87,8 @@
 		ononcechange?: (once: boolean) => void;
 		onmutechange?: (mute: boolean) => void;
 		onspeedchange?: (speed: number) => void;
-		onstartchange?: (start: number | undefined) => void;
-		onendchange?: (end: number | undefined) => void;
+		onstartchange?: (start: number | undefined, generated?: boolean) => void;
+		onendchange?: (end: number | undefined, generated?: boolean) => void;
 		requestedBounds: Pick<ShareUrlState, 'start' | 'end'>;
 		onboundsresolved?: (valid: boolean) => void;
 		theater?: boolean;
@@ -722,8 +722,8 @@
 			return;
 		}
 		boundEditError = '';
-		if (endpoint === 'start') onstartchange?.(value);
-		else onendchange?.(value);
+		if (endpoint === 'start') onstartchange?.(value, true);
+		else onendchange?.(value, true);
 	}
 
 	function makeTogglePlaybackRate(rate?: number) {
@@ -754,31 +754,31 @@
 		currentTime = Number((event.currentTarget as HTMLInputElement).value);
 		if (currentTime < repeatA) {
 			repeatA = currentTime;
-			onstartchange?.(repeatA);
+			onstartchange?.(repeatA, true);
 		}
 		if (currentTime > repeatB) {
 			repeatB = currentTime;
-			onendchange?.(repeatB);
+			onendchange?.(repeatB, true);
 		}
 		seek(currentTime);
 	}
 
 	function handleInputRepeatA(event: Event) {
 		repeatA = Number((event.currentTarget as HTMLInputElement).value);
-		onstartchange?.(repeatA);
+		onstartchange?.(repeatA, true);
 		if (repeatA > repeatB) {
 			repeatB = repeatA;
-			onendchange?.(repeatB);
+			onendchange?.(repeatB, true);
 		}
 		seek(repeatA);
 	}
 
 	function handleInputRepeatB(event: Event) {
 		repeatB = Number((event.currentTarget as HTMLInputElement).value);
-		onendchange?.(repeatB);
+		onendchange?.(repeatB, true);
 		if (repeatB < repeatA) {
 			repeatA = repeatB;
-			onstartchange?.(repeatA);
+			onstartchange?.(repeatA, true);
 		}
 		seek(repeatB);
 	}

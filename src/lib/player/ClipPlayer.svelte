@@ -37,6 +37,9 @@
 	let youtubeId = $state(initialClip.videoId);
 	let startExpression = $state(initialClip.start);
 	let endExpression = $state(initialClip.end);
+	let generatedStart = $state(false);
+	let generatedEnd = $state(false);
+	let generatedBounds = $derived({ start: generatedStart, end: generatedEnd });
 	let clipInvalid = $state(false);
 	let requestedBounds = $derived({ start: startExpression, end: endExpression });
 	let repeatA = $state(Math.max(0, initialClip.start ?? 0));
@@ -79,7 +82,7 @@
 	});
 	let normalized = $derived(normalizeShareUrl(clip));
 	let formatted = $derived(
-		minimal ? clip : formatShareBounds(clip, settledDuration, timestampPolicy)
+		minimal ? clip : formatShareBounds(clip, settledDuration, timestampPolicy, generatedBounds)
 	);
 	let sharePath = $derived(
 		normalized.ok && !clipInvalid && formatted ? serializeShareUrl(formatted) : undefined
@@ -97,7 +100,7 @@
 	];
 	let timestampOptions = $derived(
 		timestampPolicies.map((option) => {
-			const formatted = formatShareBounds(clip, settledDuration, option.value);
+			const formatted = formatShareBounds(clip, settledDuration, option.value, generatedBounds);
 			return {
 				...option,
 				preview: formatted && !clipInvalid ? serializeShareUrl(formatted) : undefined
@@ -139,6 +142,8 @@
 		youtubeId = value.videoId;
 		startExpression = value.start;
 		endExpression = value.end;
+		generatedStart = false;
+		generatedEnd = false;
 		clipInvalid = false;
 		repeatA = Math.max(0, value.start ?? 0);
 		repeatB = value.end !== undefined && value.end > 0 ? value.end : 99999;
@@ -188,6 +193,8 @@
 		copyMessage = '';
 		startExpression = imported?.start;
 		endExpression = imported?.end;
+		generatedStart = false;
+		generatedEnd = false;
 		repeatA = Math.max(0, imported?.start ?? 0);
 		repeatB = imported?.end !== undefined && imported.end > 0 ? imported.end : 99999;
 		if (imported) {
@@ -243,7 +250,10 @@
 			onpolicychange={(value) => (timestampPolicy = value)}
 			ondurationresolved={(value) => (settledDuration = value)}
 			onboundsresolved={(valid) => (clipInvalid = !valid)}
-			onstartchange={(value) => (startExpression = value)}
+			onstartchange={(value, generated = false) => {
+				startExpression = value;
+				generatedStart = generated;
+			}}
 			{once}
 			{mute}
 			{speed}
@@ -260,7 +270,10 @@
 			ononcechange={(value) => (once = value)}
 			onmutechange={(value) => (mute = value)}
 			onspeedchange={(value) => (speed = value)}
-			onendchange={(value) => (endExpression = value)}
+			onendchange={(value, generated = false) => {
+				endExpression = value;
+				generatedEnd = generated;
+			}}
 			onmirrorchange={(value) => (mirror = value)}
 			onfillchange={(value) => (fill = value)}
 			onorientationchange={(value) => {

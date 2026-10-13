@@ -13,6 +13,118 @@ import { formatShareBounds, subtractSeconds } from '../src/lib/share-url.ts';
 const videoId = 'Dxvrvfyicp0';
 const path = `/${videoId}`;
 
+test('generated timestamps prefer whole seconds or tenths within a bounded timing tolerance', () => {
+	for (const [start, expected] of [
+		[31.000000000000004, 31],
+		[31.199999999999996, 31.2],
+		[31.204, 31.2],
+		[31.205, 31.2],
+		[31.206, 31.21],
+		[31.25, 31.25],
+		[31.234567, 31.23],
+		[31 + 1 / 30, 31.03],
+		[31 + 1 / 60, 31.02]
+	]) {
+		const state = { videoId, start, end: 38 };
+		assert.equal(formatShareBounds(state, 65, 'preserve', { start: true }).start, expected);
+		assert.equal(formatShareBounds(state, 65, 'preserve').start, start);
+	}
+	// Very short clips keep useful precision even if rounding would leave a valid range.
+	const short = { videoId, start: 31.234567, end: 31.244567 };
+	assert.deepEqual(formatShareBounds(short, 65, 'preserve', { start: true, end: true }), short);
+});
+
+test('generated bounds use one URL-only boundary; authored precision stays intact', () => {
+	const state = { videoId, start: 13.267487, end: 59.25123456789 };
+	assert.deepEqual(formatShareBounds(state, 65, 'preserve'), state);
+	const formatted = formatShareBounds(state, 65, 'preserve', { start: true });
+	assert.equal(serializeShareUrl(formatted), `${path}/13.27~59.25123456789`);
+	assert.equal(serializeEditorUrl(formatted), `/?v=${videoId}&t=13.27~59.25123456789`);
+	assert.deepEqual(state, { videoId, start: 13.267487, end: 59.25123456789 });
+	const signed = { videoId, start: -30.5123456789, end: -5.25123456789 };
+	for (const policy of ['preserve', 'from-end']) {
+		assert.deepEqual(formatShareBounds(signed, 65.123456789, policy), signed);
+	}
+	const converted = formatShareBounds(state, 65.123456789, 'from-end');
+	assert.equal(converted.start, subtractSeconds(state.start, 65.123456789));
+	assert.equal(converted.end, subtractSeconds(state.end, 65.123456789));
+});
+
+test('fractional provider durations and conversions serialize readable actual URLs', () => {
+	const state = { videoId, start: 12.5, end: 59.25 };
+	for (const [policy, bounds] of [
+		['preserve', '12.5~59.25'],
+		['shortest', '12.5~59.25'],
+		['from-start', '12.5~59.25'],
+		['mixed', '12.5~-5.87'],
+		['from-end', '-52.62~-5.87']
+	]) {
+		const formatted = formatShareBounds(state, 65.123456789, policy);
+		assert.equal(serializeShareUrl(formatted), `${path}/${bounds}`);
+		assert.equal(serializeEditorUrl(formatted), `/?v=${videoId}&t=${bounds}`);
+		const resolved = resolveClipRange(formatted, 65.123456789);
+		assert.equal(resolved.ok, true);
+		assert.ok(Math.abs(resolved.start - 12.5) <= 0.005);
+		assert.ok(Math.abs(resolved.end - 59.25) <= 0.005);
+	}
+	// The shorter expression must be chosen after normalization, not from raw tails.
+	assert.equal(
+		formatShareBounds({ videoId, start: 593.25 }, 600.123456789, 'shortest').start,
+		-6.87
+	);
+	assert.equal(
+		formatShareBounds({ videoId, start: 12.5, end: 59.75 }, 65 - 0.00000000000006, 'mixed').end,
+		-5.25
+	);
+});
+
+test('precision exceptions retain signs, exact boundaries, and valid sub-hundredth clips', () => {
+	const duration = 65.123456789;
+	for (const state of [
+		{ videoId, start: 0.001, end: 1 },
+		{ videoId, start: -0.004 },
+		{ videoId, start: 10, end: -0.004 },
+		{ videoId, start: 65.122, end: duration },
+		{ videoId, start: 12.501, end: 12.504 },
+		{ videoId, start: -0.009, end: -0.006 }
+	]) {
+		for (const policy of ['preserve', 'shortest', 'from-start', 'mixed', 'from-end']) {
+			const formatted = formatShareBounds(state, duration, policy, { start: true, end: true });
+			assert.equal(normalizeShareUrl(formatted).ok, true);
+			const before = resolveClipRange(state, duration);
+			const after = resolveClipRange(formatted, duration);
+			assert.equal(after.ok, true, JSON.stringify({ state, policy, formatted }));
+			for (const key of ['start', 'end']) {
+				assert.equal(after[key] === 0, before[key] === 0);
+				assert.equal(after[key] === duration, before[key] === duration);
+				assert.ok(Math.abs(after[key] - before[key]) <= 0.005);
+			}
+			assert.equal(parseShareUrl(serializeShareUrl(formatted)).ok, true);
+		}
+	}
+	const open = formatShareBounds({ videoId, start: 13.267487 }, duration, 'preserve', {
+		start: true
+	});
+	assert.equal(open.end, undefined);
+	assert.equal(resolveClipRange(open, 70).end, 70);
+	const relative = formatShareBounds(
+		{ videoId, start: -30.512345, end: -5.251234 },
+		duration,
+		'preserve'
+	);
+	assert.equal(resolveClipRange(relative, 70).end, subtractSeconds(70, 5.251234));
+	assert.equal(
+		formatShareBounds({ videoId, start: 0, end: duration }, duration, 'from-start').end,
+		duration
+	);
+	// Rounding upward would clamp today but extend this fixed end on a longer video.
+	const roundedUpDuration = 64.22639455782313;
+	const fixedEnd = formatShareBounds({ videoId, start: 12.5 }, roundedUpDuration, 'from-start');
+	assert.equal(fixedEnd.end, roundedUpDuration);
+	assert.equal(resolveClipRange(fixedEnd, 70).end, roundedUpDuration);
+	assert.equal(formatShareBounds({ videoId, start: 0, end: 70 }, duration, 'preserve').end, 70);
+});
+
 test('editor policies serialize settled fractional bounds and retain active flags', () => {
 	const state = { videoId, start: 12.5, end: 593.25, mute: true, speed: 0.5 };
 	for (const [policy, range] of [

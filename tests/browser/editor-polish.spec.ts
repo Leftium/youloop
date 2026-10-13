@@ -74,6 +74,161 @@ async function clipboard(page: Page, text = '') {
 }
 
 test.describe('editor polish', () => {
+	test('imported high precision and signed intent survive viewing, reload and generated edits', async ({
+		page
+	}) => {
+		const range = '-30.512345~-5.251234';
+		await open(page, range);
+		const editor = page.url();
+		const watch = `http://localhost:5173/${id}/${range}?once&mute&speed=1.5&fill=0`;
+		await expect(preview(page)).toHaveText(watch);
+		await page.reload();
+		await expect(page.getByRole('button', { name: 'Copy Link', exact: true })).toBeEnabled();
+		await expect(page).toHaveURL(editor);
+		await expect(preview(page)).toHaveText(watch);
+		await page.getByRole('link', { name: 'Open video', exact: true }).click();
+		await expect(page).toHaveURL(watch);
+		await page.reload();
+		await expect(page.getByRole('link', { name: 'Edit', exact: true })).toHaveAttribute(
+			'href',
+			new URL(editor).pathname + new URL(editor).search
+		);
+		await expect(page).toHaveURL(watch);
+		await page.getByRole('link', { name: 'Edit', exact: true }).click();
+		await expect(page.getByRole('button', { name: 'Copy Link', exact: true })).toBeEnabled();
+		await page.getByRole('slider', { name: 'Repeat start', exact: true }).fill('31.204');
+		await expect(preview(page)).toHaveText(
+			`http://localhost:5173/${id}/31.2~-5.251234?once&mute&speed=1.5&fill=0`
+		);
+		// A newly imported link resets generated provenance for both endpoints.
+		await page.goto(`/?v=${id}&t=31.234567~59.251234&once&mute`);
+		await expect(page.getByRole('button', { name: 'Copy Link', exact: true })).toBeEnabled();
+		await expect(preview(page)).toHaveText(
+			`http://localhost:5173/${id}/31.234567~59.251234?once&mute`
+		);
+		await page.getByRole('slider', { name: 'Current time', exact: true }).fill('32');
+		await page.waitForFunction(
+			() => !(document.querySelector('youtube-video') as HTMLMediaElement).seeking
+		);
+		await page.getByRole('button', { name: 'Next frame', exact: true }).click();
+		await page.waitForFunction(
+			() => !(document.querySelector('youtube-video') as HTMLMediaElement).seeking
+		);
+		await openRange(page);
+		await page.getByRole('checkbox', { name: 'Sub-second times' }).check();
+		await page.getByRole('button', { name: 'Set start at playhead', exact: true }).click();
+		await closeRange(page);
+		const stored = Number(
+			await page.getByRole('slider', { name: 'Repeat start', exact: true }).inputValue()
+		);
+		const shared = Number(new URL(page.url()).searchParams.get('t')!.split('~')[0]);
+		expect(Number.isInteger(stored)).toBe(false);
+		expect(Math.abs(stored - shared)).toBeLessThanOrEqual(0.005);
+		expect(String(shared)).toMatch(/^\d+(?:\.\d{1,2})?$/);
+	});
+
+	test('generated precision agrees across policies, actual links, history and playback state', async ({
+		page
+	}) => {
+		await open(page, '12.5~59.25');
+		await clipboard(page);
+		// Exercise realistic provider precision through the settled-duration callback.
+		await page.locator('youtube-video').evaluate((element) => {
+			const media = element as HTMLMediaElement & { engine: { getDuration(): number } };
+			media.engine.getDuration = () => 65.123456789;
+			media.dispatchEvent(new Event('durationchange'));
+		});
+		await expect(page.getByRole('slider', { name: 'Repeat end', exact: true })).toHaveAttribute(
+			'max',
+			'65.123456789'
+		);
+		await openRange(page);
+		await page.getByRole('checkbox', { name: 'Sub-second times' }).check();
+		await page.locator('youtube-video').evaluate((element) => {
+			Object.defineProperty(element, 'currentTime', { configurable: true, get: () => 13.267487 });
+			element.dispatchEvent(new Event('timeupdate'));
+		});
+		await page.getByRole('button', { name: 'Set start at playhead', exact: true }).click();
+		await closeRange(page);
+		const committed = {
+			videoId: id,
+			start: 13.267487,
+			end: 59.25,
+			once: true,
+			mute: true,
+			speed: 1.5,
+			fill: false
+		};
+		for (const [policy, range] of [
+			['preserve', '13.27~59.25'],
+			['shortest', '13.27~59.25'],
+			['from-start', '13.27~59.25'],
+			['mixed', '13.27~-5.87'],
+			['from-end', '-51.86~-5.87'],
+			['preserve', '13.27~59.25']
+		] as const) {
+			await openRange(page);
+			await page.getByRole('combobox', { name: 'URL timestamp format' }).click();
+			await expect(page.locator(`[role=option][data-policy="${policy}"] small`)).toHaveText(
+				`/${id}/${range}?once&mute&speed=1.5&fill=0`
+			);
+			await page.keyboard.press('Escape');
+			await choosePolicy(page, policy);
+			await closeRange(page);
+			const expected = `/${id}/${range}?once&mute&speed=1.5&fill=0`;
+			expect(
+				serializeShareUrl(formatShareBounds(committed, 65.123456789, policy, { start: true })!)
+			).toBe(expected);
+			await expect(preview(page)).toHaveText(`http://localhost:5173${expected}`);
+			await expect(page.getByRole('link', { name: 'Open video', exact: true })).toHaveAttribute(
+				'href',
+				expected
+			);
+			await expect(page).toHaveURL(
+				`http://localhost:5173/?v=${id}&t=${range}&once&mute&speed=1.5&fill=0`
+			);
+			await page.getByRole('button', { name: 'Copy Link', exact: true }).click();
+			expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
+				`http://localhost:5173${expected}`
+			);
+			await expect(page.getByRole('slider', { name: 'Repeat start', exact: true })).toHaveValue(
+				'13.267487'
+			);
+			await expect(page.getByRole('slider', { name: 'Repeat end', exact: true })).toHaveValue(
+				'59.25'
+			);
+			await identity(page);
+		}
+		// Timeline gestures have the same provenance as playhead/frame-step edits.
+		await page.locator('youtube-video').evaluate((element) => {
+			Reflect.deleteProperty(element, 'currentTime');
+		});
+		await page.getByRole('slider', { name: 'Repeat start', exact: true }).fill('31.204');
+		await expect(page).toHaveURL(/t=31\.2~59\.25/);
+		await expect(page.getByRole('slider', { name: 'Repeat start', exact: true })).toHaveValue(
+			'31.204'
+		);
+		await page.getByRole('slider', { name: 'Repeat start', exact: true }).fill('31.25');
+		await expect(page).toHaveURL(/t=31\.25~59\.25/);
+		await page.getByRole('slider', { name: 'Repeat start', exact: true }).fill('13.267487');
+		await expect(page).toHaveURL(/t=13\.27~59\.25/);
+		const editor = page.url();
+		await page.getByRole('link', { name: 'Open video', exact: true }).click();
+		await expect(page).toHaveURL(
+			`http://localhost:5173/${id}/13.27~59.25?once&mute&speed=1.5&fill=0`
+		);
+		const watch = page.url();
+		await expect(page.locator('.watch-time')).not.toContainText('?:??');
+		await page.reload();
+		await expect(page).toHaveURL(watch);
+		await expect(page.locator('.watch-time')).not.toContainText('?:??');
+		await page.goBack();
+		await expect(page.getByRole('button', { name: 'Copy Link', exact: true })).toBeEnabled();
+		await expect(page).toHaveURL(editor);
+		await page.goForward();
+		await expect(page).toHaveURL(watch);
+	});
+
 	test('fieldset actions align with titles, share responsive pencil styling, and dismiss the range dialog safely', async ({
 		page
 	}) => {

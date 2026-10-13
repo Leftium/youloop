@@ -179,23 +179,67 @@ export function decimal(value: number): string {
 
 export type TimestampPolicy = 'preserve' | 'shortest' | 'from-start' | 'mixed' | 'from-end';
 
+export type GeneratedBounds = Partial<Record<'start' | 'end', boolean>>;
+
 /** Convert only settled, valid bounds. Preserve keeps even clamped incoming expressions. */
 export function formatShareBounds(
 	state: ShareUrlState,
 	duration: number | undefined,
-	policy: TimestampPolicy
+	policy: TimestampPolicy,
+	generated: GeneratedBounds = {}
 ): ShareUrlState | undefined {
 	if (duration === undefined) return undefined;
 	const range = resolveClipRange(state, duration);
 	if (!range.ok || !normalizeShareUrl(state).ok) return undefined;
-	if (policy === 'preserve') return state;
+	// Cap endpoint movement at 5 ms (less than a third of a frame at 60 fps),
+	// or 5% of a short clip. Keep extra precision when hundredths cannot do that.
+	const tolerance = Math.min(0.005, (range.end - range.start) / 20);
+	// This is the URL-only precision boundary. Authored/imported high precision
+	// survives conversions too; playback and editor state never receive these values.
+	const readable = (value: number | undefined, endpoint: 'start' | 'end') => {
+		const original = state[endpoint];
+		const authoredPrecision =
+			original !== undefined && (decimal(original).split('.')[1]?.length ?? 0) > 2;
+		if (value === undefined || (!generated[endpoint] && (value === original || authoredPrecision)))
+			return value;
+		const position = (expression: number) =>
+			Math.max(
+				0,
+				Math.min(duration, expression < 0 ? subtractSeconds(duration, -expression) : expression)
+			);
+		const before = position(value);
+		for (const places of [0, 1, 2]) {
+			const rounded: number = Number(value.toFixed(places));
+			if (Math.abs(subtractSeconds(value, rounded)) > tolerance) continue;
+			if (value < 0 !== rounded < 0 || (value === 0) !== (rounded === 0)) continue;
+			const after = position(rounded);
+			// Exact/clamped boundaries keep their expression for future durations.
+			if ((before === 0 || before === duration) && rounded !== value) continue;
+			if ((before === 0) !== (after === 0) || (before === duration) !== (after === duration))
+				continue;
+			return rounded;
+		}
+		return value;
+	};
+	const finish = (start: number | undefined, end: number | undefined) => {
+		const exact = { ...state, start, end };
+		const rounded = { ...state, start: readable(start, 'start'), end: readable(end, 'end') };
+		// Sub-hundredth clips can collapse after rounding. Keep the selected format
+		// at full precision rather than expanding the clip or emitting an invalid URL.
+		return normalizeShareUrl(rounded).ok && resolveClipRange(rounded, duration).ok
+			? rounded
+			: exact;
+	};
+	if (policy === 'preserve') return finish(state.start, state.end);
 	// Decimal subtraction avoids binary artifacts such as 600 - 593.2 = 6.7999999999999545.
 	const relative = (value: number) => subtractSeconds(value, duration);
 	const shortest = (positive: number, original: number | undefined, end = false) => {
 		const negative = relative(positive);
 		if (!end && positive === 0 && (original ?? 0) < 0) return negative;
 		if (negative === 0) return end && original === undefined ? undefined : positive;
-		const difference = decimal(positive).length - decimal(negative).length;
+		const endpoint = end ? 'end' : 'start';
+		const difference =
+			decimal(readable(positive, endpoint)!).length - decimal(readable(negative, endpoint)!).length;
 		return difference > 0 || (difference === 0 && (original ?? 0) < 0) ? negative : positive;
 	};
 	const start =
@@ -212,7 +256,7 @@ export function formatShareBounds(
 				: range.end === duration
 					? undefined
 					: relative(range.end);
-	return { ...state, start, end };
+	return finish(start, end);
 }
 
 /** Subtract decimal seconds without manufacturing extra fractional digits. */
