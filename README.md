@@ -372,12 +372,12 @@ The [#34](https://github.com/Leftium/youloop/issues/34) comparison measured
 the following budgets over 100 viewports of scripted scrolling in Chromium
 and WebKit **before the production snapping change**:
 
-| Profile             | Initial viewports | Extension trigger | Growth | Extensions | Final viewports |
-| ------------------- | ----------------: | ----------------: | -----: | ---------: | --------------: |
-| Former baseline     |                20 |                 9 |     25 |          4 |             120 |
-| New balanced default|                 4 |                 1 |     25 |          4 |             104 |
-| Small trial         |                 4 |                 1 |      8 |         13 |             108 |
-| Coarse trial        |                 4 |                 1 |     50 |          2 |             104 |
+| Profile              | Initial viewports | Extension trigger | Growth | Extensions | Final viewports |
+| -------------------- | ----------------: | ----------------: | -----: | ---------: | --------------: |
+| Former baseline      |                20 |                 9 |     25 |          4 |             120 |
+| New balanced default |                 4 |                 1 |     25 |          4 |             104 |
+| Small trial          |                 4 |                 1 |      8 |         13 |             108 |
+| Coarse trial         |                 4 |                 1 |     50 |          2 |             104 |
 
 The initial runway budget is 80% smaller; this is not evidence of an 80% CPU,
 memory, or network improvement. Large CSS heights were just one empty element;
