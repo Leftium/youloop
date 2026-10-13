@@ -67,11 +67,7 @@ test('bare root stays generic; malformed and reserved routes are safe', async ({
 	}
 });
 
-test('editor aliases, live state, canonical sharing, reload and Back/Forward', async ({
-	page,
-	context
-}) => {
-	await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+test('editor aliases, live state, canonical sharing, reload and Back/Forward', async ({ page }) => {
 	await page.goto(
 		`/?v=${id}&a=24.5&b=32.75&orientation=portrait&fit=contain&mute=0&speed=1.5&once`
 	);
@@ -103,9 +99,9 @@ test('editor aliases, live state, canonical sharing, reload and Back/Forward', a
 		.click();
 	await page.getByRole('switch', { name: 'Sound', exact: true }).uncheck();
 	const expected = `/${id}/25.5~33.2?once&mute&speed=1.5&vertical&fill`;
-	await expect(page.getByRole('link', { name: 'Open video', exact: true })).toHaveAttribute(
+	await expect(page.getByRole('link', { name: 'Share URL', exact: true })).toHaveAttribute(
 		'href',
-		expected
+		new URL(expected, 'http://localhost:5173').href
 	);
 	expect(
 		await page.evaluate(
@@ -114,17 +110,13 @@ test('editor aliases, live state, canonical sharing, reload and Back/Forward', a
 				document.querySelector('youtube-video')
 		)
 	).toBe(true);
-	await page.getByRole('button', { name: 'Copy Link', exact: true }).click();
-	expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
-		`http://localhost:5173${expected}`
-	);
 	await page.reload();
 	await settled(page);
-	await expect(page.getByRole('link', { name: 'Open video', exact: true })).toHaveAttribute(
+	await expect(page.getByRole('link', { name: 'Share URL', exact: true })).toHaveAttribute(
 		'href',
-		expected
+		new URL(expected, 'http://localhost:5173').href
 	);
-	await page.getByRole('link', { name: 'Open video', exact: true }).click();
+	await page.getByRole('link', { name: 'Share URL', exact: true }).click();
 	await settled(page);
 	await expect(page.locator('.share-prototype')).toHaveCount(1);
 	await expect(page.locator('.brand')).toHaveCount(0);
@@ -139,9 +131,9 @@ test('editor aliases, live state, canonical sharing, reload and Back/Forward', a
 	await settled(page);
 	await page.getByRole('link', { name: 'Edit', exact: true }).click();
 	await settled(page);
-	await expect(page.getByRole('link', { name: 'Open video', exact: true })).toHaveAttribute(
+	await expect(page.getByRole('link', { name: 'Share URL', exact: true })).toHaveAttribute(
 		'href',
-		expected
+		new URL(expected, 'http://localhost:5173').href
 	);
 });
 
@@ -183,7 +175,7 @@ test('new editor parameters win over aliases, seek/step/loop/once work with real
 	await expect.poll(async () => (await mediaState(page)).time).toBeLessThan(33);
 	await page.getByRole('button', { name: 'Pause', exact: true }).click();
 	await page.getByRole('slider', { name: 'Current time', exact: true }).fill('40');
-	await expect(page.getByRole('link', { name: 'Open video', exact: true })).toHaveAttribute(
+	await expect(page.getByRole('link', { name: 'Share URL', exact: true })).toHaveAttribute(
 		'href',
 		new RegExp('/31~40')
 	);
@@ -196,11 +188,13 @@ test('new editor parameters win over aliases, seek/step/loop/once work with real
 		.getByRole('dialog', { name: 'Edit clip range' })
 		.getByRole('button', { name: 'Close clip range', exact: true })
 		.click();
-	await expect(page.getByRole('link', { name: 'Open video', exact: true })).toHaveAttribute(
+	await expect(page.getByRole('link', { name: 'Share URL', exact: true })).toHaveAttribute(
 		'href',
 		new RegExp('/31~40')
 	);
-	await expect(page.getByRole('button', { name: 'Copy Link', exact: true })).toBeEnabled();
+	await expect(
+		page.getByRole('link', { name: 'Share URL', exact: true, includeHidden: true })
+	).toHaveAttribute('href', /^http/);
 });
 
 for (const path of [`/s?v=${id}&a=31&b=99999&fit=contain`, `/${id}/31?fill=0`]) {
@@ -229,16 +223,17 @@ test('source changes and out-of-duration validation retain editor parity', async
 	await settled(page);
 	expect((await mediaState(page)).duration).toBeLessThan(90);
 	await expect(page.getByRole('alert')).toContainText('Invalid clip');
-	await expect(page.locator('nav[aria-label="Clip navigation"] a')).not.toHaveAttribute('href');
-	await expect(page.getByRole('button', { name: 'Copy Link', exact: true })).toBeDisabled();
+	await expect(
+		page.getByRole('link', { name: 'Share URL', exact: true, includeHidden: true })
+	).toHaveCount(0);
 	await page.evaluate(() => navigator.clipboard.writeText('https://youtu.be/jNQXAC9IVRw'));
 	await page.getByRole('button', { name: 'Change video' }).click();
 	await page.getByRole('button', { name: 'Paste from clipboard' }).click();
 	await page.getByRole('dialog').getByRole('button', { name: 'Load', exact: true }).click();
 	await settled(page);
-	await expect(page.getByRole('link', { name: 'Open video', exact: true })).toHaveAttribute(
+	await expect(page.getByRole('link', { name: 'Share URL', exact: true })).toHaveAttribute(
 		'href',
-		'/jNQXAC9IVRw?mute'
+		new URL('/jNQXAC9IVRw?mute', 'http://localhost:5173').href
 	);
 	await page.reload();
 	await settled(page);
@@ -349,7 +344,9 @@ async function assertEditTargets(page: Page) {
 }
 
 async function assertEditLayout(page: Page, nativeFullscreen: boolean) {
-	await expect(page.getByRole('button', { name: 'Copy Link', exact: true })).toHaveCount(0);
+	await expect(
+		page.getByRole('link', { name: 'Share URL', exact: true, includeHidden: true })
+	).toHaveCount(0);
 	await expect(page.locator('.watch-navigation')).toHaveCount(0);
 	const edit = editAction(page);
 	await expect(edit).toHaveCount(1);
@@ -445,7 +442,9 @@ test('Edit link preserves playback, provider identity, new tab and Back/Forward'
 	await edit.press('Enter');
 	await settled(page);
 	await expect(page.getByRole('button', { name: 'Next frame' })).toBeVisible();
-	await expect(page.getByRole('button', { name: 'Copy Link', exact: true })).toBeVisible();
+	await expect(
+		page.getByRole('link', { name: 'Share URL', exact: true, includeHidden: true })
+	).toBeVisible();
 	await page.goBack();
 	await settled(page);
 	await expect(edit).toHaveAttribute('href', editorPath);

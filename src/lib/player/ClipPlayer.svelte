@@ -61,7 +61,6 @@
 	let error = $state(
 		initial.ok ? '' : `Invalid link: ${initial.errors.map((item) => item.parameter).join(', ')}`
 	);
-	let copyMessage = $state('');
 	let settledDuration = $state<number>();
 	let timestampPolicy = $state<TimestampPolicy>('preserve');
 	let controller: ReturnType<typeof createOrientationController>;
@@ -137,7 +136,6 @@
 		}
 		const value = result.value;
 		error = '';
-		copyMessage = '';
 		timestampPolicy = 'preserve';
 		youtubeId = value.videoId;
 		startExpression = value.start;
@@ -190,7 +188,6 @@
 		if (!imported || videoId !== youtubeId) settledDuration = undefined;
 		youtubeId = videoId;
 		timestampPolicy = 'preserve';
-		copyMessage = '';
 		startExpression = imported?.start;
 		endExpression = imported?.end;
 		generatedStart = false;
@@ -219,16 +216,6 @@
 		}
 		bareDemo = false;
 		error = '';
-	}
-
-	async function copyLink() {
-		if (!sharePath) return;
-		try {
-			await navigator.clipboard.writeText(shareUrl!);
-			copyMessage = 'Link copied';
-		} catch {
-			copyMessage = 'Clipboard unavailable. Copy the link below.';
-		}
 	}
 </script>
 
@@ -283,20 +270,19 @@
 			}}
 			onsourcechange={(videoId, clip) => applySource({ videoId, clip })}
 		>
-			{#snippet editorActions()}
-				<div class="share-preview">
-					<span>Share URL</span><output aria-label="Share URL preview"
-						>{shareUrl ?? 'Choose valid bounds after the video loads to share.'}</output
-					>
-				</div>
-				<nav aria-label="Clip navigation">
-					<a class="nc-button" href={sharePath}>Open video</a>
-					<button onclick={copyLink} disabled={!sharePath}>Copy Link</button>
-					{#if copyMessage}
-						<span role="status">{copyMessage}</span>
-						{#if copyMessage.startsWith('Clipboard')}<a href={sharePath}>{sharePath}</a>{/if}
+			{#snippet editorFooter(available: boolean)}
+				<div class="share-row">
+					<span class="share-label">Share URL</span>
+					{#if available && shareUrl}
+						<a class="share-link" href={shareUrl} title={shareUrl} aria-label="Share URL"
+							><bdi dir="ltr">{shareUrl}</bdi></a
+						>
+					{:else}
+						<span class="share-unavailable" role="status">Unavailable</span>
 					{/if}
-				</nav>
+				</div>
+			{/snippet}
+			{#snippet editorFeedback()}
 				{#if !normalized.ok && !clipInvalid}
 					<p role="alert">Choose an end after the start to share this clip.</p>
 				{/if}
@@ -313,26 +299,36 @@
 {#if !loaded || error}<VideoPicker bind:this={picker} onapply={applySource} />{/if}
 
 <style>
-	.share-preview {
-		margin-block: 8px;
-		font-size: 0.8rem;
-	}
-	.share-preview span {
-		display: block;
-		opacity: 0.7;
-	}
-	.share-preview output {
-		display: block;
-		overflow-wrap: anywhere;
-		font-variant-numeric: tabular-nums;
-	}
-	nav {
+	.share-row {
 		display: flex;
 		align-items: center;
-		gap: 0.5rem;
-		flex-wrap: wrap;
+		gap: 0.75rem;
+		min-width: 0;
+		font-size: 0.8rem;
+		white-space: nowrap;
 	}
-	.nc-button,
+	.share-label {
+		flex-shrink: 0;
+		color: var(--nc-secondary);
+	}
+	.share-link {
+		flex: 1;
+		min-width: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		/* Clip the beginning, while the isolated LTR text preserves URL punctuation. */
+		direction: rtl;
+		font-variant-numeric: tabular-nums;
+		line-height: 2rem;
+	}
+	.share-link:focus-visible {
+		outline: 2px solid var(--nc-primary);
+		outline-offset: 2px;
+		border-radius: 2px;
+	}
+	.share-unavailable {
+		color: var(--nc-secondary);
+	}
 	button {
 		min-height: 44px;
 		margin: 0;

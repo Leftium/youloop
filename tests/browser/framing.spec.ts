@@ -143,19 +143,9 @@ test('mirror preserves playing, paused and seeking media with unreflected contro
 	expect(flipped.time).toBeCloseTo(paused.time, 1);
 	expect(flipped.width).toBeCloseTo(paused.width, 1);
 	expect(flipped.height).toBe(16000);
-	await expect(page.getByRole('link', { name: 'Open video', exact: true })).toHaveAttribute(
+	await expect(page.getByRole('link', { name: 'Share URL', exact: true })).toHaveAttribute(
 		'href',
-		`/${id}/31~38?once&mute&speed=0.5&vertical&fill=0&mirror`
-	);
-	await page.evaluate(() =>
-		Object.defineProperty(navigator, 'clipboard', {
-			configurable: true,
-			value: { writeText: async (text: string) => Object.assign(window, { copied: text }) }
-		})
-	);
-	await page.getByRole('button', { name: 'Copy Link', exact: true }).click();
-	expect(await page.evaluate(() => (window as unknown as { copied: string }).copied)).toBe(
-		`http://localhost:5173/${id}/31~38?once&mute&speed=0.5&vertical&fill=0&mirror`
+		new URL(`/${id}/31~38?once&mute&speed=0.5&vertical&fill=0&mirror`, 'http://localhost:5173').href
 	);
 	await page.getByRole('button', { name: 'Play', exact: true }).click();
 	await expect.poll(async () => (await state()).paused).toBe(false);
@@ -203,7 +193,7 @@ test('mirror watch/editor reload, history, false flags and source imports', asyn
 	await page.reload();
 	await settled(page);
 	await expect(page.getByRole('switch', { name: 'Mirror video' })).toBeChecked();
-	await page.getByRole('link', { name: 'Open video', exact: true }).click();
+	await page.getByRole('link', { name: 'Share URL', exact: true }).click();
 	await expect(page).toHaveURL(`http://localhost:5173/${id}?vertical=0&fill=0&mirror`);
 	await expect(page.locator('youtube-video')).toHaveClass(/mirrored/);
 	await expect(page.getByRole('link', { name: 'Edit', exact: true })).toHaveAttribute(
