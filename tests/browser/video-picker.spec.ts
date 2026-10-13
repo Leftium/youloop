@@ -98,7 +98,10 @@ test('dialog cancel preserves live media, bounds, title and splitter', async ({ 
 	});
 	await page.getByRole('button', { name: 'Change video' }).click();
 	await page.getByRole('dialog').getByRole('textbox').fill('jNQXAC9IVRw');
-	await page.getByRole('dialog').getByRole('button', { name: 'Cancel', exact: true }).click();
+	await page
+		.getByRole('dialog')
+		.getByRole('button', { name: 'Close video picker', exact: true })
+		.click();
 	expect(
 		await page.evaluate(
 			() =>
@@ -124,11 +127,11 @@ test('short preview keeps all examples reachable and dialog contains scroll thro
 }) => {
 	await page.setViewportSize({ width: 844, height: 390 });
 	await page.goto('/');
-	const last = page.getByRole('link', { name: 'Advanced timing', exact: true });
+	const last = page.locator('.welcome .cards a:last-child');
 	await last.scrollIntoViewIfNeeded();
 	const boxes = await page.evaluate(() => {
-		const area = document.querySelector('.empty-preview')!.getBoundingClientRect();
-		const link = document.querySelector('.empty-preview nav a:last-child')!.getBoundingClientRect();
+		const area = document.querySelector('.welcome')!.getBoundingClientRect();
+		const link = document.querySelector('.welcome .cards a:last-child')!.getBoundingClientRect();
 		return { areaBottom: area.bottom, linkBottom: link.bottom };
 	});
 	expect(boxes.linkBottom).toBeLessThanOrEqual(boxes.areaBottom + 1);
@@ -144,8 +147,112 @@ test('short preview keeps all examples reachable and dialog contains scroll thro
 	const bounds = await dialog.getByRole('button', { name: 'Load', exact: true }).boundingBox();
 	expect(bounds!.y).toBeGreaterThanOrEqual(0);
 	expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(360);
-	await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
+	await dialog.getByRole('button', { name: 'Close video picker', exact: true }).click();
 	await expect
 		.poll(() => page.evaluate(() => getComputedStyle(document.documentElement).overflow))
 		.not.toBe('hidden');
+});
+
+test('one Escape wins over input blur handlers and respects composition', async ({ page }) => {
+	await page.goto('/');
+	const choose = page.getByRole('button', { name: 'Choose video', exact: true });
+	await choose.click();
+	const dialog = page.getByRole('dialog');
+	const input = dialog.getByRole('textbox');
+	await input.fill('draft to retain');
+	await input.evaluate((element) =>
+		element.addEventListener('keydown', (event) => {
+			if ((event as KeyboardEvent).key === 'Escape') {
+				event.preventDefault();
+				event.stopPropagation();
+				(element as HTMLElement).blur();
+			}
+		})
+	);
+	await input.press('Escape');
+	await expect(dialog).not.toBeVisible();
+	await expect(choose).toBeFocused();
+	await choose.click();
+	await expect(input).toHaveValue('draft to retain');
+	await input.focus();
+	await input.dispatchEvent('compositionstart');
+	await input.press('Escape');
+	await expect(dialog).toBeVisible();
+	await input.dispatchEvent('compositionend');
+	await input.focus();
+	await input.press('Escape');
+	await expect(dialog).not.toBeVisible();
+});
+
+test('dialog whitespace is inert, actual backdrop dismisses, and links fit their visible text', async ({
+	page
+}) => {
+	await page.setViewportSize({ width: 1280, height: 800 });
+	await page.goto('/');
+	await page.getByRole('button', { name: 'Choose video', exact: true }).click();
+	const dialog = page.getByRole('dialog');
+	const input = dialog.getByRole('textbox');
+	await input.fill('retained');
+	const link = dialog.getByRole('link', { name: 'Basic A:B loop', exact: true });
+	const linkBox = (await link.boundingBox())!;
+	const box = (await dialog.boundingBox())!;
+	expect(linkBox.width).toBeLessThan(box.width / 2);
+	await page.mouse.click(box.x + box.width - 28, linkBox.y + linkBox.height / 2);
+	await expect(dialog).toBeVisible();
+	await expect(page).toHaveURL('http://localhost:5173/');
+	await page.mouse.click(4, 4);
+	await expect(dialog).not.toBeVisible();
+	await page.getByRole('button', { name: 'Choose video', exact: true }).click();
+	await expect(input).toHaveValue('retained');
+	await dialog.getByRole('button', { name: 'Close video picker' }).click();
+	await expect(dialog).not.toBeVisible();
+});
+
+test('candidate metadata is debounced, stale-safe, optional, and never commits playback', async ({
+	page
+}) => {
+	const requests: string[] = [];
+	await page.route('**/api/video-metadata?*', async (route) => {
+		const id = new URL(route.request().url()).searchParams.get('v')!;
+		requests.push(id);
+		if (id === 'dt-SqNL4z3w') await new Promise((resolve) => setTimeout(resolve, 1000));
+		await route
+			.fulfill({
+				json:
+					id === 'NSGIZbUbIWw'
+						? { title: null, image: null }
+						: {
+								title: id === 'dt-SqNL4z3w' ? 'Old candidate' : 'New candidate',
+								image: `https://i.ytimg.com/vi/${id}/hqdefault.jpg`
+							}
+			})
+			.catch(() => {});
+	});
+	await page.goto('/');
+	await page.getByRole('button', { name: 'Choose video', exact: true }).click();
+	const dialog = page.getByRole('dialog');
+	const input = dialog.getByRole('textbox', {
+		name: 'YouTube URL, ID, or YouLoop link.',
+		exact: true
+	});
+	await input.fill('bad');
+	await page.waitForTimeout(350);
+	expect(requests).toEqual([]);
+	await input.fill('dt-SqNL4z3w');
+	await expect.poll(() => requests.length).toBe(1);
+	await input.fill('/jNQXAC9IVRw/2~5?mute');
+	await expect(dialog.locator('.candidate-preview')).toContainText('New candidate');
+	await expect(dialog.getByRole('img', { name: 'Candidate video thumbnail' })).toHaveAttribute(
+		'src',
+		/jNQXAC9IVRw/
+	);
+	await page.waitForTimeout(1100);
+	await expect(dialog.locator('.candidate-preview')).not.toContainText('Old candidate');
+	await expect(page.locator('youtube-video')).toHaveCount(0);
+	await expect(page).toHaveURL('http://localhost:5173/');
+	await input.fill('NSGIZbUbIWw');
+	await expect(dialog.locator('.candidate-preview')).toContainText('You can still load');
+	await input.press('Enter');
+	await expect(page).toHaveURL(/v=NSGIZbUbIWw/);
+	await expect(page.locator('youtube-video')).toHaveCount(1);
 });

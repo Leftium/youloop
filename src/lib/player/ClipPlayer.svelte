@@ -1,11 +1,10 @@
 <script lang="ts">
-	import { onMount, untrack, type Snippet } from 'svelte';
+	import { onMount, untrack } from 'svelte';
 	import { page } from '$app/state';
 	import { pushState, replaceState } from '$app/navigation';
 	import Player from './Player.svelte';
 	import VideoPicker from './VideoPicker.svelte';
-	import VideoExamples from './VideoExamples.svelte';
-	import EditorWorkspace from './EditorWorkspace.svelte';
+	import Welcome from './Welcome.svelte';
 	import type { EditorSource } from './editor-source';
 	import { createOrientationController, type Orientation } from './youtube-orientation';
 	import {
@@ -285,21 +284,7 @@
 			{/snippet}
 		</Player>
 	{:else}
-		{#snippet preview(layoutControls: Snippet)}
-			<div class="empty-preview">
-				{@render layoutControls()}
-				<h1>Choose a video to loop</h1>
-				<button disabled={!ready} onclick={(event) => picker.open(event.currentTarget)}
-					>Choose video</button
-				>
-				<VideoExamples />
-			</div>
-		{/snippet}
-		{#snippet settings(layoutReset: Snippet)}<p>
-				Choose a video to set clip bounds and playback options.
-			</p>
-			{@render layoutReset()}{/snippet}
-		<EditorWorkspace {preview} {settings} />
+		<Welcome {ready} onchoose={(trigger) => picker.open(trigger)} />
 	{/if}
 	{#if minimal && !normalized.ok}
 		<p role="alert">Choose an end after the start to share this clip.</p>
@@ -309,15 +294,6 @@
 {#if !loaded || error}<VideoPicker bind:this={picker} onapply={applySource} />{/if}
 
 <style>
-	.empty-preview {
-		height: 100%;
-		min-height: 0;
-		overflow-y: auto;
-		overscroll-behavior: contain;
-		padding: 24px;
-		max-width: 520px;
-		margin: auto;
-	}
 	.share-preview {
 		margin-block: 8px;
 		font-size: 0.8rem;

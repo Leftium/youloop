@@ -102,13 +102,14 @@ test.describe('editor polish', () => {
 				return el.getBoundingClientRect().width <= range.getBoundingClientRect().width + 1;
 			})
 		).toBe(true);
-		await expect(
-			page.getByRole('button', { name: 'Change video', exact: true }).locator('svg')
-		).toHaveCount(1);
-		await expect(page.getByRole('button', { name: 'Change video', exact: true })).toHaveText('');
+		await expect(page.getByRole('button', { name: 'Change video', exact: true })).toHaveText(
+			'Change'
+		);
 		expect(
 			await page.locator('.source-link').evaluate((el) => {
-				const children = Array.from(el.children).map((item) => item.getBoundingClientRect());
+				const children = Array.from(el.querySelectorAll('a,button')).map((item) =>
+					item.getBoundingClientRect()
+				);
 				return children.every(
 					(box) => Math.abs(box.top + box.height / 2 - children[0].top - children[0].height / 2) < 1
 				);
@@ -387,7 +388,10 @@ test.describe('editor polish', () => {
 		await expect(title).toContainText('BFX 2011');
 		const original = page.url();
 		await page.getByRole('button', { name: 'Change video', exact: true }).click();
-		const source = page.getByRole('textbox', { name: 'YouTube or YouLoop URL or ID', exact: true });
+		const source = page.getByRole('textbox', {
+			name: 'YouTube URL, ID, or YouLoop link.',
+			exact: true
+		});
 		await source.fill(secondId);
 		await identity(page);
 		expect(page.url()).toBe(original);

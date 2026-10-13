@@ -29,6 +29,7 @@
 	nav {
 		display: grid;
 		gap: 4px;
+		justify-items: start;
 	}
 	a {
 		display: flex;

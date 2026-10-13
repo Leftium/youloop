@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import IcRoundEdit from '~icons/ic/round-edit';
+	import IcRoundOpenInNew from '~icons/ic/round-open-in-new';
 	import VideoPicker from './VideoPicker.svelte';
 	import type { EditorSource } from './editor-source';
 	let {
@@ -27,12 +27,19 @@
 		{title || (unavailable ? 'Video title unavailable' : 'Loading video title...')}
 	</p>
 	<div class="source-link">
-		<a href={`https://youtu.be/${videoId}`} target="_blank" rel="noreferrer">youtu.be/{videoId}</a>
+		<a
+			href={`https://youtu.be/${videoId}`}
+			target="_blank"
+			rel="noreferrer"
+			aria-describedby="source-new-tab">youtu.be/{videoId}<IcRoundOpenInNew aria-hidden="true" /></a
+		>
+		<span id="source-new-tab" class="visually-hidden">Opens in a new tab</span>
 		<button
+			class="inline"
 			disabled={!ready}
 			aria-label="Change video"
 			title="Change video"
-			onclick={(event) => picker.open(event.currentTarget)}><IcRoundEdit /></button
+			onclick={(event) => picker.open(event.currentTarget)}>Change</button
 		>
 	</div>
 </fieldset>
@@ -61,6 +68,8 @@
 		line-height: 1.35;
 	}
 	.source-link {
+		/* Contain the hidden description so it cannot extend the mobile scroll runway. */
+		position: relative;
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
@@ -71,15 +80,25 @@
 		font-size: 0.85rem;
 		overflow-wrap: anywhere;
 	}
-	button {
-		min-width: 44px;
-		min-height: 44px;
+	button.inline {
+		min-height: 32px;
 		margin: 0;
-		padding: 8px;
 		flex-shrink: 0;
 	}
-	button :global(svg) {
-		width: 20px;
-		height: 20px;
+	a {
+		display: inline-flex;
+		align-items: center;
+		gap: 4px;
+		min-width: 0;
+	}
+	a :global(svg) {
+		width: 14px;
+		height: 14px;
+		flex-shrink: 0;
+	}
+	@media (pointer: coarse) {
+		button.inline {
+			min-height: 40px;
+		}
 	}
 </style>

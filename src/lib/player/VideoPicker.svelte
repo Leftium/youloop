@@ -1,27 +1,73 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import IcRoundClose from '~icons/ic/round-close';
 	import VideoExamples from './VideoExamples.svelte';
 	import { parseEditorSource, type EditorSource } from './editor-source';
 	let { onapply }: { onapply: (source: EditorSource) => void } = $props();
 	let dialog: HTMLDialogElement;
 	let input: HTMLInputElement;
+	let heading: HTMLHeadingElement;
 	let draft = $state('');
 	let message = $state('');
 	let clipboardPending = $state(false);
 	let opener: HTMLElement | null;
 	let opening = 0;
+	let opened = $state(false);
+	let composing = false;
+	let backdropDown = false;
+	let candidate = $derived(parseEditorSource(draft)?.videoId);
+	let preview = $state<{ title: string; image: string }>();
+	let previewState = $state<'loading' | 'ready' | 'unavailable'>('loading');
+
+	$effect(() => {
+		const videoId = candidate;
+		preview = undefined;
+		if (!opened || !videoId) return;
+		previewState = 'loading';
+		let active = true;
+		const controller = new AbortController();
+		let timeout: ReturnType<typeof setTimeout>;
+		const debounce = setTimeout(async () => {
+			timeout = setTimeout(() => controller.abort(), 5000);
+			try {
+				const response = await fetch(`/api/video-metadata?v=${encodeURIComponent(videoId)}`, {
+					signal: controller.signal
+				});
+				if (!response.ok) throw new Error('Metadata unavailable');
+				const result = await response.json();
+				if (!active || candidate !== videoId || !opened) return;
+				if (typeof result.title === 'string' && typeof result.image === 'string') {
+					preview = { title: result.title, image: result.image };
+					previewState = 'ready';
+				} else previewState = 'unavailable';
+			} catch {
+				if (active && candidate === videoId && opened) previewState = 'unavailable';
+			} finally {
+				clearTimeout(timeout);
+			}
+		}, 300);
+		return () => {
+			active = false;
+			clearTimeout(debounce);
+			clearTimeout(timeout);
+			controller.abort();
+		};
+	});
 
 	export function open(trigger?: HTMLElement) {
 		opener = trigger ?? (document.activeElement as HTMLElement);
 		message = '';
 		opening += 1;
+		opened = true;
 		dialog.showModal();
 		updateViewport();
 		if (window.matchMedia('(min-width: 661px) and (pointer: fine)').matches)
 			input.focus({ preventScroll: true });
+		else heading.focus({ preventScroll: true });
 	}
 	function close() {
 		opening += 1;
+		opened = false;
 		dialog.close();
 	}
 	function commit(source: EditorSource) {
@@ -52,11 +98,20 @@
 		dialog.style.setProperty('--picker-top', `${viewport?.offsetTop ?? 0}px`);
 	}
 	onMount(() => {
+		// Capture before input/browser handlers can turn the first Escape into a blur.
+		function escape(event: KeyboardEvent) {
+			if (!dialog.open || event.key !== 'Escape' || event.isComposing || composing) return;
+			event.preventDefault();
+			event.stopImmediatePropagation();
+			close();
+		}
+		window.addEventListener('keydown', escape, true);
 		const viewport = window.visualViewport;
 		viewport?.addEventListener('resize', updateViewport);
 		viewport?.addEventListener('scroll', updateViewport);
 		window.addEventListener('resize', updateViewport);
 		return () => {
+			window.removeEventListener('keydown', escape, true);
 			viewport?.removeEventListener('resize', updateViewport);
 			viewport?.removeEventListener('scroll', updateViewport);
 			window.removeEventListener('resize', updateViewport);
@@ -69,39 +124,90 @@
 	bind:this={dialog}
 	aria-labelledby="video-picker-title"
 	tabindex="-1"
-	oncancel={() => {
-		opening += 1;
+	oncancel={(event) => {
+		event.preventDefault();
+		if (!composing) close();
+	}}
+	oncompositionstart={() => {
+		composing = true;
+	}}
+	oncompositionend={() => {
+		composing = false;
+	}}
+	onpointerdown={(event) => {
+		const box = dialog.getBoundingClientRect();
+		backdropDown =
+			event.target === dialog &&
+			(event.clientX < box.left ||
+				event.clientX > box.right ||
+				event.clientY < box.top ||
+				event.clientY > box.bottom);
+	}}
+	onclick={(event) => {
+		const box = dialog.getBoundingClientRect();
+		if (
+			backdropDown &&
+			event.target === dialog &&
+			(event.clientX < box.left ||
+				event.clientX > box.right ||
+				event.clientY < box.top ||
+				event.clientY > box.bottom)
+		)
+			close();
+		backdropDown = false;
 	}}
 	onclose={() => {
+		opened = false;
+		composing = false;
 		if (opener?.isConnected) opener.focus({ preventScroll: true });
 	}}
 >
 	<!-- Focus a non-input first so mobile users can choose without opening the keyboard. -->
-	<h2 id="video-picker-title" tabindex="-1" autofocus>Choose video</h2>
+	<div class="picker-heading">
+		<h2 id="video-picker-title" tabindex="-1" bind:this={heading}>Choose video</h2>
+		<button class="inline close" aria-label="Close video picker" onclick={close}
+			><IcRoundClose aria-hidden="true" /></button
+		>
+	</div>
 	<form
 		onsubmit={(event) => {
 			event.preventDefault();
 			apply();
 		}}
 	>
-		<label for="video-picker-source">YouTube or YouLoop URL or ID</label>
-		<input
-			id="video-picker-source"
-			bind:this={input}
-			bind:value={draft}
-			placeholder="YouTube ID or video link"
-			autocomplete="off"
-			autocapitalize="none"
-			spellcheck="false"
-		/>
-		<div class="actions">
-			<button type="submit">Load</button><button type="button" onclick={close}>Cancel</button>
+		<label for="video-picker-source">YouTube URL, ID, or YouLoop link.</label>
+		<div class="nc-join source-entry">
+			<input
+				id="video-picker-source"
+				bind:this={input}
+				bind:value={draft}
+				placeholder="YouTube ID or video link"
+				autocomplete="off"
+				autocapitalize="none"
+				spellcheck="false"
+			/>
+			<button type="submit">Load</button>
 		</div>
 		<button class="clipboard" type="button" disabled={clipboardPending} onclick={loadClipboard}
 			>Load from clipboard</button
 		>
 		{#if message}<p role="status">{message}</p>{/if}
 	</form>
+	{#if candidate}
+		<div class="candidate-preview" aria-live="polite">
+			{#if previewState === 'ready' && preview}
+				<img
+					src={preview.image}
+					alt="Candidate video thumbnail"
+					onerror={() => {
+						previewState = 'unavailable';
+					}}
+				/>
+				<p>{preview.title}</p>
+			{:else if previewState === 'loading'}<p>Finding video details...</p>
+			{:else}<p>Preview unavailable. You can still load this video.</p>{/if}
+		</div>
+	{/if}
 	<h3>Try an example</h3>
 	<VideoExamples onchoose={commit} />
 </dialog>
@@ -135,10 +241,55 @@
 		min-height: 44px;
 		margin: 0;
 	}
-	.actions {
+	.picker-heading {
 		display: flex;
-		gap: 8px;
-		margin-block: 12px;
+		align-items: start;
+		justify-content: space-between;
+		gap: 12px;
+	}
+	.close.inline {
+		display: grid;
+		place-items: center;
+		min-width: 36px;
+		min-height: 36px;
+		margin: 0;
+		flex-shrink: 0;
+	}
+	.close :global(svg) {
+		width: 20px;
+		height: 20px;
+	}
+	.source-entry {
+		display: flex;
+		width: 100%;
+		margin-block: 8px 12px;
+	}
+	.source-entry input {
+		min-width: 0;
+		flex: 1;
+	}
+	.source-entry button {
+		flex-shrink: 0;
+	}
+	.candidate-preview {
+		display: flex;
+		align-items: center;
+		gap: 12px;
+		padding: 12px;
+		margin-top: 16px;
+		border: 1px solid var(--nc-border);
+		border-radius: 8px;
+	}
+	.candidate-preview img {
+		width: 96px;
+		max-height: 80px;
+		object-fit: contain;
+		border-radius: 4px;
+	}
+	.candidate-preview p {
+		margin: 0;
+		font-size: 0.85rem;
+		overflow-wrap: anywhere;
 	}
 	.clipboard {
 		width: 100%;

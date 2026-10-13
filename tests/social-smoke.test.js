@@ -102,7 +102,7 @@ test('unrelated root query keys keep generic SSR and the empty editor', async ()
 		const head = html.split('</head>')[0];
 		assert.match(head, /property="og:title" content="YouLoop"/);
 		assert.match(head, /property="og:url" content="https:\/\/youloop.leftium.com\/"/);
-		assert.match(html, /Choose a video to loop/);
+		assert.match(html, /Find your moment/);
 		assert.doesNotMatch(html, /youtube-video/);
 		assert.ok(!html.includes('Invalid link'));
 	}
