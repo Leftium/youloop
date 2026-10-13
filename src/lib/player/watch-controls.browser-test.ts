@@ -368,10 +368,12 @@ export async function run(
 		);
 		const runway = document.querySelector<HTMLElement>('.scroll-runway')!;
 		const runwayHeight = runway.getBoundingClientRect().height;
-		await scrollTo(document.documentElement.scrollHeight - window.innerHeight * 5);
+		const scrollRoot = document.scrollingElement!;
+		// Enter the shipped one-viewport extension zone, leaving half a viewport to scroll.
+		await scrollTo(scrollRoot.scrollHeight - scrollRoot.clientHeight - window.innerHeight / 2);
 		check(
-			runway.getBoundingClientRect().height > runwayHeight,
-			'Native runway extends before its end'
+			runway.getBoundingClientRect().height === runwayHeight + window.innerHeight * 25,
+			'Native runway grows by 25 viewports below one remaining viewport'
 		);
 		await scrollTo(window.scrollY - 100);
 		check(mode() === 'default', 'Up direction works after runway extension');
