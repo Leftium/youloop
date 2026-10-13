@@ -193,9 +193,7 @@ test.describe('touch-emulated watch runway', () => {
 			await open(page, profile);
 			expect(await page.evaluate(() => matchMedia('(pointer: coarse)').matches)).toBe(true);
 			await expect(page.locator('.share-prototype.document-snap')).toHaveCount(1);
-			await expect.poll(() =>
-				page.evaluate(() => getComputedStyle(document.scrollingElement!).scrollSnapType)
-			).toBe('y mandatory');
+			await expect(page.locator('html')).toHaveCSS('scroll-snap-type', 'y mandatory');
 			await expect(page.locator('.document-snap-point').first()).toBeAttached();
 			expect(await page.locator('.document-snap-point').count()).toBeLessThan(10_000);
 			await session.send('Input.dispatchTouchEvent', {
