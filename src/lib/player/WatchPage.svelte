@@ -2,6 +2,12 @@
 	import { onMount, tick } from 'svelte';
 	import ClipPlayer from './ClipPlayer.svelte';
 
+	// Baseline thresholds are named so the #34 experiment can tune and compare them.
+	// Bootstrapping leaves their values and current watch behavior unchanged.
+	const THEATER_SCROLL_TRIGGER_PX = 32;
+	const RUNWAY_EXTENSION_TRIGGER_VIEWPORTS = 9;
+	const RUNWAY_EXTENSION_INCREMENT_VIEWPORTS = 25;
+
 	let theater = $state(false);
 	let runway: HTMLDivElement;
 
@@ -22,11 +28,11 @@
 			const viewportHeight = window.innerHeight;
 			if (!root || viewportHeight <= 0) return;
 			const remaining = root.scrollHeight - root.clientHeight - window.scrollY;
-			if (remaining >= 9 * viewportHeight) return;
+			if (remaining >= RUNWAY_EXTENSION_TRIGGER_VIEWPORTS * viewportHeight) return;
 
 			// Wait for the larger height to reach the DOM before checking the threshold again.
 			extending = true;
-			runwayHeight = (runwayHeight ?? runway.getBoundingClientRect().height) + 25 * viewportHeight;
+			runwayHeight = (runwayHeight ?? runway.getBoundingClientRect().height) + RUNWAY_EXTENSION_INCREMENT_VIEWPORTS * viewportHeight;
 			void tick().then(() => {
 				extending = false;
 			});
@@ -40,7 +46,7 @@
 			if (!document.fullscreenElement && delta !== 0) {
 				// Direction and accumulated travel survive runway extension and arbitrary offsets.
 				travel = Math.sign(delta) === Math.sign(travel) ? travel + delta : delta;
-				if (Math.abs(travel) >= 32) {
+				if (Math.abs(travel) >= THEATER_SCROLL_TRIGGER_PX) {
 					theater = travel > 0;
 					travel = 0;
 				}
