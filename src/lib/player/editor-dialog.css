@@ -3,8 +3,8 @@ dialog.editor-dialog {
 	inset: calc(var(--dialog-top, 0px) + var(--dialog-height, 100dvh) / 2) 0 auto;
 	transform: translateY(-50%);
 	margin: 0 auto;
-	width: min(720px, calc(100% - 32px));
-	max-width: 720px;
+	width: min(520px, calc(100% - 32px));
+	max-width: 520px;
 	max-height: calc(var(--dialog-height, 100dvh) - 32px);
 	overflow-y: auto;
 	overscroll-behavior: contain;

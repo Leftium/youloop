@@ -129,7 +129,7 @@ test.describe('editor polish', () => {
 		expect(
 			await dialog.evaluate((el) => {
 				const box = el.getBoundingClientRect();
-				return box.width >= 700 && Math.abs(box.top + box.height / 2 - innerHeight / 2) < 1;
+				return box.width >= 500 && Math.abs(box.top + box.height / 2 - innerHeight / 2) < 1;
 			})
 		).toBe(true);
 		await dialog.getByRole('heading').click();
@@ -153,7 +153,7 @@ test.describe('editor polish', () => {
 			await page.setViewportSize({ width, height: 800 });
 			await openRange(page);
 			const rangeWidth = (await dialog.boundingBox())!.width;
-			expect(rangeWidth).toBeCloseTo(width <= 660 ? width : Math.min(720, width - 32), 0);
+			expect(rangeWidth).toBeCloseTo(width <= 660 ? width : Math.min(520, width - 32), 0);
 			await closeRange(page);
 			await actions[0].click();
 			const picker = page.getByRole('dialog', { name: 'Choose video' });
