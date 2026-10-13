@@ -194,7 +194,7 @@ test('new editor parameters win over aliases, seek/step/loop/once work with real
 	await expect(page.getByRole('alert')).toContainText('End after Start');
 	await page
 		.getByRole('dialog', { name: 'Edit clip range' })
-		.getByRole('button', { name: 'Close', exact: true })
+		.getByRole('button', { name: 'Close clip range', exact: true })
 		.click();
 	await expect(page.getByRole('link', { name: 'Open video', exact: true })).toHaveAttribute(
 		'href',

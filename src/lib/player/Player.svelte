@@ -1170,8 +1170,7 @@
 {#snippet settings(layoutReset: Snippet)}
 	{#if playerError}<p role="alert">{playerError}</p>{/if}
 	<div class="controls">
-		<section aria-labelledby="clip-heading" class="settings-section">
-			<h2 id="clip-heading">Clip</h2>
+		<section aria-label="Clip settings and sharing" class="settings-section">
 			<SourceEditor
 				videoId={youtubeId ?? ''}
 				title={videoTitle}

@@ -1,5 +1,8 @@
 <script lang="ts">
+	import './editor-dialog.css';
 	import { onMount, tick, type Snippet } from 'svelte';
+	import EditorFieldset from './EditorFieldset.svelte';
+	import IcRoundClose from '~icons/ic/round-close';
 	import { editorTime } from './editor-time';
 	let {
 		start,
@@ -15,13 +18,14 @@
 	let dialog: HTMLDialogElement;
 	let opener: HTMLButtonElement;
 	let opened = $state(false);
+	let backdropDown = false;
 	let ready = $state(false);
 	onMount(() => {
 		ready = true;
 		const viewport = window.visualViewport;
 		function resize() {
-			dialog.style.setProperty('--range-height', `${viewport?.height ?? window.innerHeight}px`);
-			dialog.style.setProperty('--range-top', `${(viewport?.offsetTop ?? 0) + 12}px`);
+			dialog.style.setProperty('--dialog-height', `${viewport?.height ?? window.innerHeight}px`);
+			dialog.style.setProperty('--dialog-top', `${viewport?.offsetTop ?? 0}px`);
 		}
 		resize();
 		viewport?.addEventListener('resize', resize);
@@ -33,15 +37,21 @@
 			window.removeEventListener('resize', resize);
 		};
 	});
-	async function open() {
+	async function open(trigger: HTMLButtonElement) {
+		opener = trigger;
 		opened = true;
 		await tick();
 		dialog.showModal();
 	}
 </script>
 
-<fieldset>
-	<legend>Clip range</legend>
+<EditorFieldset
+	label="Clip range"
+	action="Edit"
+	actionLabel="Edit clip range"
+	disabled={!ready}
+	onedit={open}
+>
 	<div class="range-summary">
 		<dl>
 			<div>
@@ -53,56 +63,62 @@
 				<dd>{duration === undefined ? '?:??' : editorTime(end, false)}</dd>
 			</div>
 		</dl>
-		<button
-			class="inline secondary outline"
-			aria-label="Edit clip range"
-			disabled={!ready}
-			bind:this={opener}
-			onclick={open}>Edit</button
-		>
 	</div>
-</fieldset>
+</EditorFieldset>
 <dialog
+	class="clip-range-dialog editor-dialog"
 	bind:this={dialog}
 	aria-labelledby="range-heading"
+	onpointerdown={(event) => {
+		const box = dialog.getBoundingClientRect();
+		backdropDown =
+			event.target === dialog &&
+			(event.clientX < box.left ||
+				event.clientX > box.right ||
+				event.clientY < box.top ||
+				event.clientY > box.bottom);
+	}}
+	onclick={(event) => {
+		const box = dialog.getBoundingClientRect();
+		if (
+			backdropDown &&
+			event.target === dialog &&
+			(event.clientX < box.left ||
+				event.clientX > box.right ||
+				event.clientY < box.top ||
+				event.clientY > box.bottom)
+		)
+			dialog.close();
+		backdropDown = false;
+	}}
 	onclose={() => {
 		opened = false;
 		opener.focus({ preventScroll: true });
 	}}
 >
-	<h2 id="range-heading">Edit clip range</h2>
+	<div class="range-heading">
+		<h2 id="range-heading">Edit clip range</h2>
+		<button class="close-range" aria-label="Close clip range" onclick={() => dialog.close()}
+			><IcRoundClose aria-hidden="true" /></button
+		>
+	</div>
 	{#if opened}{@render controls()}{/if}
-	<button class="close-range" onclick={() => dialog.close()}>Close</button>
 </dialog>
 
 <style>
-	fieldset {
-		min-width: 0;
-		border: 1px solid var(--nc-border, #777);
-		border-radius: 8px;
-		padding: 8px 12px 12px;
-		margin: 0 0 12px;
-	}
-	legend {
-		padding-inline: 4px;
-	}
-	.range-summary {
-		display: flex;
-		align-items: center;
-		gap: 12px;
-		justify-content: space-between;
-	}
 	dl {
 		margin: 0;
-		flex: 1;
+		display: flex;
+		flex-wrap: wrap;
+		gap: 8px 24px;
 		min-width: 0;
 		font-size: 0.85rem;
 	}
 	dl > div {
 		display: flex;
 		align-items: center;
-		justify-content: space-between;
-		gap: 12px;
+		gap: 8px;
+		flex: 1 1 auto;
 		padding-block: 4px;
 	}
 	dt {
@@ -126,36 +142,48 @@
 	.marker.end {
 		color: #b0a3e8;
 	}
-	button {
-		margin: 0;
-		min-height: 44px;
-		flex-shrink: 0;
-	}
 	dialog {
-		position: fixed;
-		top: var(--range-top, 12px);
-		bottom: auto;
-		margin-block: 0;
-		box-sizing: border-box;
-		width: min(620px, calc(100% - 24px));
-		max-height: calc(min(100dvh, var(--range-height, 100dvh)) - 24px);
-		overflow: auto;
-		overscroll-behavior: contain;
-		padding: 16px;
-		border: 1px solid var(--nc-border, #777);
-		border-radius: 8px;
-		background: var(--nc-surface-1, Canvas);
-		color: var(--nc-text);
 		container: clip-settings / inline-size;
 	}
-	dialog::backdrop {
-		background: rgb(0 0 0 / 60%);
-	}
 	h2 {
-		margin: 0 0 12px;
-		font-size: 1.15rem;
+		margin-top: 0;
+	}
+
+	.range-heading {
+		display: flex;
+		align-items: start;
+		justify-content: space-between;
+		gap: 12px;
 	}
 	.close-range {
-		margin-top: 12px;
+		all: unset;
+		position: relative;
+		display: inline-flex;
+		padding: 4px;
+		line-height: 1;
+		flex-shrink: 0;
+		color: inherit;
+		cursor: pointer;
+	}
+	.close-range :global(svg) {
+		width: 18px;
+		height: 18px;
+	}
+	.close-range:hover {
+		opacity: 0.7;
+	}
+	.close-range:focus-visible {
+		outline: 2px solid var(--nc-primary-focus);
+		outline-offset: 4px;
+	}
+	@media (pointer: coarse) {
+		.close-range::after {
+			content: '';
+			position: absolute;
+			inset: 50% auto auto 50%;
+			width: max(100%, 44px);
+			height: max(100%, 44px);
+			transform: translate(-50%, -50%);
+		}
 	}
 </style>

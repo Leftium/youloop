@@ -1,0 +1,37 @@
+dialog.editor-dialog {
+	position: fixed;
+	inset: calc(var(--dialog-top, 0px) + var(--dialog-height, 100dvh) / 2) 0 auto;
+	transform: translateY(-50%);
+	margin: 0 auto;
+	width: min(720px, calc(100% - 32px));
+	max-width: 720px;
+	max-height: calc(var(--dialog-height, 100dvh) - 32px);
+	overflow-y: auto;
+	overscroll-behavior: contain;
+	padding: 24px;
+}
+html:has(dialog.editor-dialog[open]) {
+	overflow: hidden;
+}
+dialog.editor-dialog::backdrop {
+	background: rgb(0 0 0 / 60%);
+}
+@media (max-width: 660px), (pointer: coarse) and (max-height: 500px) {
+	dialog.editor-dialog {
+		inset: auto 0 calc(100% - var(--dialog-top, 0px) - var(--dialog-height, 100dvh));
+		margin: 0;
+		transform: none;
+		width: 100%;
+		max-width: none;
+		max-height: calc(var(--dialog-height, 100dvh) - 12px);
+		border-radius: 16px 16px 0 0;
+		padding: 20px max(20px, env(safe-area-inset-right)) max(20px, env(safe-area-inset-bottom))
+			max(20px, env(safe-area-inset-left));
+	}
+}
+@media (prefers-reduced-motion: reduce) {
+	dialog.editor-dialog {
+		animation: none;
+		transition: none;
+	}
+}

@@ -16,7 +16,7 @@ const openRange = (page: Page) =>
 const closeRange = (page: Page) =>
 	page
 		.getByRole('dialog', { name: 'Edit clip range' })
-		.getByRole('button', { name: 'Close', exact: true })
+		.getByRole('button', { name: 'Close clip range', exact: true })
 		.click();
 
 async function choosePolicy(page: Page, policy: TimestampPolicy) {
@@ -74,6 +74,99 @@ async function clipboard(page: Page, text = '') {
 }
 
 test.describe('editor polish', () => {
+	test('fieldset actions align with titles, share responsive pencil styling, and dismiss the range dialog safely', async ({
+		page
+	}) => {
+		await page.setViewportSize({ width: 1280, height: 800 });
+		await open(page, '12.5~59.25');
+		for (const label of ['Video', 'Clip range']) {
+			const fieldset = page.getByRole('group', { name: label, exact: true });
+			expect(
+				await fieldset.evaluate((el) => {
+					const title = el.querySelector('legend')!.getBoundingClientRect();
+					const action = el.querySelector('button')!.getBoundingClientRect();
+					return (
+						Math.abs(title.top + title.height / 2 - action.top - action.height / 2) < 1 &&
+						Math.abs(action.right - el.getBoundingClientRect().right + 17) < 1 &&
+						title.right < action.left - 20
+					);
+				})
+			).toBe(true);
+		}
+		const actions = ['Change video', 'Edit clip range'].map((name) =>
+			page.getByRole('button', { name, exact: true })
+		);
+		const appearance = async () =>
+			Promise.all(
+				actions.map((button) =>
+					button.evaluate((el) => {
+						const style = getComputedStyle(el);
+						return {
+							color: style.color,
+							background: style.backgroundColor,
+							border: style.borderColor,
+							height: el.getBoundingClientRect().height
+						};
+					})
+				)
+			);
+		const styles = await appearance();
+		expect(styles[0]).toEqual(styles[1]);
+		expect(styles[1].height).toBeLessThan(32);
+		const summary = page.getByRole('group', { name: 'Clip range', exact: true });
+		expect(
+			await summary
+				.locator('dt')
+				.evaluateAll(
+					(elements) =>
+						Math.abs(
+							elements[0].getBoundingClientRect().top - elements[1].getBoundingClientRect().top
+						) < 1
+				)
+		).toBe(true);
+		await openRange(page);
+		const dialog = page.getByRole('dialog', { name: 'Edit clip range' });
+		expect(
+			await dialog.evaluate((el) => {
+				const box = el.getBoundingClientRect();
+				return box.width >= 700 && Math.abs(box.top + box.height / 2 - innerHeight / 2) < 1;
+			})
+		).toBe(true);
+		await dialog.getByRole('heading').click();
+		await expect(dialog).toBeVisible();
+		const box = (await dialog.boundingBox())!;
+		await page.mouse.move(box.x + 30, box.y + 30);
+		await page.mouse.down();
+		await page.mouse.move(2, 2);
+		await page.mouse.up();
+		await expect(dialog).toBeVisible();
+		await page.mouse.click(2, 2);
+		await expect(dialog).toBeHidden();
+		await expect(actions[1]).toBeFocused();
+		await openRange(page);
+		await expect(
+			dialog.getByRole('button', { name: 'Close clip range' }).locator('svg')
+		).toHaveCount(1);
+		await closeRange(page);
+		await expect(actions[1]).toBeFocused();
+		for (const width of [1280, 700, 320]) {
+			await page.setViewportSize({ width, height: 800 });
+			await openRange(page);
+			const rangeWidth = (await dialog.boundingBox())!.width;
+			expect(rangeWidth).toBeCloseTo(width <= 660 ? width : Math.min(720, width - 32), 0);
+			await closeRange(page);
+			await actions[0].click();
+			const picker = page.getByRole('dialog', { name: 'Choose video' });
+			expect((await picker.boundingBox())!.width).toBeCloseTo(rangeWidth, 0);
+			await picker.getByRole('button', { name: 'Close video picker' }).click();
+		}
+		for (const button of actions) {
+			await expect(button.locator('svg')).toBeVisible();
+			await expect(button.locator('.action-label')).toBeHidden();
+		}
+		await identity(page);
+	});
+
 	test('read-only range, modal focus and narrow layout preserve exact bounds and active playback', async ({
 		page
 	}) => {
@@ -226,9 +319,9 @@ test.describe('editor polish', () => {
 			'Change'
 		);
 		expect(
-			await page.locator('.source-link').evaluate((el) => {
-				const children = Array.from(el.querySelectorAll('a,button')).map((item) =>
-					item.getBoundingClientRect()
+			await page.getByRole('group', { name: 'Video', exact: true }).evaluate((el) => {
+				const children = Array.from(el.querySelectorAll('legend, .fieldset-action > button')).map(
+					(item) => item.getBoundingClientRect()
 				);
 				return children.every(
 					(box) => Math.abs(box.top + box.height / 2 - children[0].top - children[0].height / 2) < 1
@@ -641,7 +734,8 @@ test.describe('editor polish', () => {
 	}) => {
 		await page.setViewportSize({ width: 1440, height: 900 });
 		await open(page, '5~50');
-		for (const name of ['Clip', 'Playback', 'Framing'])
+		await expect(page.getByRole('heading', { name: 'Clip', exact: true })).toHaveCount(0);
+		for (const name of ['Playback', 'Framing'])
 			await expect(page.getByRole('heading', { name, exact: true })).toBeVisible();
 		const transport = page.getByRole('group', { name: 'Player transport' });
 		const positions = () =>

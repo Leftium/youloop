@@ -1027,7 +1027,7 @@ test('named bound actions respect precision, retain Once, and share direct speed
 	await page.getByRole('checkbox', { name: 'Sub-second times' }).check();
 	await page
 		.getByRole('dialog', { name: 'Edit clip range' })
-		.getByRole('button', { name: 'Close', exact: true })
+		.getByRole('button', { name: 'Close clip range', exact: true })
 		.click();
 	await page.getByRole('slider', { name: 'Current time', exact: true }).fill('12.5');
 	await page.getByRole('button', { name: 'Edit clip range', exact: true }).click();
@@ -1041,7 +1041,7 @@ test('named bound actions respect precision, retain Once, and share direct speed
 	await expect(page).toHaveURL(/t=12\.5~50.*once/);
 	await page
 		.getByRole('dialog', { name: 'Edit clip range' })
-		.getByRole('button', { name: 'Close', exact: true })
+		.getByRole('button', { name: 'Close clip range', exact: true })
 		.click();
 	await page.getByRole('slider', { name: 'Current time', exact: true }).fill('30.5');
 	await page.getByRole('button', { name: 'Edit clip range', exact: true }).click();
@@ -1051,7 +1051,7 @@ test('named bound actions respect precision, retain Once, and share direct speed
 	).toHaveValue('30.5');
 	await page
 		.getByRole('dialog', { name: 'Edit clip range' })
-		.getByRole('button', { name: 'Close', exact: true })
+		.getByRole('button', { name: 'Close clip range', exact: true })
 		.click();
 	await page.getByRole('slider', { name: 'Repeat start', exact: true }).fill('15.25');
 	await page.getByRole('button', { name: 'Edit clip range', exact: true }).click();
@@ -1061,7 +1061,7 @@ test('named bound actions respect precision, retain Once, and share direct speed
 	await expect(page).toHaveURL(/t=15\.25~30\.5.*once/);
 	await page
 		.getByRole('dialog', { name: 'Edit clip range' })
-		.getByRole('button', { name: 'Close', exact: true })
+		.getByRole('button', { name: 'Close clip range', exact: true })
 		.click();
 	await expect(
 		page.getByRole('button', { name: 'Once', exact: true, includeHidden: true })
@@ -1177,7 +1177,7 @@ test('compact bounds retain signed fractions and refresh after source navigation
 	const start = Math.floor(duration) - 20.5;
 	await page
 		.getByRole('dialog', { name: 'Edit clip range' })
-		.getByRole('button', { name: 'Close', exact: true })
+		.getByRole('button', { name: 'Close clip range', exact: true })
 		.click();
 	await page.getByRole('slider', { name: 'Current time', exact: true }).fill(String(start));
 	await page.getByRole('button', { name: 'Edit clip range', exact: true }).click();
@@ -1190,7 +1190,7 @@ test('compact bounds retain signed fractions and refresh after source navigation
 	const lastValidUrl = page.url();
 	await page
 		.getByRole('dialog', { name: 'Edit clip range' })
-		.getByRole('button', { name: 'Close', exact: true })
+		.getByRole('button', { name: 'Close clip range', exact: true })
 		.click();
 	await page.getByRole('slider', { name: 'Repeat end', exact: true }).fill('5.75');
 	await page.getByRole('button', { name: 'Edit clip range', exact: true }).click();
