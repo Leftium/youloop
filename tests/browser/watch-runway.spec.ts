@@ -156,11 +156,16 @@ test('desktop accumulated direction, wheel, button, resize and history', async (
 	await page.getByRole('link', { name: 'Runway history editor' }).click();
 	await expect(page.locator('.share-prototype')).toHaveCount(0);
 	await page.goBack();
-	await expect.poll(() => page.evaluate(() => scrollY)).toBe(1000);
+	// SvelteKit history can replace the execution context while restoring the route.
+	await page.waitForFunction(
+		() => !!document.querySelector('.share-prototype') && scrollY === 1000
+	);
 	await page.goForward();
 	await expect(page.locator('.share-prototype')).toHaveCount(0);
 	await page.goBack();
-	await expect.poll(() => page.evaluate(() => scrollY)).toBe(1000);
+	await page.waitForFunction(
+		() => !!document.querySelector('.share-prototype') && scrollY === 1000
+	);
 	await scrollTo(page, 0);
 	await expect(page.getByRole('link', { name: 'Edit', exact: true })).toHaveAttribute(
 		'href',
