@@ -115,11 +115,11 @@ test.describe('editor polish', () => {
 				);
 			})
 		).toBe(true);
-		for (const name of ['Sound', 'Crop to fill']) {
+		for (const name of ['Sound', 'Mirror video']) {
 			const control = page.getByRole('switch', { name, exact: true });
 			expect(await control.evaluate((el) => getComputedStyle(el).appearance)).toBe('none');
 		}
-		for (const label of ['Playback speed', 'Repeat mode', 'Media orientation']) {
+		for (const label of ['Playback speed', 'Repeat mode', 'Media orientation', 'Crop']) {
 			const group = page.getByRole('group', { name: label, exact: true });
 			expect(
 				await group.evaluate((el) => {
@@ -135,12 +135,12 @@ test.describe('editor polish', () => {
 				})
 			).toBe(true);
 		}
-		await expect(
-			page.getByRole('button', { name: 'Landscape', exact: true }).locator('svg')
-		).toHaveCount(1);
-		await expect(
-			page.getByRole('button', { name: 'Portrait', exact: true }).locator('svg')
-		).toHaveCount(1);
+		await expect(page.getByRole('button', { name: 'Landscape', exact: true })).toHaveText(
+			'Landscape'
+		);
+		await expect(page.getByRole('button', { name: 'Portrait', exact: true })).toHaveText(
+			'Portrait'
+		);
 		await page.getByRole('button', { name: 'Edit start from end', exact: true }).click();
 		await expect(page.getByRole('button', { name: 'Set start at playhead' })).toHaveCount(0);
 		const duration = Number(

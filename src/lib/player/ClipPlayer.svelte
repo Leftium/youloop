@@ -47,6 +47,7 @@
 	let mute = $state<boolean | undefined>(initialClip.mute);
 	let speed = $state<number | undefined>(initialClip.speed);
 	let vertical = $state<boolean | undefined>(initialClip.vertical);
+	let mirror = $state(initialClip.mirror ?? false);
 	let fill = $state<boolean | undefined>(initialClip.fill);
 	let orientation = $state<Orientation>('landscape');
 	let sourceOrientation = $state<Orientation>('landscape');
@@ -73,7 +74,8 @@
 		mute,
 		speed,
 		vertical,
-		fill
+		fill,
+		mirror
 	});
 	let normalized = $derived(normalizeShareUrl(clip));
 	let formatted = $derived(
@@ -145,10 +147,10 @@
 		speed = value.speed;
 		vertical = value.vertical;
 		fill = value.fill;
+		mirror = value.mirror ?? false;
 		controller.setSource(
 			youtubeId,
-			vertical === undefined ? null : vertical ? 'portrait' : 'landscape',
-			true
+			vertical === undefined ? null : vertical ? 'portrait' : 'landscape'
 		);
 		demoState = serializeShareUrl(value);
 		loaded = !emptyRoot(url);
@@ -195,11 +197,11 @@
 		clipInvalid = false;
 		vertical = imported?.vertical;
 		fill = imported?.fill;
+		mirror = imported?.mirror ?? false;
 		speed = imported?.speed;
 		controller.setSource(
 			videoId,
-			vertical === undefined ? null : vertical ? 'portrait' : 'landscape',
-			true
+			vertical === undefined ? null : vertical ? 'portrait' : 'landscape'
 		);
 
 		loaded = true;
@@ -246,6 +248,9 @@
 			{mute}
 			{speed}
 			{orientation}
+			{vertical}
+			{fill}
+			{mirror}
 			{fillFrame}
 			{sourceAspectRatio}
 			{minimal}
@@ -256,11 +261,12 @@
 			onmutechange={(value) => (mute = value)}
 			onspeedchange={(value) => (speed = value)}
 			onendchange={(value) => (endExpression = value)}
+			onmirrorchange={(value) => (mirror = value)}
 			onfillchange={(value) => (fill = value)}
 			onorientationchange={(value) => {
-				vertical = value === 'portrait';
-				fill = undefined;
-				controller.choose(value);
+				vertical = value === undefined ? undefined : value === 'portrait';
+				if (value === undefined) controller.clearOverride();
+				else controller.choose(value);
 			}}
 			onsourcechange={(videoId, clip) => applySource({ videoId, clip })}
 		>

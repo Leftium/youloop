@@ -5,6 +5,7 @@ export interface ShareUrlState {
 	end?: number;
 	once?: boolean;
 	mute?: boolean;
+	mirror?: boolean;
 	speed?: number;
 	vertical?: boolean;
 	fill?: boolean;
@@ -21,12 +22,12 @@ export type ShareUrlResult =
 const videoIdPattern = /^[A-Za-z0-9_-]{11}$/;
 const decimalPattern = /^\d+(?:\.\d+)?$/;
 const signedDecimalPattern = /^-?\d+(?:\.\d+)?$/;
-const flags = ['once', 'mute', 'vertical', 'fill'] as const;
+const flags = ['once', 'mute', 'vertical', 'fill', 'mirror'] as const;
 const recognized = ['v', 't', 'a', 'b', 'speed', 'orientation', 'fit', ...flags];
 
 /**
- * Validate and copy state, removing start=0, once=false, and speed=1 defaults.
- * False mute/vertical/fill values remain explicit overrides. No duration is
+ * Validate and copy state, removing start=0, disabled once/mute/mirror, and speed=1 defaults.
+ * False vertical/fill values remain explicit overrides. No duration is
  * available here: the integration must validate bounds against the loaded video.
  * Speed accepts continuous multipliers from 0.25 to 2; provider support is separate.
  */
@@ -61,7 +62,10 @@ export function normalizeShareUrl(state: ShareUrlState): ShareUrlResult {
 	if (state.end !== undefined) value.end = state.end;
 	if (state.once) value.once = true;
 	if (state.speed !== undefined && state.speed !== 1) value.speed = state.speed;
-	for (const key of ['mute', 'vertical', 'fill'] as const) {
+	for (const key of ['mute', 'mirror'] as const) {
+		if (state[key]) value[key] = true;
+	}
+	for (const key of ['vertical', 'fill'] as const) {
 		if (state[key] !== undefined) value[key] = state[key];
 	}
 	return { ok: true, value };
@@ -249,6 +253,7 @@ function optionQuery(value: ShareUrlState): string[] {
 	for (const key of ['vertical', 'fill'] as const) {
 		if (value[key] !== undefined) query.push(value[key] ? key : `${key}=0`);
 	}
+	if (value.mirror) query.push('mirror');
 	return query;
 }
 

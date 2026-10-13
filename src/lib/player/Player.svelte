@@ -39,7 +39,6 @@
 	import IcRoundFullscreen from '~icons/ic/round-fullscreen';
 	import IcRoundFullscreenExit from '~icons/ic/round-fullscreen-exit';
 	import IcRoundCropLandscape from '~icons/ic/round-crop-landscape';
-	import IcRoundCropPortrait from '~icons/ic/round-crop-portrait';
 
 	let player = $state<YouTubeVideoElement>(undefined!);
 	let playerContainer: HTMLDivElement;
@@ -73,6 +72,10 @@
 		repeatB: number;
 		orientation?: 'landscape' | 'portrait';
 		fillFrame?: boolean;
+		vertical?: boolean;
+		fill?: boolean;
+		mirror?: boolean;
+		onmirrorchange?: (mirror: boolean) => void;
 		sourceAspectRatio?: number;
 		minimal?: boolean;
 		editorPath?: string;
@@ -90,8 +93,8 @@
 		theater?: boolean;
 		controlPageVisible?: boolean;
 		ontheater?: () => void;
-		onfillchange?: (fill: boolean) => void;
-		onorientationchange?: (orientation: 'landscape' | 'portrait') => void;
+		onfillchange?: (fill: boolean | undefined) => void;
+		onorientationchange?: (orientation: 'landscape' | 'portrait' | undefined) => void;
 		onsourcechange?: (videoId: string, clip?: ShareUrlState) => void;
 		ondurationresolved?: (duration: number | undefined) => void;
 		timestampPolicy?: TimestampPolicy;
@@ -105,6 +108,10 @@
 		repeatB = $bindable(38),
 		orientation = $bindable('landscape'),
 		fillFrame = false,
+		vertical,
+		fill,
+		mirror = false,
+		onmirrorchange,
 		sourceAspectRatio = 16 / 9,
 		minimal = false,
 		editorPath,
@@ -847,6 +854,7 @@
 			{#if playerMounted}
 				{#key `${youtubeId}:${sourceVersion}`}
 					<youtube-video
+						class:mirrored={mirror}
 						{@attach excludeYouTubeProviderFocus}
 						bind:this={player}
 						src={`https://www.youtube-nocookie.com/embed/${youtubeId}`}
@@ -1256,28 +1264,35 @@
 			<div class="setting-row">
 				<span>Orientation</span>
 				<div class="choice-pills orientation-pills" role="group" aria-label="Media orientation">
-					{#each ['landscape', 'portrait'] as frame (frame)}<button
-							aria-label={frame === 'landscape' ? 'Landscape' : 'Portrait'}
-							aria-pressed={orientation === frame}
-							title={frame === 'landscape' ? 'Landscape' : 'Portrait'}
-							onclick={() => onorientationchange?.(frame as 'landscape' | 'portrait')}
+					{#each [{ label: 'Auto', value: undefined }, { label: 'Landscape', value: false }, { label: 'Portrait', value: true }] as option (option.label)}
+						<button
+							aria-pressed={vertical === option.value}
+							onclick={() =>
+								onorientationchange?.(
+									option.value === undefined ? undefined : option.value ? 'portrait' : 'landscape'
+								)}>{option.label}</button
 						>
-							{#if frame === 'landscape'}<IcRoundCropLandscape />{:else}<IcRoundCropPortrait
-								/>{/if}<span class="pill-label"
-								>{frame === 'landscape' ? 'Landscape' : 'Portrait'}</span
-							>
-						</button>{/each}
+					{/each}
+				</div>
+			</div>
+			<div class="setting-row">
+				<span>Crop</span>
+				<div class="choice-pills" role="group" aria-label="Crop">
+					{#each [{ label: 'Auto', value: undefined }, { label: 'Fit', value: false }, { label: 'Fill', value: true }] as option (option.label)}
+						<button
+							aria-pressed={fill === option.value}
+							onclick={() => onfillchange?.(option.value)}>{option.label}</button
+						>
+					{/each}
 				</div>
 			</div>
 			<label class="setting-row switch-row"
-				><span>Crop to fill</span><span class="setting-description"
-					>Fill the frame, cropping edges</span
-				><input
+				><span>Mirror video</span><input
 					type="checkbox"
 					role="switch"
-					aria-label="Crop to fill"
-					checked={fillFrame}
-					onchange={(event) => onfillchange?.(event.currentTarget.checked)}
+					aria-label="Mirror video"
+					checked={mirror}
+					onchange={(event) => onmirrorchange?.(event.currentTarget.checked)}
 				/></label
 			>
 		</section>
@@ -1373,6 +1388,10 @@
 		height: 100%;
 		min-width: 0;
 		min-height: 0;
+	}
+
+	youtube-video.mirrored {
+		transform: scaleX(-1);
 	}
 
 	// Hide edge chrome and bottom captions, and reduce the paused-state gradient.
@@ -1892,8 +1911,8 @@
 			padding-inline: 4px;
 			font-size: 0.75rem;
 		}
-		.orientation-pills .pill-label {
-			display: none;
+		.orientation-pills {
+			gap: 2px;
 		}
 	}
 	.timestamps {

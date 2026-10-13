@@ -62,6 +62,11 @@ export async function run() {
 		assert(state!.orientation === 'portrait' && pending.length === 0, 'Successful result cached');
 		controller.choose('landscape');
 		assert(state!.override === 'landscape', 'Manual landscape is an explicit override');
+		controller.clearOverride();
+		assert(
+			state!.override === null && state!.orientation === 'portrait',
+			'Auto restores cached portrait without new requests'
+		);
 		controller.setSource('explicit', 'portrait');
 		await respond(480, 270);
 		assert(
@@ -303,6 +308,13 @@ export async function run() {
 		assert(
 			source!.orientation === 'portrait' && source!.aspectRatio === 9 / 16,
 			'Manual frame retains the independently detected source geometry'
+		);
+		delayedFrame.clearOverride();
+		assert(
+			state!.override === null &&
+				state!.orientation === 'portrait' &&
+				source!.aspectRatio === 9 / 16,
+			'Auto restores late thumbnail geometry'
 		);
 		delayedFrame.dispose();
 		return results;
