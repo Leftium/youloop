@@ -9,7 +9,7 @@ const mediaState = (page: Page) =>
 			muted: boolean;
 			playbackRate: number;
 			paused: boolean;
-			engine?: { getPlayerState(): number };
+			engine?: { getPlayerState?(): number };
 		};
 		return {
 			time: media?.currentTime,
@@ -17,7 +17,7 @@ const mediaState = (page: Page) =>
 			muted: media?.muted,
 			speed: media?.playbackRate,
 			paused: media?.paused,
-			state: media?.engine?.getPlayerState()
+			state: media?.engine?.getPlayerState?.()
 		};
 	});
 
