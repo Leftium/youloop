@@ -126,6 +126,7 @@
 	}
 
 	let currentTime = $state(repeatA);
+	let boundFeedback = $state('');
 	let duration: number | undefined = $state();
 	const scopeChoice = createTimelineMode();
 	let playbackScope = $state<TimelineMode>('video');
@@ -675,6 +676,7 @@
 	}
 
 	function setRepeatA() {
+		boundFeedback = `Start (A) set to ${formatVideoTime(currentTime)}`;
 		repeatA = currentTime;
 		onstartchange?.(repeatA);
 		if (repeatA > repeatB) {
@@ -684,6 +686,7 @@
 	}
 
 	function setRepeatB() {
+		boundFeedback = `End (B) set to ${formatVideoTime(currentTime)}`;
 		repeatB = currentTime;
 		onendchange?.(repeatB);
 		if (repeatB < repeatA) {
@@ -1013,14 +1016,6 @@
 				onclick={togglePaused}
 			></button>
 		{/if}
-		{#if !minimal}
-			<div class="preview-brand">
-				<a class="brand" href="/" data-sveltekit-reload title="YouLoop home">
-					<img src="/logo.svg" alt="" />YouLoop
-				</a>
-				<span class="compact-brand"><img src="/logo.svg" alt="" />YouLoop</span>
-			</div>
-		{/if}
 		{#if minimal && playerError}
 			<p class="player-error" role="alert">{playerError}</p>
 		{/if}
@@ -1029,6 +1024,14 @@
 
 {#snippet preview(layoutControls: Snippet)}
 	<div class="editor-preview-content">
+		<div class="preview-header">
+			{@render layoutControls()}
+			<div class="preview-brand">
+				<a class="brand" href="/" data-sveltekit-reload title="YouLoop home">
+					<img src="/logo.svg" alt="" />YouLoop
+				</a>
+			</div>
+		</div>
 		{@render media()}
 		<div class="editor-transport">
 			<div class="timestamps">
@@ -1100,7 +1103,6 @@
 						<button aria-label="Next frame" onclick={makeStepFrame(1)}><IcRoundSkipNext /></button>
 					</div>
 				</div>
-				{@render layoutControls()}
 			</div>
 		</div>
 	</div>
@@ -1112,18 +1114,34 @@
 	{#if !minimal}
 		<center>
 			<div class="controls" inert={!metadataReceived}>
-				<div class="ab-buttons nc-join" role="group">
-					<button class="a-button" onclick={setRepeatA}>A</button>
-					<button class="b-button" onclick={setRepeatB}>B</button>
+				<div class="bound-actions" role="group" aria-label="Set clip bounds at current playhead">
+					<button class="a-button" aria-label="Set start (A)" onclick={setRepeatA}>
+						<strong>Set start (A)</strong>
+						<span class="bound-description">Use current playhead</span>
+						<span class="bound-time">{formatVideoTime(repeatA)}</span>
+					</button>
+					<button class="b-button" aria-label="Set end (B)" onclick={setRepeatB}>
+						<strong>Set end (B)</strong>
+						<span class="bound-description">Use current playhead</span>
+						<span class="bound-time">{formatVideoTime(repeatB)}</span>
+					</button>
 				</div>
+				<p class="bound-feedback" role="status">
+					{boundFeedback || 'Set bounds here, or drag A/B on the timeline.'}
+				</p>
 
 				<div class="nc-join" role="group">
 					{#key loop}
-						<button aria-label="Loop" aria-pressed={loop} onclick={toggleLoop}>
+						<button
+							aria-label="Loop"
+							aria-pressed={loop}
+							title="Loop repeats the clip; Once stops at the end"
+							onclick={toggleLoop}
+						>
 							{#if loop}
-								<FluentArrowRepeat />
+								<FluentArrowRepeat /><span class="control-label">Loop</span>
 							{:else}
-								<FluentArrowRepeatOff />
+								<FluentArrowRepeatOff /><span class="control-label">Once</span>
 							{/if}
 						</button>
 					{/key}
@@ -1133,28 +1151,49 @@
 					{#key muted}
 						<button aria-label="Mute" aria-pressed={muted} onclick={toggleMute}>
 							{#if muted}
-								<IcRoundVolumeOff />
+								<IcRoundVolumeOff /><span class="control-label">Muted</span>
 							{:else}
-								<IcRoundVolumeUp />
+								<IcRoundVolumeUp /><span class="control-label">Sound on</span>
 							{/if}
 						</button>
 					{/key}
 				</div>
 
-				<div class="speed-buttons nc-join" role="group">
-					<button onclick={makeTogglePlaybackRate()}><IcRoundSpeed /></button>
+				<div class="speed-buttons nc-join" role="group" aria-label="Playback speed">
+					<button
+						aria-label="Cycle playback speed"
+						title="Cycle playback speed"
+						onclick={makeTogglePlaybackRate()}
+						><IcRoundSpeed /><span class="control-label">{playbackRate / 100}x</span></button
+					>
 
-					<button onclick={makeTogglePlaybackRate(200)}>
-						<span class:active={playbackRate === 200}>2</span>
+					<button
+						aria-label="2x speed"
+						aria-pressed={playbackRate === 200}
+						onclick={makeTogglePlaybackRate(200)}
+					>
+						<span class:active={playbackRate === 200}>2x</span>
 					</button>
-					<button onclick={makeTogglePlaybackRate(100)}>
-						<span class:active={playbackRate === 100}>1</span>
+					<button
+						aria-label="1x speed"
+						aria-pressed={playbackRate === 100}
+						onclick={makeTogglePlaybackRate(100)}
+					>
+						<span class:active={playbackRate === 100}>1x</span>
 					</button>
-					<button onclick={makeTogglePlaybackRate(50)}>
-						<span class:active={playbackRate === 50}>&frac12;</span>
+					<button
+						aria-label="0.5x speed"
+						aria-pressed={playbackRate === 50}
+						onclick={makeTogglePlaybackRate(50)}
+					>
+						<span class:active={playbackRate === 50}>0.5x</span>
 					</button>
-					<button onclick={makeTogglePlaybackRate(25)}>
-						<span class:active={playbackRate === 25}>&frac14;</span>
+					<button
+						aria-label="0.25x speed"
+						aria-pressed={playbackRate === 25}
+						onclick={makeTogglePlaybackRate(25)}
+					>
+						<span class:active={playbackRate === 25}>0.25x</span>
 					</button>
 				</div>
 
@@ -1167,7 +1206,9 @@
 							onorientationchange?.('landscape');
 						}}
 					>
-						<span class:active={orientation === 'landscape'}><IcRoundCropLandscape /></span>
+						<span class:active={orientation === 'landscape'}
+							><IcRoundCropLandscape /> Landscape</span
+						>
 					</button>
 					<button
 						aria-label="Portrait"
@@ -1177,7 +1218,7 @@
 							onorientationchange?.('portrait');
 						}}
 					>
-						<span class:active={orientation === 'portrait'}><IcRoundCropPortrait /></span>
+						<span class:active={orientation === 'portrait'}><IcRoundCropPortrait /> Portrait</span>
 					</button>
 				</div>
 				<div class="nc-join" role="group" aria-label="Video framing">
@@ -1187,10 +1228,14 @@
 						title="Zoom into the center to fill the frame (crops edges)"
 						onclick={() => onfillchange?.(!fillFrame)}
 					>
-						<span class:active={fillFrame}>Fill</span>
+						<span class:active={fillFrame}>Crop to fill</span>
 					</button>
 				</div>
 			</div>
+			<p class="settings-help">
+				Loop repeats the clip. Once stops at the end. Orientation changes the frame; Crop to fill
+				zooms in and crops its edges.
+			</p>
 
 			<button class="outline paste-button" onclick={pasteYoutubeId}
 				>Load YouTube URL/ID from clipboard</button
@@ -1534,7 +1579,7 @@
 
 	.editor-preview-content {
 		display: grid;
-		grid-template-rows: minmax(0, 1fr) auto;
+		grid-template-rows: auto minmax(0, 1fr) auto;
 		height: 100%;
 		min-width: 0;
 		min-height: 0;
@@ -1562,48 +1607,105 @@
 		width: 24px;
 		height: 24px;
 	}
+	.preview-header {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 8px;
+		padding: max(4px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) 4px
+			max(8px, env(safe-area-inset-left));
+	}
 	.preview-brand {
-		position: absolute;
-		z-index: 1;
-		top: max(0.5rem, env(safe-area-inset-top));
-		left: max(0.5rem, env(safe-area-inset-left));
-		pointer-events: none;
-		color: white;
+		min-width: 0;
 		font-weight: 700;
-		font-size: 1rem;
+		font-size: 0.85rem;
 	}
 	.preview-brand img {
 		height: 1.25em;
 		width: auto;
 	}
-	.brand,
-	.compact-brand {
-		align-items: center;
-		gap: 0.35rem;
-		padding: 0.25rem 0.5rem;
-		border-radius: 0.25rem;
-		background: rgb(0 0 0 / 60%);
-	}
 	.brand {
 		display: flex;
+		align-items: center;
+		gap: 0.35rem;
 		min-height: 44px;
 		color: inherit;
 		text-decoration: none;
-		pointer-events: auto;
 	}
 	.brand:focus-visible {
-		outline: 2px solid white;
+		outline: 2px solid #01aaff;
 	}
-	.compact-brand {
-		display: none;
+	.bound-actions {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 8px;
+		width: 100%;
 	}
-	@container (max-width: 480px) or (max-height: 240px) {
-		.brand {
-			display: none;
+	.bound-actions button {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 4px;
+		min-height: 44px;
+		margin: 0;
+		padding: 8px;
+		font-size: 0.9rem;
+	}
+	.bound-actions .a-button strong {
+		color: $azure-250;
+	}
+	.bound-actions .b-button strong {
+		color: $indigo-300;
+	}
+	.bound-time {
+		font-variant-numeric: tabular-nums;
+	}
+	.bound-description {
+		font-size: 0.8rem;
+	}
+	.bound-feedback {
+		width: 100%;
+		min-height: 2.6em;
+		margin: 0;
+		font-size: 0.85rem;
+	}
+	.settings-help {
+		font-size: 0.85rem;
+		text-align: left;
+	}
+	.controls .nc-join button {
+		min-height: 44px;
+		min-width: 44px;
+		padding: 10px;
+	}
+	.controls .nc-join .control-label {
+		opacity: 1;
+		margin-left: 6px;
+	}
+	.controls button:focus-visible {
+		outline: 2px solid #01aaff;
+		outline-offset: 2px;
+	}
+	@container clip-settings (max-width: 380px) {
+		.bound-description {
+			font-size: 0.75rem;
+			line-height: 1.2;
 		}
-		.compact-brand {
+		.bound-actions button {
+			font-size: 0.85rem;
+		}
+		.speed-buttons {
 			display: flex;
-			font-size: 0.7rem;
+			flex-wrap: wrap;
+			justify-content: center;
+		}
+	}
+	@container clip-settings (min-width: 560px) {
+		.bound-actions button {
+			flex-direction: row;
+			flex-wrap: wrap;
+			justify-content: center;
+			column-gap: 10px;
 		}
 	}
 
@@ -1819,18 +1921,6 @@
 			:global(.active) {
 				opacity: 100% !important;
 			}
-		}
-
-		&.ab-buttons button {
-			font-weight: 600;
-		}
-
-		.a-button {
-			color: $azure-350;
-		}
-
-		.b-button {
-			color: $indigo-300;
 		}
 
 		&.speed-buttons {

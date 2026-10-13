@@ -136,7 +136,7 @@ test('pointer and keyboard splitter bounds, capture cleanup, axes and reset', as
 	expect(await value(page)).toBeGreaterThan(before);
 	await dragBy(page, 40);
 	await geometry(page);
-	await page.getByRole('button', { name: 'Reset split' }).click();
+	await page.getByRole('button', { name: 'Restore default layout' }).click();
 	await expect(handle).toHaveAttribute('aria-orientation', 'vertical');
 	expect(await value(page)).toBe(initial);
 	const box = (await handle.boundingBox())!;
@@ -189,7 +189,7 @@ test('playing YouTube provider and clip survive resize, layout, scroll and respo
 		async () => page.setViewportSize({ width: 844, height: 390 }),
 		async () => page.setViewportSize({ width: 1280, height: 800 }),
 		async () => page.getByRole('button', { name: 'Side by side' }).click(),
-		async () => page.getByRole('button', { name: 'Reset split' }).click()
+		async () => page.getByRole('button', { name: 'Restore default layout' }).click()
 	]) {
 		await action();
 		await identity(page);
@@ -302,7 +302,7 @@ test('session preferences restore, reconcile on resize, reset and stay out of sh
 	} finally {
 		await fresh.close();
 	}
-	await page.getByRole('button', { name: 'Reset split' }).click();
+	await page.getByRole('button', { name: 'Restore default layout' }).click();
 	expect(
 		await page.evaluate((key) => JSON.parse(sessionStorage.getItem(key)!), storageKey)
 	).toEqual({ layout: null, ratios: { columns: 0.62, rows: 0.55 } });
@@ -362,7 +362,7 @@ for (const storage of ['stale', 'blocked']) {
 			expect(await value(page)).toBe(Number(await divider(page).getAttribute('aria-valuemax')));
 		await divider(page).press('Home');
 		await geometry(page);
-		await page.getByRole('button', { name: 'Reset split' }).click();
+		await page.getByRole('button', { name: 'Restore default layout' }).click();
 		await geometry(page);
 		await identity(page);
 	});
@@ -394,7 +394,7 @@ for (const viewport of [
 		await expect(page.getByRole('button', { name: /fullscreen/i })).toHaveCount(0);
 		const group = preview.getByRole('group', { name: 'Workspace layout' });
 		await expect(group.locator('button[aria-pressed="true"]')).toHaveCount(1);
-		await expect(group.getByRole('button', { name: 'Reset split' })).not.toHaveAttribute(
+		await expect(group.getByRole('button', { name: 'Restore default layout' })).not.toHaveAttribute(
 			'aria-pressed'
 		);
 		expect(
@@ -405,7 +405,7 @@ for (const viewport of [
 						box.width >= 44 &&
 						box.height >= 44 &&
 						button.getAttribute('title') &&
-						button.textContent?.trim() === ''
+						button.getAttribute('aria-label')
 					);
 				})
 			)
@@ -431,15 +431,14 @@ for (const viewport of [
 				const overlap = (a: DOMRect, b: DOMRect) =>
 					a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
 				return (
-					brand.left >= picture.left &&
-					brand.right <= picture.right &&
-					brand.top >= picture.top &&
-					brand.bottom <= picture.bottom &&
+					brand.left >= preview.getBoundingClientRect().left &&
+					brand.right <= preview.getBoundingClientRect().right &&
+					brand.top >= preview.getBoundingClientRect().top &&
+					brand.bottom <= picture.top &&
 					!overlap(brand, timeline) &&
 					pictureCenter?.classList.contains('video-toggle') &&
 					parseFloat(getComputedStyle(settings).paddingLeft) >= 16 &&
-					document.documentElement.scrollHeight <= innerHeight &&
-					getComputedStyle(document.querySelector('.preview-brand')!).pointerEvents === 'none'
+					document.documentElement.scrollHeight <= innerHeight
 				);
 			})
 		).toBe(true);
@@ -448,8 +447,7 @@ for (const viewport of [
 			await expect(preview.locator('.brand')).toHaveAttribute('href', '/');
 			await expect(preview.locator('.brand')).toHaveAttribute('data-sveltekit-reload');
 		} else if (viewport.width < 660) {
-			await expect(preview.locator('.compact-brand')).toBeVisible();
-			await expect(preview.locator('.brand')).toBeHidden();
+			await expect(preview.locator('.brand')).toBeVisible();
 		}
 		await preview.getByRole('button', { name: 'Play video', exact: true }).click();
 		await page.waitForFunction(
@@ -487,7 +485,7 @@ for (const viewport of [
 		await identity(page);
 		expect(page.url()).toBe(url);
 		// Padded action targets remain outside the divider's expanded hit area.
-		await page.getByRole('button', { name: 'Reset split' }).click();
+		await page.getByRole('button', { name: 'Restore default layout' }).click();
 		await expect(group.locator('button[aria-pressed="true"]')).toHaveCount(1);
 		await identity(page);
 	});
@@ -887,7 +885,7 @@ test.describe('automatic mobile document scrolling', () => {
 					})
 				).toBeGreaterThanOrEqual(started);
 				expect(page.url()).toBe(url);
-				await page.getByRole('button', { name: 'Reset split', exact: true }).click();
+				await page.getByRole('button', { name: 'Restore default layout', exact: true }).click();
 				await expect(page.locator('.editor-workspace')).toHaveClass(/video-scroll/);
 				await expect(page.locator('html')).toHaveCSS('scroll-snap-type', 'y mandatory');
 				await geometry(page);
@@ -945,3 +943,70 @@ for (const viewport of [
 		});
 	});
 }
+
+test('layout stays in the upper-left above picture through resize, reflow and settings scroll', async ({
+	page
+}) => {
+	await page.setViewportSize({ width: 1280, height: 800 });
+	await openEditor(page);
+	const position = async () => {
+		const result = await page.locator('#editor-preview').evaluate((preview) => {
+			const pane = preview.getBoundingClientRect();
+			const group = preview.querySelector('.workspace-layout')!.getBoundingClientRect();
+			const brand = preview.querySelector('.brand')!.getBoundingClientRect();
+			const picture = preview.querySelector('.player')!.getBoundingClientRect();
+			return {
+				x: group.left - pane.left,
+				y: group.top - pane.top,
+				clear:
+					group.bottom <= picture.top && brand.bottom <= picture.top && group.right <= brand.left
+			};
+		});
+		expect(result.clear).toBe(true);
+		return { x: result.x, y: result.y };
+	};
+	const original = await position();
+	for (const action of [
+		async () => page.getByRole('button', { name: 'Stacked', exact: true }).click(),
+		async () => dragBy(page, -30),
+		async () => page.setViewportSize({ width: 320, height: 568 }),
+		async () =>
+			page.locator('#editor-settings').evaluate((el) => {
+				el.scrollTop = 1000;
+			}),
+		async () => page.setViewportSize({ width: 844, height: 390 }),
+		async () => page.getByRole('button', { name: 'Restore default layout' }).click(),
+		async () => page.setViewportSize({ width: 1280, height: 800 })
+	]) {
+		await action();
+		await expect.poll(position).toEqual(original);
+		await identity(page);
+	}
+});
+
+test('named bound actions edit fractional playhead bounds and preserve Once and provider identity', async ({
+	page
+}) => {
+	await page.setViewportSize({ width: 1280, height: 800 });
+	await openEditor(page);
+	await page.getByRole('button', { name: 'Loop', exact: true }).click();
+	await page.getByRole('slider', { name: 'Current time', exact: true }).fill('12.5');
+	await page.getByRole('button', { name: 'Set start (A)', exact: true }).press('Enter');
+	await expect(page.getByRole('slider', { name: 'Repeat start', exact: true })).toHaveValue('12.5');
+	await expect(page.locator('.bound-feedback')).toContainText('Start (A) set to');
+	await expect(page).toHaveURL(/t=12\.5~50.*once/);
+	await page.getByRole('slider', { name: 'Current time', exact: true }).fill('30.5');
+	await page.getByRole('button', { name: 'Set end (B)', exact: true }).click();
+	await expect(page.getByRole('slider', { name: 'Repeat end', exact: true })).toHaveValue('30.5');
+	await expect(page.locator('.bound-feedback')).toContainText('End (B) set to');
+	await expect(page).toHaveURL(/t=12\.5~30\.5.*once/);
+	await expect(page.getByRole('button', { name: 'Loop', exact: true })).toContainText('Once');
+	await identity(page);
+	const description = page.locator('.bound-description').first();
+	await expect(description).toBeVisible();
+	await divider(page).press('End');
+	await expect(description).toBeVisible();
+	await geometry(page);
+	await expect(page.getByRole('button', { name: 'Set start (A)', exact: true })).toBeVisible();
+	await identity(page);
+});

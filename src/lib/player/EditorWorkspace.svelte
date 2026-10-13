@@ -21,7 +21,8 @@
 	let ratios = $state({ columns: 0.62, rows: 0.55 });
 	let layout = $derived(width >= 660 ? (preference ?? 'columns') : 'rows');
 	let available = $derived(Math.max(0, (layout === 'columns' ? width : height) - dividerSize));
-	let minimum = $derived(layout === 'columns' ? 320 : Math.min(240, Math.max(0, available - 110)));
+	// Reserve the fixed header plus transport and picture in stacked layouts.
+	let minimum = $derived(layout === 'columns' ? 320 : Math.min(284, Math.max(0, available - 110)));
 	let maximum = $derived(Math.max(minimum, available - (layout === 'columns' ? 280 : 110)));
 	let size = $derived(Math.max(minimum, Math.min(ratios[layout] * available, maximum)));
 	let dragging = $state(false);
@@ -179,17 +180,20 @@
 					: 'Side by side'}
 				aria-pressed={layout === 'columns'}
 				disabled={width < 660}
-				onclick={() => choose('columns')}><IcRoundViewAgenda class="columns-icon" /></button
+				onclick={() => choose('columns')}
+				><IcRoundViewAgenda class="columns-icon" /><span>Side by side</span></button
 			>
 			<button
 				aria-label="Stacked"
 				title="Stacked"
 				aria-pressed={layout === 'rows'}
-				onclick={() => choose('rows')}><IcRoundViewAgenda /></button
+				onclick={() => choose('rows')}><IcRoundViewAgenda /><span>Stacked</span></button
 			>
 		</div>
-		<button aria-label="Reset split" title="Reset split" onclick={reset}
-			><IcRoundRestartAlt /></button
+		<button
+			aria-label="Restore default layout"
+			title="Restore default layout and split"
+			onclick={reset}><IcRoundRestartAlt /></button
 		>
 	</div>
 {/snippet}
@@ -314,15 +318,17 @@
 	.workspace-layout {
 		display: flex;
 		gap: 0.4rem;
-		margin-left: auto;
+		flex-shrink: 0;
 	}
 	.layout-modes {
 		display: flex;
 	}
 	.workspace-layout button {
-		display: grid;
-		place-items: center;
-		width: 44px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: 6px;
+		min-width: 44px;
 		height: 44px;
 		padding: 0;
 		margin: 0;
@@ -344,8 +350,24 @@
 	.workspace-layout :global(.columns-icon) {
 		transform: rotate(90deg);
 	}
-	.workspace-layout button[aria-pressed='false'] :global(svg) {
+	.workspace-layout button[aria-pressed='true'] {
+		background: #354d69;
+		box-shadow: inset 0 -3px #79c0ff;
+	}
+	.workspace-layout button:disabled {
 		opacity: 0.4;
+	}
+	.workspace-layout span {
+		display: none;
+	}
+	@container editor-preview (min-width: 520px) {
+		.workspace-layout span {
+			display: inline;
+			font-size: 0.8rem;
+		}
+		.layout-modes button {
+			padding-inline: 10px;
+		}
 	}
 	.workspace-grid {
 		display: grid;
@@ -365,9 +387,11 @@
 		min-height: 0;
 	}
 	.preview-pane {
+		container: editor-preview / inline-size;
 		background: var(--nc-surface-1);
 	}
 	.settings-pane {
+		container: clip-settings / inline-size;
 		background: var(--nc-surface-1);
 		/* Keep pane boundary gestures from chaining into the document where supported. */
 		overscroll-behavior-y: contain;

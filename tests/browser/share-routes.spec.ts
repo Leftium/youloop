@@ -185,8 +185,8 @@ test('new editor parameters win over aliases, seek/step/loop/once work with real
 		'href',
 		new RegExp('/31~40')
 	);
-	await page.getByRole('button', { name: 'B', exact: true }).click();
-	await page.getByRole('button', { name: 'A', exact: true }).click();
+	await page.getByRole('button', { name: 'Set end (B)', exact: true }).click();
+	await page.getByRole('button', { name: 'Set start (A)', exact: true }).click();
 	// Equal A/B must not silently expand into a different clip.
 	await expect(page.locator('nav[aria-label="Clip navigation"] a')).not.toHaveAttribute('href');
 	await expect(page.getByRole('button', { name: 'Copy Link', exact: true })).toBeDisabled();
