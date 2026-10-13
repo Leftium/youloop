@@ -401,7 +401,9 @@ test.describe('editor polish', () => {
 		await clipboard(page, `https://youloop.app/${id}/10.25~-3.5?mute&speed=0.5`);
 		await page.getByRole('button', { name: 'Paste', exact: true }).click();
 		await expect(source).toHaveValue(`https://youloop.app/${id}/10.25~-3.5?mute&speed=0.5`);
-		await page.getByRole('button', { name: 'Load / Apply', exact: true }).click();
+		await page.getByRole('button', { name: 'Load / Apply', exact: true }).focus();
+		await page.keyboard.press('Enter');
+		await expect(page.getByRole('button', { name: 'Edit', exact: true })).toBeFocused();
 		await expect(page.getByRole('link', { name: 'Open video', exact: true })).toHaveAttribute(
 			'href',
 			`/${id}/10.25~-3.5?mute&speed=0.5`
@@ -422,6 +424,7 @@ test.describe('editor polish', () => {
 		await page.getByRole('button', { name: 'Edit', exact: true }).click();
 		await source.fill(id);
 		await source.press('Enter');
+		await expect(page.getByRole('button', { name: 'Edit', exact: true })).toBeFocused();
 		await expect(title).toContainText('BFX 2011', { timeout: 30_000 });
 		await page.evaluate(() =>
 			Object.defineProperty(navigator, 'clipboard', {
@@ -562,6 +565,8 @@ test.describe('editor polish', () => {
 					) < 1
 			)
 		).toBe(true);
+		await expect(transport.locator('.speed-value')).toBeHidden();
+		await expect(transport.locator('.transport-speed .secondary-label')).toBeVisible();
 		for (const rate of [2, 1, 0.5, 0.25]) {
 			const button = transport.getByRole('button', {
 				name: `Set playback speed to ${rate}x`,
@@ -577,6 +582,8 @@ test.describe('editor polish', () => {
 		await page.setViewportSize({ width: 900, height: 800 });
 		await expect(transport.locator('.frame-label').first()).toBeVisible();
 		await expect(transport.locator('.transport-rate').first()).toBeHidden();
+		await expect(transport.locator('.speed-value')).toBeVisible();
+		await expect(transport.locator('.speed-value')).toHaveText('0.25x');
 		await page.setViewportSize({ width: 1280, height: 800 });
 		await identity(page);
 		await page.screenshot({ path: `/tmp/youloop39-${browserName}-stacked.png` });

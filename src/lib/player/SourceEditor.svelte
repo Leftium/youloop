@@ -38,9 +38,11 @@
 			message = 'Enter a YouTube ID/address or a valid YouLoop link.';
 			return;
 		}
+		const restoreFocus = editing;
 		onapply(source);
 		editing = false;
 		message = 'Video loaded';
+		if (restoreFocus) void tick().then(() => editButton.focus());
 	}
 	async function paste(load = false) {
 		try {

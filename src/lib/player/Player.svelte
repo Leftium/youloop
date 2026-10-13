@@ -1661,6 +1661,9 @@
 		.preview-playback .transport-rate {
 			display: inline-flex;
 		}
+		.transport-speed .speed-value {
+			display: none;
+		}
 	}
 	.preview-playback .transport-fill {
 		flex: 1;
