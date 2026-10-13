@@ -1,8 +1,12 @@
 <script lang="ts">
-	import { onMount, untrack } from 'svelte';
+	import { onMount, untrack, type Snippet } from 'svelte';
 	import { page } from '$app/state';
-	import { replaceState } from '$app/navigation';
+	import { pushState, replaceState } from '$app/navigation';
 	import Player from './Player.svelte';
+	import VideoPicker from './VideoPicker.svelte';
+	import VideoExamples from './VideoExamples.svelte';
+	import EditorWorkspace from './EditorWorkspace.svelte';
+	import type { EditorSource } from './editor-source';
 	import { createOrientationController, type Orientation } from './youtube-orientation';
 	import {
 		parsePlayerUrl,
@@ -24,6 +28,10 @@
 		ontheater?: () => void;
 	} = $props();
 
+	function emptyRoot(url: URL) {
+		return url.pathname === '/' && !['v', 't', 'a', 'b'].some((key) => url.searchParams.has(key));
+	}
+	let picker = $state<VideoPicker>(undefined!);
 	const initial = untrack(() => parsePlayerUrl(new URL(page.url.href)));
 	const initialClip = initial.ok ? initial.value : { videoId: 'dt-SqNL4z3w' };
 
@@ -46,7 +54,7 @@
 	let sourceAspectRatio = $state(16 / 9);
 	let fillFrame = $derived(fill ?? orientation !== sourceOrientation);
 	let ready = $state(false);
-	let loaded = $state(initial.ok);
+	let loaded = $state(initial.ok && !untrack(() => emptyRoot(new URL(page.url.href))));
 	let error = $state(
 		initial.ok ? '' : `Invalid link: ${initial.errors.map((item) => item.parameter).join(', ')}`
 	);
@@ -111,10 +119,15 @@
 
 	function loadUrl(url: URL) {
 		loadedHref = url.href;
-		bareDemo = ['/', '/s'].includes(url.pathname) && !url.searchParams.has('v');
+		bareDemo = url.pathname === '/s' && !url.searchParams.has('v');
 		const result = parsePlayerUrl(url);
 		if (!result.ok) {
 			error = `Invalid link: ${result.errors.map((item) => item.parameter).join(', ')}`;
+			loaded = false;
+			return;
+		}
+		if (emptyRoot(url)) {
+			error = '';
 			loaded = false;
 			return;
 		}
@@ -139,7 +152,7 @@
 			true
 		);
 		demoState = serializeShareUrl(value);
-		loaded = true;
+		loaded = !emptyRoot(url);
 	}
 
 	$effect(() => {
@@ -166,6 +179,40 @@
 		});
 	});
 
+	function applySource({ videoId, clip: imported }: EditorSource) {
+		const wasEmpty = !loaded;
+		if (!imported || videoId !== youtubeId) settledDuration = undefined;
+		youtubeId = videoId;
+		timestampPolicy = 'preserve';
+		copyMessage = '';
+		startExpression = imported?.start;
+		endExpression = imported?.end;
+		repeatA = Math.max(0, imported?.start ?? 0);
+		repeatB = imported?.end !== undefined && imported.end > 0 ? imported.end : 99999;
+		if (imported) {
+			once = imported.once ?? false;
+			mute = imported.mute;
+		}
+		clipInvalid = false;
+		vertical = imported?.vertical;
+		fill = imported?.fill;
+		speed = imported?.speed;
+		controller.setSource(
+			videoId,
+			vertical === undefined ? null : vertical ? 'portrait' : 'landscape',
+			true
+		);
+
+		loaded = true;
+		if (wasEmpty) {
+			const next = new URL(serializeEditorUrl(imported ?? { videoId }), page.url.origin);
+			loadedHref = next.href;
+			pushState(next, page.state);
+		}
+		bareDemo = false;
+		error = '';
+	}
+
 	async function copyLink() {
 		if (!sharePath) return;
 		try {
@@ -179,7 +226,9 @@
 
 {#if error}
 	<p role="alert">{error}</p>
-	<a href="/">Open editor</a>
+	<button disabled={!ready} onclick={(event) => picker.open(event.currentTarget)}
+		>Choose video</button
+	>
 {:else}
 	<!-- One shared state owner; presentation changes never duplicate the media engine. -->
 	{#if loaded}
@@ -214,29 +263,7 @@
 				fill = undefined;
 				controller.choose(value);
 			}}
-			onsourcechange={(videoId, imported) => {
-				if (!imported || videoId !== youtubeId) settledDuration = undefined;
-				youtubeId = videoId;
-				timestampPolicy = 'preserve';
-				copyMessage = '';
-				startExpression = imported?.start;
-				endExpression = imported?.end;
-				repeatA = Math.max(0, imported?.start ?? 0);
-				repeatB = imported?.end !== undefined && imported.end > 0 ? imported.end : 99999;
-				if (imported) {
-					once = imported.once ?? false;
-					mute = imported.mute;
-				}
-				clipInvalid = false;
-				vertical = imported?.vertical;
-				fill = imported?.fill;
-				speed = imported?.speed;
-				controller.setSource(
-					videoId,
-					vertical === undefined ? null : vertical ? 'portrait' : 'landscape',
-					true
-				);
-			}}
+			onsourcechange={(videoId, clip) => applySource({ videoId, clip })}
 		>
 			{#snippet editorActions()}
 				<div class="share-preview">
@@ -257,13 +284,40 @@
 				{/if}
 			{/snippet}
 		</Player>
+	{:else}
+		{#snippet preview(layoutControls: Snippet)}
+			<div class="empty-preview">
+				{@render layoutControls()}
+				<h1>Choose a video to loop</h1>
+				<button disabled={!ready} onclick={(event) => picker.open(event.currentTarget)}
+					>Choose video</button
+				>
+				<VideoExamples />
+			</div>
+		{/snippet}
+		{#snippet settings(layoutReset: Snippet)}<p>
+				Choose a video to set clip bounds and playback options.
+			</p>
+			{@render layoutReset()}{/snippet}
+		<EditorWorkspace {preview} {settings} />
 	{/if}
 	{#if minimal && !normalized.ok}
 		<p role="alert">Choose an end after the start to share this clip.</p>
 	{/if}
 {/if}
 
+{#if !loaded || error}<VideoPicker bind:this={picker} onapply={applySource} />{/if}
+
 <style>
+	.empty-preview {
+		height: 100%;
+		min-height: 0;
+		overflow-y: auto;
+		overscroll-behavior: contain;
+		padding: 24px;
+		max-width: 520px;
+		margin: auto;
+	}
 	.share-preview {
 		margin-block: 8px;
 		font-size: 0.8rem;

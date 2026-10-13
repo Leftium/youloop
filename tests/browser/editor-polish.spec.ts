@@ -103,9 +103,9 @@ test.describe('editor polish', () => {
 			})
 		).toBe(true);
 		await expect(
-			page.getByRole('button', { name: 'Edit', exact: true }).locator('svg')
+			page.getByRole('button', { name: 'Change video', exact: true }).locator('svg')
 		).toHaveCount(1);
-		await expect(page.getByRole('button', { name: 'Edit', exact: true })).toHaveText('');
+		await expect(page.getByRole('button', { name: 'Change video', exact: true })).toHaveText('');
 		expect(
 			await page.locator('.source-link').evaluate((el) => {
 				const children = Array.from(el.children).map((item) => item.getBoundingClientRect());
@@ -379,37 +379,35 @@ test.describe('editor polish', () => {
 		);
 	});
 
-	test('inline source drafts, supported links, one-click clipboard and title freshness', async ({
+	test('dialog source drafts, supported links, one-click clipboard and title freshness', async ({
 		page
 	}) => {
 		await open(page);
 		const title = page.getByLabel('YouTube video title', { exact: true });
 		await expect(title).toContainText('BFX 2011');
 		const original = page.url();
-		await page.getByRole('button', { name: 'Edit', exact: true }).click();
-		const source = page.getByRole('textbox', { name: 'YouTube source', exact: true });
+		await page.getByRole('button', { name: 'Change video', exact: true }).click();
+		const source = page.getByRole('textbox', { name: 'YouTube or YouLoop URL or ID', exact: true });
 		await source.fill(secondId);
 		await identity(page);
 		expect(page.url()).toBe(original);
 		await source.press('Escape');
-		await expect(page.getByRole('button', { name: 'Edit', exact: true })).toBeFocused();
-		await page.getByRole('button', { name: 'Edit', exact: true }).click();
+		await expect(page.getByRole('button', { name: 'Change video', exact: true })).toBeFocused();
+		await page.getByRole('button', { name: 'Change video', exact: true }).click();
 		await source.fill('bad');
 		await source.press('Enter');
-		await expect(page.locator('.source-message')).toContainText('valid YouLoop link');
+		await expect(page.getByRole('dialog').getByRole('status')).toContainText('YouLoop clip link');
 		await identity(page);
 		await clipboard(page, `https://youloop.app/${id}/10.25~-3.5?mute&speed=0.5`);
-		await page.getByRole('button', { name: 'Paste', exact: true }).click();
-		await expect(source).toHaveValue(`https://youloop.app/${id}/10.25~-3.5?mute&speed=0.5`);
-		await page.getByRole('button', { name: 'Load / Apply', exact: true }).focus();
-		await page.keyboard.press('Enter');
-		await expect(page.getByRole('button', { name: 'Edit', exact: true })).toBeFocused();
+		await page.getByRole('button', { name: 'Load from clipboard' }).click();
+		await expect(page.getByRole('button', { name: 'Change video', exact: true })).toBeFocused();
 		await expect(page.getByRole('link', { name: 'Open video', exact: true })).toHaveAttribute(
 			'href',
 			`/${id}/10.25~-3.5?mute&speed=0.5`
 		);
 		await identity(page); // Compatible same-source links only update state.
 		await clipboard(page, `https://www.youtube.com/shorts/${secondId}`);
+		await page.getByRole('button', { name: 'Change video', exact: true }).click();
 		await page.getByRole('button', { name: 'Load from clipboard' }).click();
 		await expect(
 			page.getByRole('link', { name: `youtu.be/${secondId}`, exact: true })
@@ -421,10 +419,10 @@ test.describe('editor polish', () => {
 			`/${secondId}?mute`
 		);
 		await expect(page.getByRole('textbox')).toHaveCount(0);
-		await page.getByRole('button', { name: 'Edit', exact: true }).click();
+		await page.getByRole('button', { name: 'Change video', exact: true }).click();
 		await source.fill(id);
 		await source.press('Enter');
-		await expect(page.getByRole('button', { name: 'Edit', exact: true })).toBeFocused();
+		await expect(page.getByRole('button', { name: 'Change video', exact: true })).toBeFocused();
 		await expect(title).toContainText('BFX 2011', { timeout: 30_000 });
 		await page.evaluate(() =>
 			Object.defineProperty(navigator, 'clipboard', {
@@ -436,8 +434,11 @@ test.describe('editor polish', () => {
 				}
 			})
 		);
+		await page.getByRole('button', { name: 'Change video', exact: true }).click();
 		await page.getByRole('button', { name: 'Load from clipboard' }).click();
-		await expect(page.locator('.source-message')).toContainText('Clipboard unavailable');
+		await expect(page.getByRole('dialog').getByRole('status')).toContainText(
+			'Clipboard unavailable'
+		);
 	});
 
 	test('late metadata refreshes a read-only long title without requests or remounts', async ({
