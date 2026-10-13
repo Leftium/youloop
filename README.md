@@ -350,6 +350,49 @@ faded controls, which may then fade again after inactivity. Theater hides our
 title, controls, and timeline. Fullscreen is independent of those modes. Safari owns toolbar collapse;
 the Theater button only advances the native document scroll.
 
+### Watch runway experiment (#34)
+
+Production keeps the `2000svh` initial runway, nine-viewport extension threshold,
+and 25-viewport growth. The runway is one empty element; its height does not
+create snap nodes. Theater still responds after 32px of cumulative travel in
+one direction. A direction reversal starts a new accumulation.
+
+Local development accepts `watchRunway=small`, `balanced`, or `coarse` on a watch
+URL, for example `/dt-SqNL4z3w/31~38?mute&watchRunway=balanced`. Each trial starts
+with four current viewports and grows when fewer than one remains. Production
+ignores these parameters. Clip URL normalization removes the parameter after
+mount; reappend it when opening a fresh trial. Shared links retain only clip state.
+SSR still renders the baseline height; development trials apply after mount.
+
+The browser suite measures native document scrolling in half-viewport steps
+through 100 viewports, at 1280x800, 390x844, and 844x390. Heights below are runway
+budgets; the document also includes the one-viewport sticky stage.
+
+| Profile             | Initial viewports | Trigger | Growth | Extensions over 100 viewports | Final viewports |
+| ------------------- | ----------------: | ------: | -----: | ----------------------------: | --------------: |
+| Production baseline |                20 |       9 |     25 |                             4 |             120 |
+| Small               |                 4 |       1 |      8 |                            13 |             108 |
+| Balanced            |                 4 |       1 |     25 |                             4 |             104 |
+| Coarse              |                 4 |       1 |     50 |                             2 |             104 |
+
+Reducing the initial budget by 80% saves scroll extent, but smaller growth
+causes more extensions. Coarse growth halves extension count on this path; its
+50-viewport allocations can leave more unused space on shorter paths. These
+measurements establish scroll budgets and counts, not a CPU or memory saving.
+No watch snap markers were added: the editor's 20px spacing addresses a separate,
+physically observed momentum problem and would add thousands of nodes to this
+runway. It does not establish that 20px of total scrolling is sufficient.
+
+Run `pnpm exec playwright test tests/browser/watch-runway.spec.ts` to reproduce
+the measurements and inspect its JSON attachments. The suite also covers Theater
+direction, wheel input, the Theater button, orientation/viewport changes,
+provider/iframe identity, centered `16000px` framing, and route Back/Forward.
+Chromium additionally injects native touch swipes in a coarse-pointer context.
+WebKit automation and touch emulation cannot establish Safari toolbar collapse.
+Physical iPhone Safari portrait/landscape and Android Chrome checks remain
+manual work before selecting any reduced production default. See
+[#34](https://github.com/Leftium/youloop/issues/34) for experiment acceptance.
+
 The time button at the left of the control row switches between VIDEO and A:B
 without seeking or changing playback or the share URL. The blue `A:B` label
 follows the duration in clip mode; full-video mode has no visible mode label.

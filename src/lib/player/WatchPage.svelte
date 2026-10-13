@@ -2,8 +2,7 @@
 	import { onMount, tick } from 'svelte';
 	import ClipPlayer from './ClipPlayer.svelte';
 
-	// Baseline thresholds are named so the #34 experiment can tune and compare them.
-	// Bootstrapping leaves their values and current watch behavior unchanged.
+	// Keep production defaults until physical-device toolbar testing supports a change.
 	const THEATER_SCROLL_TRIGGER_PX = 32;
 	const RUNWAY_EXTENSION_TRIGGER_VIEWPORTS = 9;
 	const RUNWAY_EXTENSION_INCREMENT_VIEWPORTS = 25;
@@ -21,6 +20,17 @@
 	onMount(() => {
 		// Freeze the initial CSS height in pixels so rotation never shrinks the runway.
 		runwayHeight = runway.getBoundingClientRect().height;
+		let extensionTrigger = RUNWAY_EXTENSION_TRIGGER_VIEWPORTS;
+		let extensionIncrement = RUNWAY_EXTENSION_INCREMENT_VIEWPORTS;
+		if (import.meta.env.DEV) {
+			// Local #34 trials only: ignored by production and excluded from shared clip state.
+			const trial = new URLSearchParams(window.location.search).get('watchRunway');
+			if (trial === 'small' || trial === 'balanced' || trial === 'coarse') {
+				runwayHeight = 4 * window.innerHeight;
+				extensionTrigger = 1;
+				extensionIncrement = trial === 'small' ? 8 : trial === 'balanced' ? 25 : 50;
+			}
+		}
 		let extending = false;
 		function extendRunway() {
 			if (extending) return;
@@ -28,11 +38,13 @@
 			const viewportHeight = window.innerHeight;
 			if (!root || viewportHeight <= 0) return;
 			const remaining = root.scrollHeight - root.clientHeight - window.scrollY;
-			if (remaining >= RUNWAY_EXTENSION_TRIGGER_VIEWPORTS * viewportHeight) return;
+			if (remaining >= extensionTrigger * viewportHeight) return;
 
 			// Wait for the larger height to reach the DOM before checking the threshold again.
 			extending = true;
-			runwayHeight = (runwayHeight ?? runway.getBoundingClientRect().height) + RUNWAY_EXTENSION_INCREMENT_VIEWPORTS * viewportHeight;
+			runwayHeight =
+				(runwayHeight ?? runway.getBoundingClientRect().height) +
+				extensionIncrement * viewportHeight;
 			void tick().then(() => {
 				extending = false;
 			});

@@ -7,7 +7,7 @@ export default defineConfig({
 		{ name: 'chromium', use: { browserName: 'chromium', channel: 'chromium' } },
 		{
 			name: 'webkit',
-			testMatch: '**/editor-polish.spec.ts',
+			testMatch: ['**/editor-polish.spec.ts', '**/watch-runway.spec.ts'],
 			use: { browserName: 'webkit', channel: undefined }
 		}
 	],
