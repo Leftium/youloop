@@ -120,16 +120,15 @@ test('editor aliases, live state, canonical sharing, reload and Back/Forward', a
 	await settled(page);
 	await expect(page.locator('.share-prototype')).toHaveCount(1);
 	await expect(page.locator('.brand')).toHaveCount(0);
-	await expect(page.getByRole('link', { name: 'Edit', exact: true })).toHaveAttribute(
-		'href',
-		`/?v=${id}&t=25.5~33.2&once&mute&speed=1.5&vertical&fill`
-	);
+	await expect(
+		page.getByRole('link', { name: 'Switch to edit-first mode', exact: true })
+	).toHaveAttribute('href', `/?v=${id}&t=25.5~33.2&once&mute&speed=1.5&vertical&fill`);
 	await page.goBack();
 	await settled(page);
-	await expect(page.getByRole('button', { name: 'Next frame' })).toBeVisible();
+	await expect(page.getByRole('button', { name: 'Next Frame' })).toBeVisible();
 	await page.goForward();
 	await settled(page);
-	await page.getByRole('link', { name: 'Edit', exact: true }).click();
+	await page.getByRole('link', { name: 'Switch to edit-first mode', exact: true }).click();
 	await settled(page);
 	await expect(page.getByRole('link', { name: 'Share URL', exact: true })).toHaveAttribute(
 		'href',
@@ -157,9 +156,9 @@ test('new editor parameters win over aliases, seek/step/loop/once work with real
 		'aria-pressed',
 		'true'
 	);
-	await page.getByRole('button', { name: 'Next frame' }).click();
+	await page.getByRole('button', { name: 'Next Frame' }).click();
 	await expect.poll(async () => (await mediaState(page)).time).toBeGreaterThan(31);
-	await page.getByRole('button', { name: 'Previous frame' }).click();
+	await page.getByRole('button', { name: 'Prev Frame' }).click();
 	await page.getByRole('button', { name: 'Play', exact: true }).click();
 	await expect.poll(async () => (await mediaState(page)).state).toBe(1);
 	await page.waitForFunction(() => {
@@ -201,16 +200,14 @@ for (const path of [`/s?v=${id}&a=31&b=99999&fit=contain`, `/${id}/31?fill=0`]) 
 	test(`open end survives duration settlement and reload: ${path}`, async ({ page }) => {
 		await page.goto(path);
 		await settled(page);
-		await expect(page.getByRole('link', { name: 'Edit', exact: true })).toHaveAttribute(
-			'href',
-			`/?v=${id}&t=31~&fill=0`
-		);
+		await expect(
+			page.getByRole('link', { name: 'Switch to edit-first mode', exact: true })
+		).toHaveAttribute('href', `/?v=${id}&t=31~&fill=0`);
 		await page.reload();
 		await settled(page);
-		await expect(page.getByRole('link', { name: 'Edit', exact: true })).toHaveAttribute(
-			'href',
-			`/?v=${id}&t=31~&fill=0`
-		);
+		await expect(
+			page.getByRole('link', { name: 'Switch to edit-first mode', exact: true })
+		).toHaveAttribute('href', `/?v=${id}&t=31~&fill=0`);
 	});
 }
 
@@ -315,22 +312,22 @@ test('benign root queries retain the empty editor and generic metadata', async (
 
 const editorPath = `/?v=${id}&t=31~38&once&speed=1.5&vertical=0&fill=0`;
 const editAction = (page: Page) =>
-	page.locator('media-controls .watch-actions a[aria-label="Edit"]');
+	page.getByRole('link', { name: 'Switch to edit-first mode', exact: true });
 
 async function assertEditTargets(page: Page) {
 	expect(
 		await page.evaluate(() => {
-			const targets = [...document.querySelectorAll('media-controls :is(button,a)')].map((el) =>
-				el.getBoundingClientRect()
-			);
+			const targets = [
+				...document.querySelectorAll('media-controls :is(button,a), .mode-toggle')
+			].map((el) => el.getBoundingClientRect());
 			const groups = [...document.querySelectorAll('.watch-time,.watch-actions')].map((el) =>
 				el.getBoundingClientRect()
 			);
 			return (
 				targets.every(
 					(r) =>
-						r.width >= 44 &&
-						r.height >= 44 &&
+						r.width >= 32 &&
+						r.height >= 32 &&
 						r.left >= 0 &&
 						r.right <= innerWidth &&
 						r.top >= 0 &&
@@ -350,7 +347,7 @@ async function assertEditLayout(page: Page, nativeFullscreen: boolean) {
 	await expect(page.locator('.watch-navigation')).toHaveCount(0);
 	const edit = editAction(page);
 	await expect(edit).toHaveCount(1);
-	await expect(edit).toHaveAttribute('title', 'Edit');
+	await expect(edit).toHaveAttribute('data-tooltip', 'Switch to edit-first mode');
 	await expect(edit).toHaveText('');
 	expect(
 		await page
@@ -358,10 +355,10 @@ async function assertEditLayout(page: Page, nativeFullscreen: boolean) {
 			.evaluateAll((elements) => elements.map((el) => el.getAttribute('aria-label')))
 	).toEqual(
 		nativeFullscreen
-			? ['Unmute video', 'Edit', 'Theater mode', 'Enter fullscreen']
-			: ['Unmute video', 'Edit', 'Theater mode']
+			? ['Unmute video', 'Theater mode', 'Enter fullscreen']
+			: ['Unmute video', 'Theater mode']
 	);
-	await expect(page.locator('.watch-actions :is(button,a)')).toHaveCount(nativeFullscreen ? 4 : 3);
+	await expect(page.locator('.watch-actions :is(button,a)')).toHaveCount(nativeFullscreen ? 3 : 2);
 	await page.getByRole('button', { name: 'Unmute video', exact: true }).click();
 	await expect(edit).toHaveAttribute('href', editorPath);
 	await assertEditTargets(page);
@@ -441,7 +438,7 @@ test('Edit link preserves playback, provider identity, new tab and Back/Forward'
 	await tab.close();
 	await edit.press('Enter');
 	await settled(page);
-	await expect(page.getByRole('button', { name: 'Next frame' })).toBeVisible();
+	await expect(page.getByRole('button', { name: 'Next Frame' })).toBeVisible();
 	await expect(
 		page.getByRole('link', { name: 'Share URL', exact: true, includeHidden: true })
 	).toBeVisible();
@@ -450,5 +447,5 @@ test('Edit link preserves playback, provider identity, new tab and Back/Forward'
 	await expect(edit).toHaveAttribute('href', editorPath);
 	await page.goForward();
 	await settled(page);
-	await expect(page.getByRole('button', { name: 'Next frame' })).toBeVisible();
+	await expect(page.getByRole('button', { name: 'Next Frame' })).toBeVisible();
 });

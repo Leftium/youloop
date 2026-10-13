@@ -22,6 +22,7 @@
 	import { createTimelineMode, timelineRange, type TimelineMode } from './watch-timeline';
 
 	import IcRoundEdit from '~icons/ic/round-edit';
+	import IcRoundVisibility from '~icons/ic/round-visibility';
 
 	import IcRoundPlayArrow from '~icons/ic/round-play-arrow';
 	import IcRoundPause from '~icons/ic/round-pause';
@@ -53,6 +54,8 @@
 	let subSeconds = $state(false);
 	let boundEditError = $state('');
 	let watchTitle = $state<HTMLHeadingElement>();
+	let titleMinimumHeight = $state(32);
+	let modeToggle = $state<HTMLAnchorElement>();
 	let titlePlacement = $state({ left: 0, top: 0, width: 0, maxHeight: 0, mode: 'video' });
 	let controlsRegion = $state<HTMLDivElement>();
 	let watchControls = $state<HTMLElement>();
@@ -80,6 +83,7 @@
 		sourceAspectRatio?: number;
 		minimal?: boolean;
 		editorPath?: string;
+		viewPath?: string;
 		editorFeedback?: Snippet;
 		editorFooter?: Snippet<[boolean]>;
 		once?: boolean;
@@ -117,6 +121,7 @@
 		sourceAspectRatio = 16 / 9,
 		minimal = false,
 		editorPath,
+		viewPath,
 		editorFeedback,
 		editorFooter,
 		once = false,
@@ -355,6 +360,7 @@
 		const region = controlsRegion;
 		const controls = watchControls;
 		const title = watchTitle;
+		const modeButton = modeToggle;
 		let frame = 0;
 		function measureVisibleVideo() {
 			frame = 0;
@@ -412,21 +418,42 @@
 				right: right - regionLeft,
 				bottom: bottom - regionTop
 			};
-			controlsPlacement = placeWatchControls(safe, video, {
-				time: time.width,
-				actions: actions.width,
-				height: Math.max(time.height, actions.height)
-			});
+			const buttonBounds = modeButton?.getBoundingClientRect();
+			const reserved = buttonBounds
+				? {
+						left: buttonBounds.left - regionLeft,
+						top: buttonBounds.top - regionTop,
+						right: buttonBounds.right - regionLeft,
+						bottom: buttonBounds.bottom - regionTop
+					}
+				: undefined;
+			controlsPlacement = placeWatchControls(
+				safe,
+				video,
+				{
+					time: time.width,
+					actions: actions.width,
+					height: Math.max(time.height, actions.height)
+				},
+				reserved
+			);
 			if (title) {
+				titleMinimumHeight = parseFloat(getComputedStyle(title).minHeight);
 				// Measure each candidate at its own width. Reusing the currently rendered
 				// height can alternate forever between a one-line fallback and a wrapped gutter.
 				const previousWidth = title.style.width;
 				const previousMaxHeight = title.style.maxHeight;
 				title.style.maxHeight = 'none';
-				titlePlacement = placeWatchTitle(safe, video, controlsPlacement, (width) => {
-					title.style.width = `${width}px`;
-					return title.scrollHeight;
-				});
+				titlePlacement = placeWatchTitle(
+					safe,
+					video,
+					controlsPlacement,
+					(width) => {
+						title.style.width = `${width}px`;
+						return title.scrollHeight;
+					},
+					reserved
+				);
 				title.style.width = previousWidth;
 				title.style.maxHeight = previousMaxHeight;
 			}
@@ -439,6 +466,7 @@
 		observer.observe(playerContainer);
 		observer.observe(region);
 		if (title) observer.observe(title);
+		if (modeButton) observer.observe(modeButton);
 		observer.observe(controls.querySelector('.watch-time')!);
 		observer.observe(controls.querySelector('.watch-actions')!);
 		window.addEventListener('resize', schedule);
@@ -961,6 +989,9 @@
 								style:top={`${titlePlacement.top}px`}
 								style:width={`${titlePlacement.width}px`}
 								style:max-height={`${titlePlacement.maxHeight}px`}
+								style:visibility={titlePlacement.maxHeight < titleMinimumHeight
+									? 'hidden'
+									: undefined}
 							>
 								{videoTitle}
 							</h1>
@@ -1001,9 +1032,6 @@
 								>
 									{#if muted}<IcRoundVolumeOff />{:else}<IcRoundVolumeUp />{/if}
 								</button>
-								{#if editorPath}
-									<a href={editorPath} aria-label="Edit" title="Edit"><IcRoundEdit /></a>
-								{/if}
 								<button aria-label="Theater mode" disabled={fullscreen} onclick={ontheater}
 									><IcRoundCropLandscape /></button
 								>
@@ -1027,6 +1055,18 @@
 				onclick={togglePaused}
 			></button>
 		{/if}
+		{#if !theater && (minimal ? editorPath : viewPath)}
+			<a
+				class="mode-toggle"
+				bind:this={modeToggle}
+				class:view-action={!minimal}
+				href={minimal ? editorPath : viewPath}
+				aria-label={minimal ? 'Switch to edit-first mode' : 'Switch to view-first mode'}
+				data-tooltip={minimal ? 'Switch to edit-first mode' : 'Switch to view-first mode'}
+			>
+				{#if minimal}<IcRoundEdit />{:else}<IcRoundVisibility />{/if}
+			</a>
+		{/if}
 		{@render editorOverlay?.()}
 		{#if minimal && playerError}
 			<p class="player-error" role="alert">{playerError}</p>
@@ -1045,14 +1085,13 @@
 					</a>
 				</div>
 			</div>
-		{/snippet}
-		{@render media(corners)}
-		<div class="editor-transport">
 			<div class="timestamps">
 				<div>{formatVideoTime(currentTime)} / {formatVideoTime(duration)}</div>
 				<div>{editorTime(repeatA, subSeconds, 2)}A - {editorTime(repeatB, subSeconds, 2)}B</div>
 			</div>
-
+		{/snippet}
+		{@render media(corners)}
+		<div class="editor-transport">
 			<div class="wrap-sliders">
 				<input type="range" aria-hidden="true" tabindex="-1" />
 
@@ -1099,70 +1138,80 @@
 			</div>
 
 			<div class="preview-actions" inert={!metadataReceived}>
-				<div class="preview-playback nc-join" role="group" aria-label="Player transport">
-					<button
-						class="transport-play"
-						aria-label={paused ? 'Play' : 'Pause'}
-						onclick={togglePaused}
-						disabled={!!boundsError}
-					>
-						{#if paused}<IcRoundPlayArrow />{:else}<IcRoundPause />{/if}<span class="play-label"
-							>{paused ? 'Play' : 'Pause'}</span
+				<div class="preview-playback" role="group" aria-label="Player transport">
+					<div class="transport-group nc-join" role="group" aria-label="Playback and frames">
+						<button
+							class="transport-play"
+							aria-label={paused ? 'Play' : 'Pause'}
+							onclick={togglePaused}
+							disabled={!!boundsError}
 						>
-					</button>
-					<button
-						class="transport-frame"
-						aria-label="Previous frame"
-						data-tooltip="Previous frame"
-						onclick={makeStepFrame(-1)}
-						disabled={!!boundsError}
-						><IcRoundSkipPrevious /><span class="frame-label">Previous frame</span></button
+							{#if paused}<IcRoundPlayArrow />{:else}<IcRoundPause />{/if}<span class="play-label"
+								>{paused ? 'Play' : 'Pause'}</span
+							>
+						</button>
+						<button
+							class="transport-frame"
+							aria-label="Prev Frame"
+							data-tooltip="Prev Frame"
+							onclick={makeStepFrame(-1)}
+							disabled={!!boundsError}
+							><IcRoundSkipPrevious /><span class="frame-label">Prev Frame</span></button
+						>
+						<button
+							class="transport-frame"
+							aria-label="Next Frame"
+							data-tooltip="Next Frame"
+							onclick={makeStepFrame(1)}
+							disabled={!!boundsError}
+							><IcRoundSkipNext /><span class="frame-label">Next Frame</span></button
+						>
+					</div>
+					<div class="transport-group nc-join" role="group" aria-label="Speed">
+						<button
+							class="transport-speed"
+							aria-label={`Cycle playback speed, current ${playbackRate / 100}x`}
+							data-tooltip="Cycle playback speed"
+							onclick={makeTogglePlaybackRate()}
+							><IcRoundSpeed /><span class="secondary-label">Speed</span><span class="speed-value"
+								>{playbackRate / 100}x</span
+							></button
+						>
+						{#each [200, 100, 50, 25] as rate (rate)}<button
+								class="transport-rate"
+								aria-label={`Set playback speed to ${rate / 100}x`}
+								aria-pressed={playbackRate === rate}
+								data-tooltip={`${rate / 100}x speed`}
+								onclick={makeTogglePlaybackRate(rate)}>{rate / 100}x</button
+							>{/each}
+					</div>
+					<div
+						class="transport-group transport-options nc-join"
+						role="group"
+						aria-label="Sound and loop"
 					>
-					<button
-						class="transport-frame"
-						aria-label="Next frame"
-						data-tooltip="Next frame"
-						onclick={makeStepFrame(1)}
-						disabled={!!boundsError}
-						><IcRoundSkipNext /><span class="frame-label">Next frame</span></button
-					>
-					<button
-						class="transport-speed"
-						aria-label={`Cycle playback speed, current ${playbackRate / 100}x`}
-						data-tooltip="Cycle playback speed"
-						onclick={makeTogglePlaybackRate()}
-						><IcRoundSpeed /><span class="secondary-label">Speed</span><span class="speed-value"
-							>{playbackRate / 100}x</span
-						></button
-					>
-					{#each [200, 100, 50, 25] as rate (rate)}<button
-							class="transport-rate"
-							aria-label={`Set playback speed to ${rate / 100}x`}
-							aria-pressed={playbackRate === rate}
-							data-tooltip={`${rate / 100}x speed`}
-							onclick={makeTogglePlaybackRate(rate)}>{rate / 100}x</button
-						>{/each}
-					<button
-						class="transport-sound"
-						aria-label={muted ? 'Sound off, turn on' : 'Sound on, turn off'}
-						aria-pressed={!muted}
-						data-tooltip={muted ? 'Turn sound on' : 'Turn sound off'}
-						onclick={toggleMute}
-						>{#if muted}<IcRoundVolumeOff />{:else}<IcRoundVolumeUp />{/if}<span
-							class="secondary-label">Sound</span
-						></button
-					>
-					<button
-						class="transport-loop"
-						aria-label={loop ? 'Loop, switch to Once' : 'Once, switch to Loop'}
-						aria-pressed={loop}
-						data-tooltip={loop ? 'Switch to Once' : 'Switch to Loop'}
-						onclick={toggleLoop}
-						>{#if loop}<FluentArrowRepeat />{:else}<FluentArrowRepeatOff />{/if}<span
-							class="secondary-label">Loop</span
-						></button
-					>
-					<button class="transport-fill" disabled aria-hidden="true" tabindex="-1"></button>
+						<button
+							class="transport-sound"
+							aria-label={muted ? 'Sound off, turn on' : 'Sound on, turn off'}
+							aria-pressed={!muted}
+							data-tooltip={muted ? 'Turn sound on' : 'Turn sound off'}
+							onclick={toggleMute}
+							>{#if muted}<IcRoundVolumeOff />{:else}<IcRoundVolumeUp />{/if}<span
+								class="secondary-label">Sound</span
+							></button
+						>
+						<button
+							class="transport-loop"
+							aria-label={loop ? 'Loop, switch to Once' : 'Once, switch to Loop'}
+							aria-pressed={loop}
+							data-tooltip={loop ? 'Switch to Once' : 'Switch to Loop'}
+							onclick={toggleLoop}
+							>{#if loop}<FluentArrowRepeat />{:else}<FluentArrowRepeatOff />{/if}<span
+								class="secondary-label">Loop</span
+							></button
+						>
+						<button class="transport-fill" disabled aria-hidden="true" tabindex="-1"></button>
+					</div>
 				</div>
 			</div>
 		</div>
@@ -1224,8 +1273,8 @@
 			</ClipRange>
 			{@render editorFeedback?.()}
 		</section>
-		<section aria-labelledby="playback-heading" class="settings-section">
-			<h2 id="playback-heading">Playback</h2>
+		<fieldset aria-label="Playback" class="settings-section">
+			<legend>Playback</legend>
 			<div class="setting-row">
 				<span>Speed</span>
 				<div class="speed-buttons choice-pills" role="group" aria-label="Playback speed">
@@ -1264,9 +1313,9 @@
 					>
 				</div>
 			</div>
-		</section>
-		<section aria-labelledby="framing-heading" class="settings-section">
-			<h2 id="framing-heading">Framing</h2>
+		</fieldset>
+		<fieldset aria-label="Framing" class="settings-section">
+			<legend>Framing</legend>
 			<div class="setting-row">
 				<span>Orientation</span>
 				<div class="choice-pills orientation-pills" role="group" aria-label="Media orientation">
@@ -1301,7 +1350,7 @@
 					onchange={(event) => onmirrorchange?.(event.currentTarget.checked)}
 				/></label
 			>
-		</section>
+		</fieldset>
 	</div>
 	{@render layoutReset()}
 {/snippet}
@@ -1433,6 +1482,9 @@
 		pointer-events: none;
 	}
 	.video-title {
+		display: flex;
+		align-items: center;
+		min-height: var(--youloop-control-size);
 		user-select: none;
 		pointer-events: none;
 		position: absolute;
@@ -1440,23 +1492,24 @@
 		overflow: hidden;
 		overflow-wrap: anywhere;
 		margin: 0;
-		padding: 8px 12px;
-		font-size: clamp(1rem, 3vw, 1.4rem);
-		line-height: 1.3;
+		padding: var(--youloop-control-padding);
+		font-size: 0.85rem;
+		line-height: 1.5;
 		color: white;
-		background: rgb(0 0 0 / 45%);
-		border-radius: 8px;
+		background: var(--youloop-overlay-background);
+		border-radius: var(--youloop-control-radius);
 	}
 	.video-title[data-placement='above'],
 	.video-title[data-placement='below'] {
+		justify-content: center;
 		text-align: center;
 	}
 	.watch-controls-region {
 		position: absolute;
 		container-type: inline-size;
 		box-sizing: border-box;
-		padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right))
-			max(14px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
+		padding: max(8px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right))
+			max(8px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left));
 		pointer-events: none;
 	}
 	.watch-controls {
@@ -1464,7 +1517,7 @@
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
-		gap: 6px;
+		gap: var(--youloop-control-gap);
 		opacity: 0;
 		transition: opacity 180ms;
 		pointer-events: none;
@@ -1480,16 +1533,17 @@
 		justify-content: center;
 		box-sizing: border-box;
 		text-decoration: none;
-		width: 44px;
-		min-width: 44px;
+		width: var(--youloop-control-size);
+		min-width: var(--youloop-control-size);
 		flex-shrink: 0;
-		height: 44px;
+		height: var(--youloop-control-size);
+		min-height: var(--youloop-control-size);
 		margin: 0;
-		padding: 10px;
+		padding: var(--youloop-control-padding);
 		border: 0;
-		border-radius: 10px;
+		border-radius: var(--youloop-control-radius);
 		color: white;
-		background: rgb(90 90 90 / 65%);
+		background: var(--youloop-overlay-background);
 		cursor: pointer;
 		pointer-events: auto;
 	}
@@ -1499,17 +1553,22 @@
 	}
 	.watch-actions {
 		display: flex;
-		gap: 6px;
+		gap: var(--youloop-control-gap);
 		margin-left: auto;
 	}
 	.watch-controls .watch-time {
 		width: auto;
-		min-width: 44px;
-		padding: 6px 8px;
-		gap: 6px;
-		font-size: clamp(0.7rem, 2.5vw, 0.9rem);
+		min-width: var(--youloop-control-size);
+		padding: var(--youloop-control-padding);
+		gap: var(--youloop-control-gap);
+		font-size: 0.85rem;
 		font-variant-numeric: tabular-nums;
 		white-space: nowrap;
+	}
+	.watch-controls :global(svg) {
+		width: var(--youloop-control-icon-size);
+		height: var(--youloop-control-icon-size);
+		flex-shrink: 0;
 	}
 	.time-value {
 		display: inline-flex;
@@ -1523,24 +1582,19 @@
 		cursor: default;
 	}
 	@container (max-width: 360px) {
-		.watch-controls {
-			gap: 4px;
-		}
-		.watch-actions {
-			gap: 4px;
-		}
 		.watch-controls .watch-time {
 			flex-direction: column;
 			gap: 0;
-			padding: 4px;
+			height: auto;
+			min-height: var(--youloop-control-size);
 		}
 	}
 	@container (max-width: 260px) {
 		.watch-controls .watch-time {
 			flex: 1;
-			min-width: 44px;
+			min-width: var(--youloop-control-size);
 			height: auto;
-			min-height: 44px;
+			min-height: var(--youloop-control-size);
 			font-size: 0.7rem;
 		}
 		.time-value {
@@ -1559,7 +1613,7 @@
 		outline-offset: 3px;
 	}
 	.watch-controls :is(button, a):hover {
-		background: rgb(120 120 120 / 80%);
+		background: rgb(90 90 90 / 90%);
 	}
 	.watch-controls button:disabled {
 		opacity: 0.5;
@@ -1652,8 +1706,8 @@
 		min-height: 0;
 	}
 	.editor-transport {
-		padding: 0.5rem max(1rem, env(safe-area-inset-right)) max(1rem, env(safe-area-inset-bottom))
-			max(1rem, env(safe-area-inset-left));
+		padding: 0.5rem max(8px, env(safe-area-inset-right)) max(1rem, env(safe-area-inset-bottom))
+			max(8px, env(safe-area-inset-left));
 	}
 	.editor-transport .wrap-sliders {
 		margin-bottom: 0.5rem;
@@ -1665,50 +1719,69 @@
 		display: flex;
 		align-items: center;
 	}
-	.preview-playback.nc-join {
+	.preview-playback {
 		display: flex;
-		flex-wrap: nowrap;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: var(--youloop-control-gap);
 		width: 100%;
+	}
+	.transport-group {
+		--nc-radius: var(--youloop-control-radius);
+		display: flex;
+		flex-shrink: 0;
+	}
+	.transport-options {
+		flex-grow: 1;
 	}
 	.preview-playback button {
 		display: inline-flex;
 		align-items: center;
 		justify-content: center;
-		gap: 6px;
-		height: 44px;
-		width: 44px;
-		min-width: 44px;
+		gap: var(--youloop-control-gap);
+		height: var(--youloop-control-size);
+		width: var(--youloop-control-size);
+		min-width: var(--youloop-control-size);
 		flex-shrink: 0;
-		padding: 4px;
+		padding: var(--youloop-control-padding);
 		margin: 0;
+	}
+	.preview-playback .transport-fill {
+		flex: 1;
+		width: auto;
+		min-width: 8px;
+		padding: 0;
+		opacity: 1;
+		cursor: default;
 	}
 	.preview-playback .transport-rate {
 		display: none;
-		width: 56px;
+		width: auto;
+		min-width: 5ch;
+	}
+	// Hidden presets still count as children of nc-join; round the visible end instead.
+	.preview-playback .transport-speed {
+		width: auto;
+		padding-inline: 8px;
+		border-start-end-radius: var(--nc-radius);
+		border-end-end-radius: var(--nc-radius);
 	}
 	@container transport (min-width: 1000px) {
 		.preview-playback .transport-rate {
 			display: inline-flex;
 		}
+		.preview-playback .transport-speed {
+			border-start-end-radius: 0;
+			border-end-end-radius: 0;
+		}
 		.transport-speed .speed-value {
 			display: none;
 		}
 	}
-	.preview-playback .transport-fill {
-		flex: 1;
-		width: auto;
-		min-width: 0;
-		padding: 0;
-		opacity: 1;
-		cursor: default;
-	}
 	.preview-playback :global(svg) {
-		width: 22px;
-		height: 22px;
+		width: var(--youloop-control-icon-size);
+		height: var(--youloop-control-icon-size);
 		flex-shrink: 0;
-	}
-	.preview-playback .transport-speed {
-		width: 82px;
 	}
 	.speed-value {
 		min-width: 5ch;
@@ -1719,6 +1792,9 @@
 	.frame-label,
 	.secondary-label {
 		display: none;
+	}
+	.play-label {
+		min-width: 5ch;
 	}
 	.preview-playback button[data-tooltip] {
 		position: relative;
@@ -1744,14 +1820,8 @@
 		opacity: 1;
 	}
 	@container transport (max-width: 320px) {
-		.preview-playback .transport-loop {
-			display: none;
-		}
 		.transport-speed :global(svg) {
 			display: none;
-		}
-		.preview-playback .transport-speed {
-			width: 72px;
 		}
 	}
 	@container transport (min-width: 400px) {
@@ -1759,19 +1829,16 @@
 			display: inline;
 		}
 		.preview-playback .transport-play {
-			width: 90px;
+			width: auto;
 		}
 	}
 	@container transport (min-width: 560px) {
 		.secondary-label {
 			display: inline;
 		}
-		.preview-playback .transport-speed {
-			width: 145px;
-		}
 		.preview-playback .transport-sound,
 		.preview-playback .transport-loop {
-			width: 95px;
+			width: auto;
 		}
 	}
 	@container transport (min-width: 780px) {
@@ -1779,13 +1846,16 @@
 			display: inline;
 		}
 		.preview-playback .transport-frame {
-			width: 145px;
+			width: auto;
 		}
 	}
 	.preview-corners {
 		position: absolute;
 		inset: max(8px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) auto
-			max(8px, env(safe-area-inset-left));
+			calc(
+				max(8px, env(safe-area-inset-left)) + var(--youloop-control-size) +
+					var(--youloop-control-gap)
+			);
 		z-index: 1;
 		display: flex;
 		align-items: flex-start;
@@ -1793,24 +1863,85 @@
 		gap: 8px;
 		pointer-events: none;
 	}
+	.mode-toggle {
+		position: absolute;
+		top: max(8px, env(safe-area-inset-top));
+		left: max(8px, env(safe-area-inset-left));
+		z-index: 2;
+		display: grid;
+		place-items: center;
+		box-sizing: border-box;
+		width: var(--youloop-control-size);
+		height: var(--youloop-control-size);
+		padding: var(--youloop-control-padding);
+		margin: 0;
+		border-radius: var(--youloop-control-radius);
+		color: white;
+		text-decoration: none;
+	}
+	.mode-toggle::before {
+		content: '';
+		position: absolute;
+		inset: 0;
+		border-radius: var(--youloop-control-radius);
+		background: var(--youloop-overlay-background);
+		z-index: -1;
+	}
+	.mode-toggle:hover::before {
+		background: rgb(90 90 90 / 90%);
+	}
+	.mode-toggle:focus-visible {
+		outline: 2px solid white;
+		outline-offset: 2px;
+	}
+	.mode-toggle :global(svg) {
+		width: var(--youloop-control-icon-size);
+		height: var(--youloop-control-icon-size);
+	}
+	// The eye spans more of its viewBox than the pencil and layout glyphs.
+	.mode-toggle.view-action :global(svg) {
+		width: 14px;
+		height: 14px;
+	}
+	.mode-toggle::after {
+		content: attr(data-tooltip);
+		position: absolute;
+		left: 0;
+		top: calc(100% + 4px);
+		width: max-content;
+		max-width: min(260px, calc(100vw - 32px));
+		padding: 6px 8px;
+		border-radius: var(--youloop-control-radius);
+		background: #222;
+		color: white;
+		font-size: 0.8rem;
+		text-align: left;
+		pointer-events: none;
+		opacity: 0;
+	}
+	.mode-toggle:hover::after,
+	.mode-toggle:focus::after {
+		opacity: 1;
+	}
 	.preview-brand {
 		min-width: 0;
 		color: white;
 		font-weight: 700;
-		font-size: 1rem;
+		font-size: 0.85rem;
 	}
 	.preview-brand img {
 		height: 1.25em;
 		width: auto;
 	}
 	.brand {
+		box-sizing: border-box;
 		display: flex;
 		align-items: center;
-		gap: 0.35rem;
-		min-height: 44px;
-		padding-inline: 8px;
-		border-radius: 6px;
-		background: rgb(0 0 0 / 70%);
+		gap: var(--youloop-control-gap);
+		min-height: var(--youloop-control-size);
+		padding: var(--youloop-control-padding);
+		border-radius: var(--youloop-control-radius);
+		background: var(--youloop-overlay-background);
 		color: inherit;
 		text-decoration: none;
 		pointer-events: auto;
@@ -1826,12 +1957,19 @@
 	}
 	.settings-section {
 		min-width: 0;
-		padding-bottom: 12px;
-		border-bottom: 1px solid var(--nc-border);
 	}
-	.settings-section h2 {
-		font-size: 1.2rem;
-		margin: 0 0 8px;
+	.settings-section > :global(fieldset:last-of-type) {
+		margin-bottom: 0;
+	}
+	fieldset.settings-section {
+		border: 1px solid var(--nc-border, #777);
+		border-radius: 8px;
+		padding: 8px 12px 12px;
+		margin: 0;
+	}
+	.settings-section legend {
+		padding-inline: 4px;
+		line-height: 1.5rem;
 	}
 	.setting-row {
 		display: flex;
@@ -1926,10 +2064,29 @@
 		}
 	}
 	.timestamps {
+		position: absolute;
+		inset: auto max(8px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom))
+			max(8px, env(safe-area-inset-left));
+		z-index: 1;
 		display: flex;
+		flex-wrap: wrap;
 		justify-content: space-between;
-
-		font-family: Lato, sans-serif;
+		gap: 4px 8px;
+		pointer-events: none;
+		font-size: 0.85rem;
+		font-variant-numeric: tabular-nums;
+	}
+	.timestamps > div {
+		display: inline-flex;
+		align-items: center;
+		box-sizing: border-box;
+		min-height: var(--youloop-control-size);
+		padding: var(--youloop-control-padding);
+		border-radius: var(--youloop-control-radius);
+		color: white;
+		background: var(--youloop-overlay-background);
+		text-shadow: 0 1px 2px rgb(0 0 0 / 60%);
+		white-space: nowrap;
 	}
 
 	.wrap-sliders {
@@ -2103,13 +2260,13 @@
 		width: auto;
 		border-radius: var(--nc-radius);
 		button {
-			min-height: 44px;
-			min-width: 44px;
-			padding: 6px 10px;
+			min-height: var(--youloop-control-size);
+			min-width: var(--youloop-control-size);
+			padding: var(--youloop-control-padding);
 			margin: 0;
 			background: $zinc-550;
 			color: white;
-			border: 1px solid transparent;
+			border: 0;
 			font-size: 0.85rem;
 		}
 		button:hover {
@@ -2117,7 +2274,7 @@
 		}
 		button[aria-pressed='true'] {
 			background: #454b55;
-			border-color: #ababab;
+			box-shadow: inset 0 0 0 1px #ababab;
 		}
 		button:focus-visible {
 			outline: 2px solid #79c0ff;

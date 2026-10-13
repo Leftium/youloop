@@ -28,10 +28,9 @@ test('signed fractions survive watch/editor/copy/reload/history and explicit bou
 	await expect
 		.poll(async () => Math.abs((await state(page)).time - (duration - 30.5)))
 		.toBeLessThan(0.5);
-	await expect(page.getByRole('link', { name: 'Edit', exact: true })).toHaveAttribute(
-		'href',
-		editor
-	);
+	await expect(
+		page.getByRole('link', { name: 'Switch to edit-first mode', exact: true })
+	).toHaveAttribute('href', editor);
 	await page.evaluate(() => {
 		const media = document.querySelector('youtube-video') as HTMLElement & { engine: unknown };
 		Object.assign(window, {
@@ -58,7 +57,7 @@ test('signed fractions survive watch/editor/copy/reload/history and explicit bou
 			);
 		})
 	).toBe(true);
-	await page.getByRole('link', { name: 'Edit', exact: true }).click();
+	await page.getByRole('link', { name: 'Switch to edit-first mode', exact: true }).click();
 	await settled(page);
 	for (const [name, expected] of [
 		['Repeat start', duration - 30.5],
@@ -138,7 +137,7 @@ for (const flags of ['mute', 'once&mute&speed=1.5&vertical=0&fill=0']) {
 		await expect.poll(async () => (await state(page)).paused).toBe(true);
 		await expect(page.getByRole('button', { name: 'Play video', exact: true })).toBeDisabled();
 		await expect(page).toHaveURL('http://localhost:5173' + watch);
-		const edit = page.getByRole('link', { name: 'Edit', exact: true });
+		const edit = page.getByRole('link', { name: 'Switch to edit-first mode', exact: true });
 		await expect(edit).toBeVisible();
 		await expect(edit).toHaveAttribute('href', editor);
 		await edit.click();
@@ -221,10 +220,9 @@ for (const scope of ['clip', 'video'] as const) {
 		expect(await page.evaluate(() => scrollY)).toBe(0);
 		await expect(page.locator('.share-prototype')).toHaveAttribute('data-mode', 'default');
 		await expect(timeline).toHaveAttribute('data-mode', scope);
-		await expect(page.getByRole('link', { name: 'Edit', exact: true })).toHaveAttribute(
-			'href',
-			`/?v=${id}&t=-30~-5&mute`
-		);
+		await expect(
+			page.getByRole('link', { name: 'Switch to edit-first mode', exact: true })
+		).toHaveAttribute('href', `/?v=${id}&t=-30~-5&mute`);
 		await assertProvider();
 		// Check resolved A/B as well as signed intent, even when VIDEO was selected.
 		if (scope === 'video') await page.locator('.watch-time').click();

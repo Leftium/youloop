@@ -9,11 +9,12 @@ interface Bounds {
 export function placeWatchControls(
 	safe: Bounds,
 	video: Bounds,
-	groups: { time: number; actions: number; height: number }
+	groups: { time: number; actions: number; height: number },
+	reserved?: Bounds
 ) {
-	const gap = 12;
+	const gap = 8;
 	const height = groups.height;
-	const minimumWidth = groups.time + groups.actions + 6;
+	const minimumWidth = groups.time + groups.actions + gap;
 	const row = (left: number, top: number, right: number, mode: string) => ({
 		left,
 		top,
@@ -21,7 +22,7 @@ export function placeWatchControls(
 		height,
 		mode
 	});
-	const bottomTop = Math.max(safe.top, Math.min(video.bottom - 14 - height, safe.bottom - height));
+	const bottomTop = Math.max(safe.top, Math.min(video.bottom - gap - height, safe.bottom - height));
 	if (
 		video.left - gap - safe.left >= groups.time &&
 		safe.right - video.right - gap >= groups.actions &&
@@ -47,14 +48,21 @@ export function placeWatchControls(
 			return row(left, video.bottom + gap, left + width, 'below');
 		}
 		if (video.top - safe.top >= gap + height) {
-			return row(left, video.top - gap - height, left + width, 'above');
+			const top = video.top - gap - height;
+			const clearLeft =
+				reserved && top < reserved.bottom + gap && top + height > reserved.top - gap
+					? Math.max(left, reserved.right + gap)
+					: left;
+			if (left + width - clearLeft >= minimumWidth) {
+				return row(clearLeft, top, left + width, 'above');
+			}
 		}
 	}
 	// A very narrow portrait canvas may not hold even the compact row. Keep its
 	// buttons reachable across the surrounding player without changing the picture.
 	const width = Math.min(
 		safe.right - safe.left,
-		Math.max(video.right - video.left - 24, minimumWidth)
+		Math.max(video.right - video.left - 2 * gap, minimumWidth)
 	);
 	const left = Math.max(
 		safe.left,
@@ -67,9 +75,18 @@ export function placeWatchTitle(
 	safe: Bounds,
 	video: Bounds,
 	controls: { left: number; top: number; width: number; height: number },
-	measureHeight: number | ((width: number) => number)
+	measureHeight: number | ((width: number) => number),
+	reserved?: Bounds
 ) {
-	const gap = 12;
+	const gap = 8;
+	const clearTop = (left: number, top: number, width: number, height: number) =>
+		reserved &&
+		left < reserved.right + gap &&
+		left + width > reserved.left - gap &&
+		top < reserved.bottom + gap &&
+		top + height > reserved.top - gap
+			? reserved.bottom + gap
+			: top;
 	const width = Math.min(420, safe.right - safe.left);
 	const centered = Math.max(
 		safe.left,
@@ -100,6 +117,7 @@ export function placeWatchTitle(
 		const height =
 			typeof measureHeight === 'number' ? measureHeight : measureHeight(candidate.width);
 		if (candidate.mode === 'above') candidate.top -= height;
+		candidate.top = clearTop(candidate.left, candidate.top, candidate.width, height);
 		const right = candidate.left + candidate.width;
 		const bottom = candidate.top + height;
 		const outsidePicture =
@@ -124,15 +142,23 @@ export function placeWatchTitle(
 			return { ...candidate, maxHeight: safe.bottom - candidate.top };
 		}
 	}
-	const top = Math.max(safe.top, video.top + gap);
+	const left = Math.max(safe.left, video.left + gap);
+	const fallbackWidth = Math.max(0, Math.min(safe.right, video.right - gap) - left);
+	const height = typeof measureHeight === 'number' ? measureHeight : measureHeight(fallbackWidth);
+	let top = clearTop(left, Math.max(safe.top, video.top + gap), fallbackWidth, height);
+	// Upper controls leave the picture below them available for the title.
+	if (top >= controls.top - gap && top < controls.top + controls.height + gap) {
+		top = controls.top + controls.height + gap;
+	}
+	const bottom =
+		top >= controls.top + controls.height + gap
+			? safe.bottom
+			: Math.min(safe.bottom, controls.top - gap);
 	return {
-		left: Math.max(safe.left, video.left + gap),
+		left,
 		top,
-		width: Math.max(
-			0,
-			Math.min(safe.right, video.right - gap) - Math.max(safe.left, video.left + gap)
-		),
-		maxHeight: Math.max(0, Math.min(safe.bottom, controls.top - gap) - top),
+		width: fallbackWidth,
+		maxHeight: Math.max(0, bottom - top),
 		mode: 'video'
 	};
 }

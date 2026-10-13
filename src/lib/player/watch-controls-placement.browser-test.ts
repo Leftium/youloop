@@ -60,8 +60,8 @@ export async function run() {
 			for (const button of buttons) {
 				const bounds = button.getBoundingClientRect();
 				check(
-					bounds.width >= 44 &&
-						bounds.height >= 44 &&
+					bounds.width >= 32 &&
+						bounds.height >= 32 &&
 						bounds.left >= viewport.offsetLeft &&
 						bounds.top >= viewport.offsetTop &&
 						bounds.right <= viewport.offsetLeft + viewport.width + 1 &&
@@ -101,7 +101,7 @@ export async function run() {
 			[844, 390, 'landscape', 'video'],
 			[844, 475, 'landscape', 'video'],
 			[240, 180, 'landscape', 'video'],
-			[320, 100, 'portrait', 'video'],
+			[320, 100, 'portrait', 'sides'],
 			[844, 390, 'portrait', 'sides']
 		] as const) {
 			resize(width, height);
@@ -204,6 +204,32 @@ export async function run() {
 		check(
 			wrappedTitle.mode === 'above',
 			'Title uses a wider upper gutter at reported 1952x1261 boundary'
+		);
+		const modeButton = { left: 8, top: 8, right: 40, bottom: 40 };
+		const upperSafe = { left: 8, top: 8, right: 674, bottom: 1312 };
+		const tallVideo = { left: 0, top: 70, right: 682, bottom: 1282 };
+		const upperControls = placeWatchControls(
+			upperSafe,
+			tallVideo,
+			{ time: 100, actions: 112, height: 32 },
+			modeButton
+		);
+		check(
+			upperControls.mode === 'above' && upperControls.left >= modeButton.right + 8,
+			'Upper controls leave room for the mode button'
+		);
+		const titleBelowUpperControls = placeWatchTitle(
+			upperSafe,
+			tallVideo,
+			upperControls,
+			140,
+			modeButton
+		);
+		check(
+			titleBelowUpperControls.mode === 'video' &&
+				titleBelowUpperControls.maxHeight >= 140 &&
+				titleBelowUpperControls.top >= upperControls.top + upperControls.height + 8,
+			'Long titles keep usable height when controls occupy the upper gutter'
 		);
 		return results;
 	} finally {

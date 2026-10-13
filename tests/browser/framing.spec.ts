@@ -196,10 +196,9 @@ test('mirror watch/editor reload, history, false flags and source imports', asyn
 	await page.getByRole('link', { name: 'Share URL', exact: true }).click();
 	await expect(page).toHaveURL(`http://localhost:5173/${id}?vertical=0&fill=0&mirror`);
 	await expect(page.locator('youtube-video')).toHaveClass(/mirrored/);
-	await expect(page.getByRole('link', { name: 'Edit', exact: true })).toHaveAttribute(
-		'href',
-		`/?v=${id}&vertical=0&fill=0&mirror`
-	);
+	await expect(
+		page.getByRole('link', { name: 'Switch to edit-first mode', exact: true })
+	).toHaveAttribute('href', `/?v=${id}&vertical=0&fill=0&mirror`);
 	await settled(page);
 	await page.reload();
 	await settled(page);
@@ -207,7 +206,7 @@ test('mirror watch/editor reload, history, false flags and source imports', asyn
 	await expect(page.getByRole('switch', { name: 'Mirror video' })).toBeChecked();
 	await page.goForward();
 	await expect(page.locator('youtube-video')).toHaveClass(/mirrored/);
-	await page.getByRole('link', { name: 'Edit', exact: true }).click();
+	await page.getByRole('link', { name: 'Switch to edit-first mode', exact: true }).click();
 	for (const [input, mirror] of [
 		[`/${id}?mirror&vertical&fill`, true],
 		[`/${id}?vertical=0&fill=0`, false],

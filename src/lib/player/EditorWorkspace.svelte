@@ -16,6 +16,9 @@
 	const storageKey = 'youloop.editor-workspace';
 	const dividerSize = 3;
 	let grid: HTMLDivElement;
+	let settingsScroll: HTMLDivElement;
+	let settingsContent: HTMLDivElement;
+	let settingsMaxWidth = $state(0);
 	let runway: HTMLDivElement;
 	let runwayHeight = $state<number>();
 	let nativeScroll = $state(false);
@@ -29,7 +32,11 @@
 	let ratios = $state({ columns: 0.62, rows: 0.55 });
 	let layout = $derived(width >= 660 ? (preference ?? 'columns') : 'rows');
 	let available = $derived(Math.max(0, (layout === 'columns' ? width : height) - dividerSize));
-	let minimum = $derived(layout === 'columns' ? 320 : Math.min(240, Math.max(0, available - 110)));
+	let minimum = $derived(
+		layout === 'columns'
+			? Math.max(320, settingsMaxWidth ? available - settingsMaxWidth : 320)
+			: Math.min(240, Math.max(0, available - 110))
+	);
 	let maximum = $derived(Math.max(minimum, available - (layout === 'columns' ? 280 : 110)));
 	let size = $derived(Math.max(minimum, Math.min(ratios[layout] * available, maximum)));
 	let layoutAction = $derived(
@@ -60,6 +67,13 @@
 			endDrag();
 			width = grid.clientWidth;
 			height = grid.clientHeight;
+			// Use the same CSS limit for content and splitter bounds, including the pane inset.
+			const contentStyle = getComputedStyle(settingsContent);
+			const scrollStyle = getComputedStyle(settingsScroll);
+			settingsMaxWidth =
+				parseFloat(contentStyle.maxWidth) +
+				parseFloat(scrollStyle.paddingLeft) +
+				parseFloat(scrollStyle.paddingRight);
 		});
 		observer.observe(grid);
 		return () => {
@@ -246,8 +260,16 @@
 		<div id="editor-settings" class="settings-pane">
 			<!-- The scroll region must be reachable for keyboard scrolling. -->
 			<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
-			<div class="settings-scroll" role="region" aria-label="Clip settings" tabindex="0">
-				<div class="settings-content">{@render settings(layoutReset)}</div>
+			<div
+				class="settings-scroll"
+				role="region"
+				aria-label="Clip settings"
+				tabindex="0"
+				bind:this={settingsScroll}
+			>
+				<div class="settings-content" bind:this={settingsContent}>
+					{@render settings(layoutReset)}
+				</div>
 			</div>
 			<footer class="settings-footer">{@render footer()}</footer>
 		</div>
@@ -324,28 +346,29 @@
 	.workspace-layout {
 		position: relative;
 		display: flex;
-		gap: 0.4rem;
+		gap: var(--youloop-control-gap);
 		flex-shrink: 0;
 		pointer-events: auto;
 	}
 	.workspace-layout button {
 		display: grid;
 		place-items: center;
-		width: 44px;
-		height: 44px;
-		padding: 0;
+		width: var(--youloop-control-size);
+		height: var(--youloop-control-size);
+		min-height: var(--youloop-control-size);
+		padding: var(--youloop-control-padding);
 		margin: 0;
 		border: 0;
-		border-radius: 6px;
+		border-radius: var(--youloop-control-radius);
 		background: transparent;
 		color: white;
 	}
 	.workspace-layout button::before {
 		content: '';
 		position: absolute;
-		inset: 4px;
-		border-radius: 6px;
-		background: rgb(60 60 60 / 80%);
+		inset: 0;
+		border-radius: var(--youloop-control-radius);
+		background: var(--youloop-overlay-background);
 		z-index: -1;
 	}
 	.workspace-layout button:hover::before {
@@ -359,7 +382,7 @@
 		width: max-content;
 		max-width: min(260px, calc(100vw - 32px));
 		padding: 6px 8px;
-		border-radius: 6px;
+		border-radius: var(--youloop-control-radius);
 		background: #222;
 		color: white;
 		font-size: 0.8rem;
@@ -376,8 +399,8 @@
 		outline-offset: 2px;
 	}
 	.workspace-layout :global(svg) {
-		width: 24px;
-		height: 24px;
+		width: var(--youloop-control-icon-size);
+		height: var(--youloop-control-icon-size);
 	}
 	.workspace-layout :global(.columns-icon) {
 		transform: rotate(90deg);
@@ -386,6 +409,7 @@
 		opacity: 0.5;
 	}
 	.layout-reset {
+		text-align: center;
 		margin-block: 1rem;
 	}
 	.layout-reset button {
@@ -429,16 +453,15 @@
 		overscroll-behavior-y: contain;
 		overflow-y: auto;
 		overflow-x: hidden;
-		padding: max(1rem, env(safe-area-inset-top)) max(1rem, env(safe-area-inset-right))
-			max(1rem, env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-left));
+		padding: max(4px, env(safe-area-inset-top)) max(4px, env(safe-area-inset-right))
+			max(4px, env(safe-area-inset-bottom)) max(4px, env(safe-area-inset-left));
 		overflow-wrap: anywhere;
-		scrollbar-gutter: stable;
 	}
 	.settings-footer {
 		flex-shrink: 0;
 		min-width: 0;
-		padding: 0.25rem max(1rem, env(safe-area-inset-right)) max(0.25rem, env(safe-area-inset-bottom))
-			max(1rem, env(safe-area-inset-left));
+		padding: 0.25rem max(4px, env(safe-area-inset-right)) max(0.25rem, env(safe-area-inset-bottom))
+			max(4px, env(safe-area-inset-left));
 		border-top: 1px solid var(--nc-border);
 	}
 

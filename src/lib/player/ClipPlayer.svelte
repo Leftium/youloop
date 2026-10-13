@@ -252,6 +252,7 @@
 			{sourceAspectRatio}
 			{minimal}
 			{editorPath}
+			viewPath={sharePath ?? (normalized.ok && !clipInvalid ? serializeShareUrl(clip) : undefined)}
 			{theater}
 			{ontheater}
 			ononcechange={(value) => (once = value)}
@@ -309,6 +310,7 @@
 	}
 	.share-label {
 		flex-shrink: 0;
+		font-weight: 700;
 		color: var(--nc-secondary);
 	}
 	.share-link {

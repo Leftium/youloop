@@ -93,12 +93,11 @@ test.describe('editor polish', () => {
 		await page.getByRole('link', { name: 'Share URL', exact: true }).click();
 		await expect(page).toHaveURL(watch);
 		await page.reload();
-		await expect(page.getByRole('link', { name: 'Edit', exact: true })).toHaveAttribute(
-			'href',
-			new URL(editor).pathname + new URL(editor).search
-		);
+		await expect(
+			page.getByRole('link', { name: 'Switch to edit-first mode', exact: true })
+		).toHaveAttribute('href', new URL(editor).pathname + new URL(editor).search);
 		await expect(page).toHaveURL(watch);
-		await page.getByRole('link', { name: 'Edit', exact: true }).click();
+		await page.getByRole('link', { name: 'Switch to edit-first mode', exact: true }).click();
 		await expect(
 			page.getByRole('link', { name: 'Share URL', exact: true, includeHidden: true })
 		).toHaveAttribute('href', /^http/);
@@ -118,7 +117,7 @@ test.describe('editor polish', () => {
 		await page.waitForFunction(
 			() => !(document.querySelector('youtube-video') as HTMLMediaElement).seeking
 		);
-		await page.getByRole('button', { name: 'Next frame', exact: true }).click();
+		await page.getByRole('button', { name: 'Next Frame', exact: true }).click();
 		await page.waitForFunction(
 			() => !(document.querySelector('youtube-video') as HTMLMediaElement).seeking
 		);
@@ -895,7 +894,7 @@ test.describe('editor polish', () => {
 		await open(page, '5~50');
 		await expect(page.getByRole('heading', { name: 'Clip', exact: true })).toHaveCount(0);
 		for (const name of ['Playback', 'Framing'])
-			await expect(page.getByRole('heading', { name, exact: true })).toBeVisible();
+			await expect(page.getByRole('group', { name, exact: true })).toBeVisible();
 		const transport = page.getByRole('group', { name: 'Player transport' });
 		const positions = () =>
 			transport.locator('button').evaluateAll((buttons) =>
@@ -927,8 +926,8 @@ test.describe('editor polish', () => {
 		await expect(layout).not.toHaveAttribute('title');
 		expect(await layout.evaluate((el) => getComputedStyle(el, '::after').opacity)).toBe('1');
 		await page.getByRole('separator', { name: 'Resize video preview' }).press('Home');
-		await expect(transport.locator('.play-label')).toBeHidden();
-		await expect(transport.locator('.transport-loop')).toBeHidden();
+		await expect(transport.locator('.play-label')).toBeVisible();
+		await expect(transport.locator('.transport-loop')).toBeVisible();
 		await page.getByRole('separator', { name: 'Resize video preview' }).press('End');
 		await expect(transport.locator('.play-label')).toBeVisible();
 		for (const width of [320, 390, 660, 844, 1280]) {
@@ -937,7 +936,13 @@ test.describe('editor polish', () => {
 				await transport.evaluate((el) => {
 					const rect = el.getBoundingClientRect();
 					const pane = document.querySelector('#editor-preview')!.getBoundingClientRect();
-					return rect.right <= pane.right && rect.height === 44;
+					return (
+						rect.right <= pane.right &&
+						el.scrollWidth <= el.clientWidth + 1 &&
+						[...el.querySelectorAll('button')]
+							.filter((button) => getComputedStyle(button).display !== 'none')
+							.every((button) => button.getBoundingClientRect().height === 32)
+					);
 				})
 			).toBe(true);
 			await expect

@@ -54,7 +54,7 @@ for (const route of [`/${id}/5~15`, `/s?v=${id}&a=5&b=15`]) {
 		await expect(timeline(page)).toHaveAttribute('aria-valuemax', '10');
 		const originalUrl = page.url();
 		const editorHref = await page
-			.getByRole('link', { name: 'Edit', exact: true })
+			.getByRole('link', { name: 'Switch to edit-first mode', exact: true })
 			.getAttribute('href');
 		await page.evaluate(() => {
 			const media = document.querySelector('youtube-video') as HTMLElement & { engine: unknown };
@@ -88,9 +88,11 @@ for (const route of [`/${id}/5~15`, `/s?v=${id}&a=5&b=15`]) {
 		expect((await state(page)).muted).toBe(true);
 		expect((await state(page)).speed).toBe(1.5);
 		expect(page.url()).toBe(originalUrl);
-		expect(await page.getByRole('link', { name: 'Edit', exact: true }).getAttribute('href')).toBe(
-			editorHref
-		);
+		expect(
+			await page
+				.getByRole('link', { name: 'Switch to edit-first mode', exact: true })
+				.getAttribute('href')
+		).toBe(editorHref);
 		expect(
 			await page.evaluate(() => {
 				const saved = window as unknown as {

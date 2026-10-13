@@ -427,8 +427,8 @@ for (const viewport of [
 				buttons.every((button) => {
 					const box = button.getBoundingClientRect();
 					return (
-						box.width >= 44 &&
-						box.height >= 44 &&
+						box.width >= 32 &&
+						box.height >= 32 &&
 						button.getAttribute('data-tooltip') &&
 						button.getAttribute('aria-label')
 					);
@@ -464,7 +464,7 @@ for (const viewport of [
 					picture.top === preview.getBoundingClientRect().top &&
 					!overlap(brand, timeline) &&
 					pictureCenter?.classList.contains('video-toggle') &&
-					parseFloat(getComputedStyle(settings).paddingLeft) >= 16 &&
+					parseFloat(getComputedStyle(settings).paddingLeft) >= 4 &&
 					document.documentElement.scrollHeight <= innerHeight
 				);
 			})
@@ -1114,8 +1114,8 @@ test('destination layout icon, tooltip and name follow keyboard switches and res
 		await expect(toggle.locator('.columns-icon')).toHaveCount(columns ? 0 : 1);
 		expect(await toggle.textContent()).toBe('');
 		const box = (await toggle.boundingBox())!;
-		expect(box.width).toBeGreaterThanOrEqual(44);
-		expect(box.height).toBeGreaterThanOrEqual(44);
+		expect(box.width).toBeGreaterThanOrEqual(32);
+		expect(box.height).toBeGreaterThanOrEqual(32);
 	};
 	await checkDestination(true);
 	await toggle.hover();
