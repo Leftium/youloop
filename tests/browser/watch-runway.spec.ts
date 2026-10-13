@@ -2,15 +2,15 @@ import { test, expect, type Page } from '@playwright/test';
 
 const path = '/dt-SqNL4z3w/31~38?mute&speed=1.5&fill=0';
 const profiles = {
-	baseline: { initial: 20, trigger: 9, increment: 25, extensions: 4, final: 120 },
-	small: { initial: 4, trigger: 1, increment: 8, extensions: 13, final: 108 },
 	balanced: { initial: 4, trigger: 1, increment: 25, extensions: 4, final: 104 },
+	legacy: { initial: 20, trigger: 9, increment: 25, extensions: 4, final: 120 },
+	small: { initial: 4, trigger: 1, increment: 8, extensions: 13, final: 108 },
 	coarse: { initial: 4, trigger: 1, increment: 50, extensions: 2, final: 104 }
 };
 type Profile = keyof typeof profiles;
 
 async function open(page: Page, profile: Profile) {
-	await page.goto(path + (profile === 'baseline' ? '' : `&watchRunway=${profile}`));
+	await page.goto(path + (profile === 'balanced' ? '' : `&watchRunway=${profile}`));
 	await page.waitForFunction(() => !!document.querySelector('.scroll-runway[style]'));
 	await expect(page.locator('youtube-video')).toHaveCount(1);
 	await page.waitForFunction(() =>
@@ -69,7 +69,7 @@ for (const viewport of [
 					extensions,
 					final: previous,
 					samples,
-					snapNodes: runway.childElementCount,
+					snapNodes: document.querySelectorAll('.document-snap-point').length,
 					snapType: getComputedStyle(root).scrollSnapType,
 					rootScroll: root.scrollTop === scrollY && scrollY === 100 * vh,
 					stageTop: stage.getBoundingClientRect().top,
@@ -192,6 +192,12 @@ test.describe('touch-emulated watch runway', () => {
 		for (const profile of Object.keys(profiles) as Profile[]) {
 			await open(page, profile);
 			expect(await page.evaluate(() => matchMedia('(pointer: coarse)').matches)).toBe(true);
+			await expect(page.locator('.share-prototype.document-snap')).toHaveCount(1);
+			await expect.poll(() =>
+				page.evaluate(() => getComputedStyle(document.scrollingElement!).scrollSnapType)
+			).toBe('y mandatory');
+			await expect(page.locator('.document-snap-point').first()).toBeAttached();
+			expect(await page.locator('.document-snap-point').count()).toBeLessThan(10_000);
 			await session.send('Input.dispatchTouchEvent', {
 				type: 'touchStart',
 				touchPoints: [{ x: 195, y: 600 }]
