@@ -49,12 +49,14 @@ export function placeWatchControls(
 		}
 		if (video.top - safe.top >= gap + height) {
 			const top = video.top - gap - height;
-			const clearLeft =
-				reserved && top < reserved.bottom + gap && top + height > reserved.top - gap
-					? Math.max(left, reserved.right + gap)
-					: left;
-			if (left + width - clearLeft >= minimumWidth) {
-				return row(clearLeft, top, left + width, 'above');
+			if (reserved && top < reserved.bottom + gap && top + height > reserved.top - gap) {
+				const clearRight = Math.min(left + width, reserved.left - gap);
+				if (clearRight - left >= minimumWidth) return row(left, top, clearRight, 'above');
+				const clearLeft = Math.max(left, reserved.right + gap);
+				if (left + width - clearLeft >= minimumWidth)
+					return row(clearLeft, top, left + width, 'above');
+			} else {
+				return row(left, top, left + width, 'above');
 			}
 		}
 	}
@@ -143,9 +145,23 @@ export function placeWatchTitle(
 		}
 	}
 	const left = Math.max(safe.left, video.left + gap);
-	const fallbackWidth = Math.max(0, Math.min(safe.right, video.right - gap) - left);
-	const height = typeof measureHeight === 'number' ? measureHeight : measureHeight(fallbackWidth);
-	let top = clearTop(left, Math.max(safe.top, video.top + gap), fallbackWidth, height);
+	let fallbackWidth = Math.max(0, Math.min(safe.right, video.right - gap) - left);
+	const initialTop = Math.max(safe.top, video.top + gap);
+	let height = typeof measureHeight === 'number' ? measureHeight : measureHeight(fallbackWidth);
+	if (
+		reserved &&
+		left < reserved.left - gap &&
+		left + fallbackWidth > reserved.left - gap &&
+		initialTop < reserved.bottom + gap &&
+		initialTop + height > reserved.top - gap
+	) {
+		const availableLeft = reserved.left - gap - left;
+		if (availableLeft >= Math.min(180, fallbackWidth)) {
+			fallbackWidth = availableLeft;
+			height = typeof measureHeight === 'number' ? measureHeight : measureHeight(fallbackWidth);
+		}
+	}
+	let top = clearTop(left, initialTop, fallbackWidth, height);
 	// Upper controls leave the picture below them available for the title.
 	if (top >= controls.top - gap && top < controls.top + controls.height + gap) {
 		top = controls.top + controls.height + gap;

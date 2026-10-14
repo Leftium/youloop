@@ -119,10 +119,8 @@ test('side-by-side puts settings left of video; stacking retains video on top', 
 	await openEditor(page);
 	const order = () =>
 		page.evaluate(() => {
-			const rect = (selector: string) => {
-				const { left, right, top, bottom, width, height } = document.querySelector(selector)!.getBoundingClientRect();
-				return { left, right, top, bottom, width, height };
-			};
+			const rect = (selector: string) =>
+				document.querySelector(selector)!.getBoundingClientRect().toJSON();
 			const preview = rect('#editor-preview');
 			const settings = rect('#editor-settings');
 			const splitter = rect('.splitter');
@@ -457,6 +455,22 @@ for (const viewport of [
 		await expect(page.locator('.workspace-toolbar')).toHaveCount(0);
 		await expect(page.getByRole('button', { name: /fullscreen/i })).toHaveCount(0);
 		const group = preview.getByRole('group', { name: 'Workspace layout' });
+		const corners = await preview.evaluate((element) => {
+			const box = (selector: string) => element.querySelector(selector)!.getBoundingClientRect();
+			const brand = box('.preview-brand');
+			const layout = box('.workspace-layout');
+			const mode = box('.mode-toggle');
+			return {
+				brandLeftOfLayout: brand.right < layout.left,
+				layoutLeftOfMode: layout.right < mode.left,
+				sameTop: Math.abs(brand.top - layout.top) < 1
+			};
+		});
+		expect(corners).toEqual({
+			brandLeftOfLayout: true,
+			layoutLeftOfMode: true,
+			sameTop: true
+		});
 		await expect(group.locator('button')).toHaveCount(1);
 		await expect(group.locator('button')).not.toHaveAttribute('aria-pressed');
 		await expect(
@@ -613,9 +627,8 @@ test.describe('mobile pane scrolling', () => {
 					}
 					await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
 					await expect(page.locator('.workspace-grid')).not.toHaveClass(/dragging/);
-					expect(
-						Math.abs((await value(page)) - before - (columns ? -delta : delta))
-					).toBeLessThanOrEqual(1);
+					const expected = before + (columns ? -delta : delta);
+					expect(Math.abs((await value(page)) - expected)).toBeLessThanOrEqual(1);
 					expect(await rootOffset(page)).toBe(offset);
 					await geometry(page);
 					await identity(page);
@@ -882,9 +895,8 @@ test.describe('automatic mobile document scrolling', () => {
 						columns ? delta : 0,
 						columns ? 0 : delta
 					);
-					expect(
-						Math.abs((await value(page)) - before - (columns ? -delta : delta))
-					).toBeLessThanOrEqual(1);
+					const expected = before + (columns ? -delta : delta);
+					expect(Math.abs((await value(page)) - expected)).toBeLessThanOrEqual(1);
 					expect(await offset()).toBe(root);
 					await expect(page.locator('.workspace-grid')).not.toHaveClass(/dragging/);
 					await pinned();

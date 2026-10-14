@@ -1078,12 +1078,12 @@
 	<div class="editor-preview-content">
 		{#snippet corners()}
 			<div class="preview-corners">
-				{@render layoutControls()}
 				<div class="preview-brand">
 					<a class="brand" href="/" data-sveltekit-reload title="YouLoop home">
 						<img src="/logo.svg" alt="" />YouLoop
 					</a>
 				</div>
+				{@render layoutControls()}
 			</div>
 			<div class="timestamps">
 				<div>{formatVideoTime(currentTime)} / {formatVideoTime(duration)}</div>

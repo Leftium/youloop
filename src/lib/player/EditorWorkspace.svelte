@@ -173,9 +173,8 @@
 		if (event.key === 'Home') resize(minimum);
 		else if (event.key === 'End') resize(maximum);
 		else if (keys.includes(event.key)) {
-			resize(
-				size + (event.key === keys[0] ? -1 : 1) * (layout === 'columns' ? -16 : available * 0.02)
-			);
+			const step = layout === 'columns' ? -16 : available * 0.02;
+			resize(size + (event.key === keys[0] ? -step : step));
 		} else return;
 		event.preventDefault();
 	}
@@ -279,7 +278,6 @@
 	<span
 		class="settings-edge"
 		aria-hidden="true"
-		style:left="0px"
 		style:right={layout === 'columns' ? `${size + dividerSize}px` : '0px'}
 	></span>
 	<div
@@ -494,6 +492,7 @@
 		position: fixed;
 		/* Anchor directly to the viewport rather than waiting for dvh updates. */
 		bottom: 0;
+		left: 0;
 		right: 0;
 		height: 1px;
 		background: var(--nc-border);
