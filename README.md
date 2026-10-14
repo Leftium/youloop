@@ -18,6 +18,8 @@ a server; the static build and its CI check have been retired.
 
 ### Required verification
 
+See [AGENTS.md](AGENTS.md) for the test-lifecycle and retirement policy.
+
 Run `pnpm check`, `pnpm lint`, `pnpm test:clip`, `pnpm test:share-url`,
 `pnpm test:metadata`, `pnpm build` and `pnpm test:browser`. Hosting CI also
 builds with `YOULOOP_RUNTIME_PROOF=1` and runs `test:hosting` and `test:social`
