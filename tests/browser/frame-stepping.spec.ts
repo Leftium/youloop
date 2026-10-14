@@ -15,8 +15,9 @@ test.describe('frame stepping', { tag: '@frame-proof' }, () => {
 		);
 		await expect(page.getByRole('button', { name: 'Play', exact: true })).toBeVisible();
 		await setSliderValue(page, 'Current time', 10.345);
-		await page.clock.install();
-		await page.clock.pauseAt(new Date());
+		// Seed and pause on the browser's virtual timeline, avoiding host clock skew.
+		await page.clock.install({ time: new Date('2030-01-01T00:00:00Z') });
+		await page.clock.pauseAt(new Date('2030-01-01T00:01:00Z'));
 		await page.evaluate(() => {
 			const media = document.querySelector('youtube-video') as HTMLElement & {
 				engine: { seekTo(time: number): void };
@@ -142,7 +143,7 @@ test.describe('frame stepping', { tag: '@frame-proof' }, () => {
 		expect(proof.seeks.every((seek, i) => !i || seek.at - proof.seeks[i - 1].at >= 200)).toBe(true);
 	});
 
-	test('cancellation, history, source bounds and Clip Only preserve paused inspection', async ({
+	test('cancellation, history and both frame directions honor the selected playback scope', async ({
 		page
 	}) => {
 		await open(page);
@@ -178,16 +179,76 @@ test.describe('frame stepping', { tag: '@frame-proof' }, () => {
 		await page
 			.getByRole('button', { name: 'VIDEO playback, switch to A:B playback', exact: true })
 			.click();
+		await page.getByRole('button', { name: 'Loop, switch to Once', exact: true }).click();
 		await setSliderValue(page, 'Current time', 30.125);
 		await page.getByRole('button', { name: 'Next Frame', exact: true }).click();
 		await page.clock.runFor(1000);
-		expect(await time(page)).toBeCloseTo(30.125 + 1 / 30, 10);
+		expect(await time(page)).toBe(20.125);
 		await expect(page.locator('.transport-scope')).toHaveAttribute('aria-pressed', 'true');
 		await page.getByRole('button', { name: 'Play', exact: true }).click();
 		await page.clock.runFor(100);
 		expect(await time(page)).toBeGreaterThanOrEqual(10.345);
 		expect(await time(page)).toBeLessThan(20.125);
 		await page.getByRole('button', { name: 'Pause', exact: true }).click();
+		const share = await page
+			.getByRole('link', { name: 'Share URL', exact: true })
+			.getAttribute('href');
+		for (const [position, name, expected] of [
+			[10.35, 'Prev Frame', 10.345],
+			[20.12, 'Next Frame', 20.125]
+		] as const) {
+			await setSliderValue(page, 'Current time', position);
+			await page.getByRole('button', { name, exact: true }).click();
+			expect(await time(page)).toBe(expected);
+			await setSliderValue(page, 'Current time', expected + (name === 'Prev Frame' ? 0.08 : -0.08));
+			await holdPointer(page, name);
+			await page.clock.runFor(1500);
+			await page.mouse.up();
+			expect(await time(page)).toBe(expected);
+			await page.clock.runFor(1000);
+			expect(await time(page)).toBe(expected);
+		}
+		await expect(page.getByRole('slider', { name: 'Repeat start', exact: true })).toHaveAttribute(
+			'aria-valuenow',
+			'10.345'
+		);
+		await expect(page.getByRole('slider', { name: 'Repeat end', exact: true })).toHaveAttribute(
+			'aria-valuenow',
+			'20.125'
+		);
+		await expect(page.getByRole('link', { name: 'Share URL', exact: true })).toHaveAttribute(
+			'href',
+			share!
+		);
+		await page.getByRole('button', { name: 'Once, switch to Loop', exact: true }).click();
+		for (const [position, name, expected] of [
+			[20.125, 'Next Frame', 10.345],
+			[10.345, 'Prev Frame', 20.125]
+		] as const) {
+			await setSliderValue(page, 'Current time', position);
+			await page.getByRole('button', { name, exact: true }).click();
+			expect(await time(page)).toBe(expected);
+			await setSliderValue(page, 'Current time', position + (name === 'Prev Frame' ? 0.02 : -0.02));
+			await holdPointer(page, name);
+			await page.clock.runFor(350);
+			await page.mouse.up();
+			const wrapped = expected + (name === 'Prev Frame' ? -1 / 30 : 1 / 30);
+			expect(await time(page)).toBeCloseTo(wrapped, 10);
+			await page.clock.runFor(1000);
+			expect(await time(page)).toBeCloseTo(wrapped, 10);
+		}
+		await page.getByRole('button', { name: 'Loop, switch to Once', exact: true }).click();
+		await setSliderValue(page, 'Current time', 15);
+		await page.getByRole('button', { name: 'Next Frame', exact: true }).focus();
+		await page.keyboard.down('Space');
+		await page.clock.runFor(350);
+		const beforeScopeChange = await time(page);
+		await page
+			.getByRole('button', { name: 'A:B playback, switch to VIDEO playback', exact: true })
+			.click();
+		await page.keyboard.up('Space');
+		await page.clock.runFor(1000);
+		expect(await time(page)).toBeCloseTo(beforeScopeChange, 10);
 		for (const [position, name, expected] of [
 			[0.01, 'Prev Frame', 0],
 			[60.24, 'Next Frame', 60.25]
@@ -198,6 +259,12 @@ test.describe('frame stepping', { tag: '@frame-proof' }, () => {
 			await page.mouse.up();
 			expect(await time(page)).toBe(expected);
 		}
+		await page.getByRole('button', { name: 'Once, switch to Loop', exact: true }).click();
+		await page.getByRole('button', { name: 'Next Frame', exact: true }).click();
+		expect(await time(page)).toBe(0);
+		await page.getByRole('button', { name: 'Prev Frame', exact: true }).click();
+		expect(await time(page)).toBe(60.25);
+		await page.getByRole('button', { name: 'Loop, switch to Once', exact: true }).click();
 		await holdPointer(page, 'Prev Frame');
 		await page.evaluate(() => {
 			const url = new URL(location.href);

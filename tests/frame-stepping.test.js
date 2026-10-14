@@ -8,13 +8,16 @@ import {
 
 test('nominal quanta preserve fractional offsets at supplied FPS and clamp source edges', () => {
 	for (const fps of [24, 25, 29.97, 30, 60]) {
-		assert.equal(frameStepTarget(10.345, 12000, 1000, 1 / fps), 10.345 + 12000 / fps);
-		assert.equal(frameStepTarget(10.345, -2, 60, 1 / fps), 10.345 - 2 / fps);
+		assert.equal(
+			frameStepTarget(10.345, 12000, { start: 0, end: 1000 }, 1 / fps),
+			10.345 + 12000 / fps
+		);
+		assert.equal(frameStepTarget(10.345, -2, { start: 0, end: 60 }, 1 / fps), 10.345 - 2 / fps);
 	}
-	assert.equal(frameStepTarget(0.01, -1, 60), 0);
-	assert.equal(frameStepTarget(59.99, 1, 60), 60);
+	assert.equal(frameStepTarget(0.01, -1, { start: 0, end: 60 }), 0);
+	assert.equal(frameStepTarget(59.99, 1, { start: 0, end: 60 }), 60);
 	for (const duration of [0, -1, NaN, Infinity])
-		assert.equal(frameStepTarget(10, 1, duration), undefined);
+		assert.equal(frameStepTarget(10, 1, { start: 0, end: duration }), undefined);
 });
 
 test('logical requests ignore stale observations, coalesce rapid taps and discard on reset', (t) => {
@@ -24,7 +27,8 @@ test('logical requests ignore stale observations, coalesce rapid taps and discar
 	const sent = [];
 	const stepper = createFrameStepper({
 		position: () => observed,
-		duration: () => 60,
+		loop: () => false,
+		bounds: () => ({ start: 0, end: 60 }),
 		show: (time) => shown.push(time),
 		seek: (time) => sent.push(time)
 	});
@@ -137,7 +141,8 @@ test('source boundaries stop and reverse immediately without accumulating oversh
 	t.mock.timers.enable({ apis: ['setTimeout', 'Date'], now: 0 });
 	const stepper = createFrameStepper({
 		position: () => 0.01,
-		duration: () => 1,
+		loop: () => false,
+		bounds: () => ({ start: 0, end: 1 }),
 		show() {},
 		seek() {}
 	});
@@ -150,4 +155,89 @@ test('source boundaries stop and reverse immediately without accumulating oversh
 	stepper.step(-1);
 	assert.equal(stepper.target, 1 - 1 / 30);
 	stepper.reset();
+});
+
+// Permanent: both directions must stop at the selected scope, even outside it.
+test('clip bounds clamp both directions, reverse without overshoot and discard on scope change', (t) => {
+	t.mock.timers.enable({ apis: ['setTimeout', 'Date'], now: 0 });
+	let bounds = { start: 10.345, end: 20.125 };
+	let position = 10.35;
+	const sent = [];
+	const stepper = createFrameStepper({
+		position: () => position,
+		loop: () => false,
+		bounds: () => bounds,
+		show: (time) => {
+			position = time;
+		},
+		seek: (time) => sent.push(time)
+	});
+	assert.equal(stepper.step(-1), false);
+	assert.equal(position, bounds.start);
+	assert.equal(stepper.step(1), true);
+	assert.equal(position, bounds.start + 1 / 30);
+	stepper.reset();
+	position = 20.12;
+	assert.equal(stepper.step(1), false);
+	assert.equal(position, bounds.end);
+	stepper.step(-1);
+	assert.equal(position, bounds.end - 1 / 30);
+	stepper.reset();
+	for (const outside of [1, 30]) {
+		for (const direction of [-1, 1]) {
+			position = outside;
+			stepper.step(direction);
+			assert.equal(position, outside < bounds.start ? bounds.start : bounds.end);
+			stepper.reset();
+		}
+	}
+	position = 15;
+	stepper.step(1);
+	stepper.step(1);
+	stepper.reset();
+	const before = sent.length;
+	bounds = { start: 0, end: 60 };
+	t.mock.timers.tick(1000);
+	assert.equal(sent.length, before);
+	position = 10.345;
+	assert.equal(stepper.step(-1), true);
+	assert.equal(position, 10.345 - 1 / 30);
+	stepper.reset();
+});
+
+// Permanent: Loop/Once must apply symmetrically to frame transport.
+test('Loop wraps both directions and keeps repeating; Once stops at the same edges', (t) => {
+	t.mock.timers.enable({ apis: ['setTimeout', 'Date'], now: 0 });
+	for (const bounds of [
+		{ start: 10.345, end: 20.125 },
+		{ start: 0, end: 60.25 }
+	]) {
+		let looping = true;
+		let position = bounds.end;
+		const stepper = createFrameStepper({
+			position: () => position,
+			bounds: () => bounds,
+			loop: () => looping,
+			show: (time) => {
+				position = time;
+			},
+			seek() {}
+		});
+		assert.equal(stepper.step(1), true);
+		assert.equal(position, bounds.start);
+		stepper.step(1);
+		assert.equal(position, bounds.start + 1 / 30);
+		stepper.step(-1);
+		assert.equal(position, bounds.start);
+		assert.equal(stepper.step(-1), true);
+		assert.equal(position, bounds.end);
+		stepper.step(-1);
+		assert.equal(position, bounds.end - 1 / 30);
+		stepper.reset();
+		looping = false;
+		position = bounds.start;
+		assert.equal(stepper.step(-1), false);
+		assert.equal(position, bounds.start);
+		stepper.reset();
+	}
 });

@@ -58,8 +58,11 @@ Prev Frame and Next Frame request a nominal 1/30 second step, pause, and leave p
 paused. Holding starts repeat after 350 ms, then requests at most once per 200 ms.
 Rapid taps update the logical playhead immediately and replace the pending seek;
 the latest target is sent within 200 ms. Release stops repeat without another step.
-Other navigation discards pending frame requests. Frame navigation covers the entire
-source even in Clip Only; Play re-enters A:B when inspection is outside the clip.
+Other navigation discards pending frame requests. In Clip Only, both Prev Frame and
+Next Frame honor A/B. Loop wraps Next past B to A and Prev before A to B, including
+while held; Once clamps and stops at those edges. In VIDEO, the same behavior applies
+to the entire source. Switching scope cancels repeat and queued frame seeks. Timeline and video
+scrubbing can still inspect outside A:B; Play re-enters the clip when necessary.
 
 The 30 fps default is an approximation, not detected source FPS. The pure helper can
 accept another nominal quantum later, but the UI does not infer FPS or add a selector.

@@ -6,18 +6,31 @@ export const frameRepeatInterval = 200;
 export function frameStepTarget(
 	start: number,
 	quanta: number,
-	duration: number,
-	seconds = nominalFrameSeconds
+	bounds: { start: number; end: number },
+	seconds = nominalFrameSeconds,
+	loop = false
 ): number | undefined {
-	if (![start, quanta, duration, seconds].every(Number.isFinite) || duration <= 0 || seconds <= 0)
+	if (
+		![start, quanta, bounds.start, bounds.end, seconds].every(Number.isFinite) ||
+		bounds.start < 0 ||
+		bounds.end <= bounds.start ||
+		seconds <= 0
+	)
 		return undefined;
 	// Anchor plus integer quanta preserves fractional offsets without repeated-add drift.
-	return Math.max(0, Math.min(duration, start + quanta * seconds));
+	// Scrubbing can leave the selected scope; re-enter its nearest edge first.
+	if (start < bounds.start || start > bounds.end)
+		return Math.max(bounds.start, Math.min(bounds.end, start));
+	const requested = start + quanta * seconds;
+	if (loop && requested > bounds.end) return bounds.start;
+	if (loop && requested < bounds.start) return bounds.end;
+	return Math.max(bounds.start, Math.min(bounds.end, requested));
 }
 
 export function createFrameStepper(options: {
 	position(): number;
-	duration(): number | undefined;
+	bounds(): { start: number; end: number };
+	loop(): boolean;
 	show(time: number): void;
 	seek(time: number): void;
 }) {
@@ -41,7 +54,9 @@ export function createFrameStepper(options: {
 		},
 		step(direction: number) {
 			const start = anchor ?? options.position();
-			const next = frameStepTarget(start, quanta + direction, options.duration() ?? NaN);
+			const bounds = options.bounds();
+			const looping = options.loop();
+			const next = frameStepTarget(start, quanta + direction, bounds, nominalFrameSeconds, looping);
 			if (next === undefined) return false;
 			anchor = start;
 			quanta += direction;
@@ -57,10 +72,10 @@ export function createFrameStepper(options: {
 					else timer = setTimeout(send, remaining);
 				}
 			}
-			if (next === 0 || next === options.duration()) {
+			if (next === bounds.start || next === bounds.end) {
 				anchor = next;
 				quanta = 0;
-				return false;
+				return looping;
 			}
 			return true;
 		},

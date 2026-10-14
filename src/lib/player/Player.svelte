@@ -164,7 +164,8 @@
 	let cancelFrameHold: (() => void) | undefined;
 	const frameStepper = createFrameStepper({
 		position: () => transportTime,
-		duration: () => duration,
+		bounds: () => activeBounds,
+		loop: () => loop,
 		show(time) {
 			pause();
 			currentTime = transportTime = time;
@@ -188,8 +189,10 @@
 		cancelVideoGesture?.();
 		if (!range.restricted || !player) return;
 		endEndpointPreview();
+		const position = frameStepper.target ?? player.currentTime;
+		resetFrameStepping();
 		playbackScope = scopeChoice.toggle();
-		const target = scopeSwitchTarget(player.currentTime, activeBounds);
+		const target = scopeSwitchTarget(position, activeBounds);
 		if (target !== player.currentTime) seek(target, requestedPaused);
 	}
 	let paused = $state(true);
