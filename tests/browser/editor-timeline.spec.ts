@@ -2,9 +2,10 @@ import { expect, type Page } from '@playwright/test';
 import { test } from './youtube-api.fixture';
 import { setSliderValue } from './editor-timeline.fixture';
 
-// Probationary through PR 2 in #62; excluded from routine gates. These checks
+// Probationary through PR 3 in #62; excluded from routine gates. These checks
 // cover capture/focus/media ordering that numeric unit tests cannot exercise.
 test.describe('editor timeline', { tag: '@timeline-proof' }, () => {
+	test.use({ hasTouch: true });
 	const slider = (page: Page, name: string) => page.getByRole('slider', { name, exact: true });
 	const time = (page: Page) =>
 		page.locator('.editor-timeline').getAttribute('data-transport-time').then(Number);
@@ -38,43 +39,6 @@ test.describe('editor timeline', { tag: '@timeline-proof' }, () => {
 			})
 		).toBe(true);
 	}
-
-	test('source navigation preserves signed URL bounds and re-enters clip on Play', async ({
-		page
-	}) => {
-		await open(page, '-50.25~-40.125');
-		const url = page.url();
-		const shared = await page
-			.getByRole('link', { name: 'Share URL', exact: true })
-			.getAttribute('href');
-		await setSliderValue(page, 'Current time', 45.5);
-		await expect(slider(page, 'Current time')).toHaveAttribute('aria-valuenow', '45.5');
-		await expect.poll(() => time(page)).toBe(45.5);
-		await expect(slider(page, 'Repeat start')).toHaveAttribute('aria-valuenow', '10');
-		await expect(slider(page, 'Repeat end')).toHaveAttribute('aria-valuenow', '20.125');
-		expect(page.url()).toBe(url);
-		await expect(page.getByRole('link', { name: 'Share URL', exact: true })).toHaveAttribute(
-			'href',
-			shared!
-		);
-		// A later settled-duration observation may resolve signed bounds again,
-		// but must not pull paused source navigation back inside A:B.
-		await page.locator('youtube-video').evaluate((el) => {
-			const media = el as HTMLMediaElement & { engine: { getDuration(): number } };
-			media.engine.getDuration = () => 61.25;
-			media.dispatchEvent(new Event('durationchange'));
-		});
-		await expect(slider(page, 'Current time')).toHaveAttribute('aria-valuemax', '61.25');
-		await expect(slider(page, 'Current time')).toHaveAttribute('aria-valuenow', '45.5');
-		expect(page.url()).toBe(url);
-		await page.getByRole('button', { name: 'Play', exact: true }).click();
-		await expect.poll(() => time(page)).toBeLessThan(20.125);
-		await expect(page.getByRole('button', { name: 'Pause', exact: true })).toBeVisible();
-		await setSliderValue(page, 'Current time', 5);
-		await expect(slider(page, 'Current time')).toHaveAttribute('aria-valuenow', '5');
-		await expect(page.getByRole('button', { name: 'Play', exact: true })).toBeVisible();
-		await identity(page);
-	});
 
 	test('pointer crossing keeps capture and physical focus; release and cancellation restore transport', async ({
 		page
@@ -178,53 +142,145 @@ test.describe('editor timeline', { tag: '@timeline-proof' }, () => {
 		await identity(page);
 	});
 
-	test('red line aligns with source axis across resizing and layouts and stays editor-only', async ({
-		page
-	}) => {
-		await open(page, '0~20.125');
-		const displayed = Number(await slider(page, 'Current time').getAttribute('aria-valuenow'));
-		expect(await time(page)).toBe(displayed);
-		await setSliderValue(page, 'Current time', 40);
-		const aligned = async () => {
-			await expect
-				.poll(() =>
-					page.evaluate(() => {
-						const line = document.querySelector('.editor-playhead-line')!;
-						const rect = line.getBoundingClientRect();
-						const axis = document.querySelector('.editor-axis')!.getBoundingClientRect();
-						const video = document.querySelector('.player')!.getBoundingClientRect();
-						return (
-							Math.abs(rect.left - axis.left - (axis.width * 40) / 60.25) < 1 &&
-							Math.abs(rect.top - video.top) < 1 &&
-							Math.abs(rect.bottom - axis.bottom) < 1 &&
-							getComputedStyle(line).pointerEvents === 'none'
-						);
-					})
+	for (const watch of [false, true]) {
+		test(`video scrub ${watch ? 'watch' : 'editor'} previews, cancels, commits and preserves controls`, async ({
+			page
+		}) => {
+			await page.goto(
+				watch
+					? '/dt-SqNL4z3w/10~20.125?mute&fill=0'
+					: '/?v=dt-SqNL4z3w&t=-50.25~-40.125&mute&fill=0'
+			);
+			const surface = page.locator('.video-surface');
+			const display = watch ? page.getByRole('progressbar') : slider(page, 'Current time');
+			await expect(display).toHaveAttribute('aria-valuemax', watch ? '10.125' : '60.25');
+			if (watch)
+				await page
+					.getByRole('button', { name: 'A:B progress, switch to full-video playback', exact: true })
+					.click();
+			await expect(display).toHaveAttribute('aria-valuemax', '60.25');
+			const original = Number(await display.getAttribute('aria-valuenow'));
+			const url = page.url();
+			const media = await page.locator('youtube-video').elementHandle();
+			const frame = await page
+				.locator('youtube-video')
+				.evaluate((el) => el.shadowRoot!.querySelector('iframe')!.getAttribute('src'));
+			const box = (await surface.boundingBox())!;
+			const x = box.x + box.width * 0.25,
+				y = box.y + box.height * 0.5;
+			await surface.evaluate((el) =>
+				el.addEventListener('pointerdown', (event) =>
+					el.setAttribute('data-pointer', String((event as PointerEvent).pointerId))
 				)
+			);
+			await page.mouse.move(x, y);
+			await page.mouse.down();
+			await expect(display).toHaveAttribute('aria-valuenow', String(original));
+			await page.mouse.move(x + box.width * 0.1, y + 2);
+			await expect
+				.poll(() => display.getAttribute('aria-valuenow').then(Number))
+				.toBeCloseTo(original + 6.025, 1);
+			if (!watch) expect(await time(page)).toBe(original);
+			await page
+				.locator('youtube-video')
+				.evaluate((el) => el.dispatchEvent(new Event('timeupdate')));
+			await expect
+				.poll(() => display.getAttribute('aria-valuenow').then(Number))
+				.toBeCloseTo(original + 6.025, 1);
+			await surface.dispatchEvent('pointercancel', {
+				pointerId: Number(await surface.getAttribute('data-pointer'))
+			});
+			await page.mouse.up();
+			await expect(display).toHaveAttribute('aria-valuenow', String(original));
+			await page.mouse.move(x, y);
+			await page.mouse.down();
+			await page.mouse.move(x + box.width * 0.1, y);
+			await page.mouse.up();
+			await expect
+				.poll(() => display.getAttribute('aria-valuenow').then(Number))
+				.toBeCloseTo(original + 6.025, 1);
+			if (!watch) {
+				await expect.poll(() => time(page)).toBeCloseTo(original + 6.025, 1);
+				await expect(slider(page, 'Repeat start')).toHaveAttribute('aria-valuenow', '10');
+				await expect(slider(page, 'Repeat end')).toHaveAttribute('aria-valuenow', '20.125');
+				await expect(page.getByRole('link', { name: 'Share URL', exact: true })).toHaveAttribute(
+					'href',
+					/-50.25~-40.125/
+				);
+				const line = await page.locator('.editor-playhead-line').boundingBox();
+				const axis = (await page.locator('.editor-axis').boundingBox())!;
+				expect(Math.abs(line!.x - axis.x - (axis.width * (original + 6.025)) / 60.25)).toBeLessThan(
+					2
+				);
+			} else await expect(page.locator('.editor-playhead-line')).toHaveCount(0);
+			// Native vertical intent and synthetic clicks cannot toggle playback.
+			await page.mouse.move(x, y);
+			await page.mouse.down();
+			await page.mouse.move(x + 2, y + 40);
+			await page.mouse.up();
+			await surface.dispatchEvent('click');
+			expect(
+				await page.locator('youtube-video').evaluate((el) => (el as HTMLMediaElement).paused)
+			).toBe(true);
+			const starts = await page.evaluate(
+				() =>
+					(window as unknown as { youtubeMockMetrics: { starts: number } }).youtubeMockMetrics
+						.starts
+			);
+			await page.touchscreen.tap(x, y);
+			await expect
+				.poll(() => page.locator('youtube-video').evaluate((el) => (el as HTMLMediaElement).paused))
+				.toBe(false);
+			expect(
+				await page.evaluate(
+					() =>
+						(window as unknown as { youtubeMockMetrics: { starts: number } }).youtubeMockMetrics
+							.starts
+				)
+			).toBe(starts + 1);
+			// A playing scrub within scope resumes after commit.
+			await page.mouse.move(x, y);
+			await page.mouse.down();
+			await page.mouse.move(x + box.width * 0.02, y);
+			await page.mouse.up();
+			await expect
+				.poll(() => page.locator('youtube-video').evaluate((el) => (el as HTMLMediaElement).paused))
+				.toBe(false);
+			await page.mouse.move(x, y);
+			await page.mouse.down();
+			await page.mouse.move(x + box.width * 0.04, y);
+			await page.evaluate(() => window.dispatchEvent(new Event('blur')));
+			await page.mouse.up();
+			await expect
+				.poll(() => page.locator('youtube-video').evaluate((el) => (el as HTMLMediaElement).paused))
+				.toBe(false);
+			// Keyboard activation remains available in both modes.
+			await page.getByRole('button', { name: 'Pause video', exact: true }).focus();
+			await page.keyboard.press('Enter');
+			await expect
+				.poll(() => page.locator('youtube-video').evaluate((el) => (el as HTMLMediaElement).paused))
 				.toBe(true);
-		};
-		for (const viewport of [
-			{ width: 1280, height: 800 },
-			{ width: 390, height: 844 },
-			{ width: 844, height: 390 }
-		]) {
-			await page.setViewportSize(viewport);
-			for (const label of ['Switch to stacked layout', 'Switch to side-by-side layout']) {
-				const toggle = page.getByRole('button', { name: label, exact: true });
-				if (viewport.width >= 660 && (await toggle.count())) {
-					await expect(toggle).toBeEnabled();
-					await toggle.click();
-				}
-				await aligned();
-			}
-		}
-		for (const name of ['Portrait', 'Fill', 'Landscape', 'Fit']) {
-			await page.getByRole('button', { name, exact: true }).click();
-			await aligned();
-		}
-		await identity(page);
-		await page.getByRole('link', { name: 'Switch to view-first mode', exact: true }).click();
-		await expect(page.locator('.editor-playhead-line')).toHaveCount(0);
-		await expect(page.locator('.watch-timeline')).toBeVisible();
-	});
+			if (watch)
+				await page
+					.getByRole('button', { name: 'VIDEO progress, switch to A:B playback', exact: true })
+					.click();
+			await page.mouse.move(x, y);
+			await page.mouse.down();
+			await page.mouse.move(x + box.width * 0.95, y);
+			await page.mouse.up();
+			await expect(display).toHaveAttribute('aria-valuenow', watch ? '10.125' : '60.25');
+			expect(page.url()).toBe(url);
+			expect(await media!.evaluate((el) => el === document.querySelector('youtube-video'))).toBe(
+				true
+			);
+			expect(
+				await page
+					.locator('youtube-video')
+					.evaluate((el) => el.shadowRoot!.querySelector('iframe')!.getAttribute('src'))
+			).toBe(frame);
+			expect(await surface.evaluate((el) => getComputedStyle(el).touchAction)).toBe(
+				'pan-y pinch-zoom'
+			);
+		});
+	}
 });

@@ -184,10 +184,14 @@ test('new editor parameters win over aliases, seek/step/loop/once work with real
 	await setSliderValue(page, 'Current time', '40');
 	await expect(page.getByRole('link', { name: 'Share URL', exact: true })).toHaveAttribute(
 		'href',
-		new RegExp('/31~40')
+		new RegExp('/31~33')
 	);
 	await page.getByRole('button', { name: 'Edit clip range', exact: true }).click();
 	await page.getByRole('button', { name: 'Set end at playhead', exact: true }).click();
+	await expect(page.getByRole('link', { name: 'Share URL', exact: true })).toHaveAttribute(
+		'href',
+		new RegExp('/31~40')
+	);
 	await page.getByRole('button', { name: 'Set start at playhead', exact: true }).click();
 	// A collapsed explicit edit is rejected without mutating the committed clip.
 	await expect(page.getByRole('alert')).toContainText('End after Start');

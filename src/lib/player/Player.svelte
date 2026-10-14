@@ -4,6 +4,7 @@
 	import { onMount, untrack, type Snippet } from 'svelte';
 	import EditorWorkspace from './EditorWorkspace.svelte';
 	import EditorTimeline from './EditorTimeline.svelte';
+	import { attachVideoGesture, type VideoScrub } from './video-gesture';
 	import type { NumericRange } from '../components/range-slider';
 	import BoundEditor from './BoundEditor.svelte';
 	import ClipRange from './ClipRange.svelte';
@@ -154,6 +155,9 @@
 
 	let currentTime = $state(repeatA);
 	let transportTime = $state(repeatA);
+	let navigationScrub: { time: number; paused: boolean; target: number } | undefined;
+	let scrubFrame = 0;
+	let cancelVideoGesture: (() => void) | undefined;
 	let endpointPreview: { time: number; paused: boolean } | undefined;
 	let previewBounds: Pick<ShareUrlState, 'start' | 'end'> | undefined;
 	let pendingSeek: { time: number; requestedAt: number } | undefined;
@@ -170,6 +174,7 @@
 	let timelineTime = $derived(clipTimeline ? range.elapsed : range.absolute);
 	let timelineDuration = $derived(clipTimeline ? range.length : range.total);
 	function toggleTimeline() {
+		cancelVideoGesture?.();
 		if (!range.restricted || !player) return;
 		playbackScope = scopeChoice.toggle();
 		const target = scopeSwitchTarget(player.currentTime, activeBounds);
@@ -224,6 +229,7 @@
 		void requestedBounds;
 		untrack(() => {
 			if (!metadataReceived || !player) return;
+			cancelVideoGesture?.();
 			if (
 				endpointPreview &&
 				previewBounds &&
@@ -231,7 +237,7 @@
 			)
 				endEndpointPreview();
 			if (duration !== undefined && !validateBounds()) return;
-			if (endpointPreview || (!minimal && requestedPaused)) return;
+			if (navigationScrub || endpointPreview || (!minimal && requestedPaused)) return;
 			if (player.currentTime < activeBounds.start || player.currentTime > activeBounds.end) {
 				seek(activeBounds.start);
 			}
@@ -326,6 +332,7 @@
 		window.addEventListener('message', handleProviderMessage);
 		return () => {
 			disposed = true;
+			discardNavigationScrub();
 			endEndpointPreview();
 			clearTimeout(durationTimer);
 			document.removeEventListener('fullscreenchange', syncFullscreen);
@@ -335,13 +342,17 @@
 
 	$effect(() => {
 		if (!minimal || !player || !controlsPlayer || !controlsModule) return;
-		return controlsModule.attachWatchControls(
-			controlsPlayer,
-			player,
-			playerContainer,
-			videoSurface,
-			togglePaused
-		);
+		return controlsModule.attachWatchControls(controlsPlayer, player, playerContainer);
+	});
+
+	$effect(() => {
+		if (!videoSurface) return;
+		const attachment = attachVideoGesture(videoSurface, prepareNavigationScrub, togglePaused);
+		cancelVideoGesture = attachment.cancel;
+		return () => {
+			attachment.destroy();
+			if (cancelVideoGesture === attachment.cancel) cancelVideoGesture = undefined;
+		};
 	});
 
 	$effect(() => {
@@ -541,6 +552,7 @@
 	}
 
 	function navigateSource(time: number) {
+		cancelVideoGesture?.();
 		endEndpointPreview();
 		// Navigation outside A:B is paused inspection. Play re-enters the clip,
 		// while navigation within it preserves the existing playing/paused state.
@@ -548,7 +560,49 @@
 		setMediaTime(time, requestedPaused);
 	}
 
+	function prepareNavigationScrub(): VideoScrub | undefined {
+		if (!player || duration === undefined || !metadataReceived || boundsError) return;
+		const saved = { time: transportTime, paused: requestedPaused, target: transportTime };
+		const bounds = minimal ? { ...activeBounds } : { start: 0, end: duration };
+		return {
+			begin() {
+				endEndpointPreview();
+				navigationScrub = saved;
+				transportTime = saved.time;
+				pause();
+			},
+			move(delta) {
+				if (navigationScrub !== saved) return;
+				saved.target = Math.max(
+					bounds.start,
+					Math.min(bounds.end, saved.time + delta * (bounds.end - bounds.start))
+				);
+				currentTime = saved.target;
+				// Responsive display; at most one provider seek per animation frame.
+				if (!scrubFrame)
+					scrubFrame = requestAnimationFrame(() => {
+						scrubFrame = 0;
+						if (navigationScrub === saved) setMediaTime(saved.target, true, true);
+					});
+			},
+			end(commit) {
+				if (navigationScrub !== saved) return;
+				if (scrubFrame) cancelAnimationFrame(scrubFrame);
+				scrubFrame = 0;
+				navigationScrub = undefined;
+				const target = commit ? saved.target : saved.time;
+				const outside = target < activeBounds.start || target >= activeBounds.end;
+				const stayPaused =
+					saved.paused || !!boundsError || (commit && outside && (!minimal || !loop));
+				setMediaTime(target, stayPaused);
+				if (stayPaused) pause();
+				else void play();
+			}
+		};
+	}
+
 	function beginEndpointPreview(time: number) {
+		cancelVideoGesture?.();
 		if (!player || endpointPreview) return;
 		endpointPreview = { time: transportTime, paused: requestedPaused };
 		previewBounds = { ...requestedBounds };
@@ -609,6 +663,7 @@
 		if (!validateBounds()) return;
 		if (minimal) playbackScope = scopeChoice.choose(nextDuration, repeatA, repeatB);
 		if (
+			!navigationScrub &&
 			!endpointPreview &&
 			(minimal || firstDuration || !requestedPaused) &&
 			(player.currentTime < activeBounds.start || player.currentTime > activeBounds.end)
@@ -703,7 +758,7 @@
 	}
 
 	function handlePlaying() {
-		if (endpointPreview) {
+		if (navigationScrub || endpointPreview) {
 			player.pause();
 			return;
 		}
@@ -756,7 +811,7 @@
 		if (duration === undefined || boundsError || player.seeking) return;
 		// YouTube observations can arrive from the previous seek. Keep requested
 		// display time until acknowledgement, with a bounded recovery window.
-		if (endpointPreview) return;
+		if (navigationScrub || endpointPreview) return;
 		const observed = player.currentTime;
 		if (
 			pendingSeek &&
@@ -778,7 +833,7 @@
 	}
 
 	function handleEnded() {
-		if (endpointPreview || boundsError) return;
+		if (navigationScrub || endpointPreview || boundsError) return;
 		if (initialFramePending) {
 			firstFrameReady = true;
 			pause();
@@ -805,6 +860,7 @@
 	}
 
 	function togglePaused() {
+		cancelVideoGesture?.();
 		if (!player || !metadataReceived || boundsError) return;
 		// The adapter can retain paused=false when YouTube returns to unstarted/cued.
 		// Treat those states as a Play request so a stalled startup can be retried.
@@ -890,8 +946,17 @@
 		if (changed || !source.clip) sourceVersion += 1;
 	}
 
+	function discardNavigationScrub() {
+		// Teardown has no provider to restore. Invalidate before gesture cleanup.
+		navigationScrub = undefined;
+		if (scrubFrame) cancelAnimationFrame(scrubFrame);
+		scrubFrame = 0;
+		cancelVideoGesture?.();
+	}
+
 	function resetSource() {
 		// A new provider owns bootstrap; never resume the old source from teardown.
+		discardNavigationScrub();
 		endpointPreview = undefined;
 		previewBounds = undefined;
 		pendingSeek = undefined;
@@ -1105,8 +1170,9 @@
 				</youloop-controls-player>
 			{/if}
 		{:else}
+			<div class="video-surface" aria-hidden="true" bind:this={videoSurface}></div>
 			<button
-				class="video-toggle"
+				class="video-toggle editor-playback"
 				aria-label={paused ? 'Play video' : 'Pause video'}
 				onclick={togglePaused}
 			></button>
@@ -1508,6 +1574,7 @@
 		display: contents;
 	}
 	.video-surface {
+		touch-action: pan-y pinch-zoom;
 		position: absolute;
 		inset: 0;
 	}
@@ -1728,10 +1795,12 @@
 		background: transparent;
 	}
 
-	.watch-playback {
+	.watch-playback,
+	.editor-playback {
 		pointer-events: none;
 	}
-	.watch-playback:focus-visible {
+	.watch-playback:focus-visible,
+	.editor-playback:focus-visible {
 		outline: 2px solid white;
 		outline-offset: -4px;
 	}

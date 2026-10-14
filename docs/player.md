@@ -44,6 +44,28 @@ the same source-wide axis. Resizing and changing layout or framing reposition
 the chrome without adding a provider. The Clip range dialog remains available
 for precise signed or absolute entry and explicit Set at playhead actions.
 
+### Video gestures
+
+In editor and watch modes, a horizontal drag on the video seeks relative to the
+playback time at pointer-down. One surface width covers the full source in the
+editor or the selected VIDEO/A:B span in watch. Direction locks after 8 CSS
+pixels: horizontal travel scrubs; vertical travel retains native document scrolling.
+The surface uses static `touch-action: pan-y pinch-zoom`, with pointer capture
+only after horizontal intent. A stationary tap toggles playback once; controls
+and keyboard playback retain separate activation.
+
+Scrubbing pauses playback and updates `currentTime` while `transportTime` stays
+at the saved position. Provider seeks are coalesced to one per animation frame.
+Release commits the target and restores playback when the scope permits;
+cancellation restores the saved position and playback. Source replacement drops
+the old session and queued seek. Editor inspection outside A:B stays paused;
+watch targets clamp to the selected scope. Neither gesture changes A/B or the
+share URL. YouTube may render the requested frame late.
+
+Physical iPhone Safari and Android verification remains manual: check native
+vertical scrolling and toolbar collapse, diagonal locking, pinch, stationary
+taps, cancellation, and provider latency in both modes.
+
 ## Clip links and navigation
 
 `/` is the existing editor, including its demo player. Both `/?v=ID&a=A&b=B`
@@ -100,7 +122,7 @@ way to show/hide the cluster by switching Default/Theater; surface taps request
 playback rather than toggling control visibility.
 
 `watch-controls.ts` reuses installed Video.js playback/controls features,
-the tap recognizer, and controls element. It attaches to the existing media
+and controls element. The shared `video-gesture.ts` owns surface taps and scrubbing. It attaches to the existing media
 without replacing YouLoop's A/B state machine or remounting the iframe.
 
 The persistent three-pixel Default timeline follows the intersection of the
