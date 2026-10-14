@@ -141,7 +141,49 @@
 	// Ported from Vee Next's assessment splitter. Only grid tracks change: the
 	// media snippet stays mounted in the same DOM parent through every reflow.
 	function startDrag(event: PointerEvent) {
-		if (event.button !== 0 || drag) return;
+		if (event.button !== 0 || !event.isPrimary || drag) return;
+		// Timeline navigation and the full handle grab areas always outrank
+		// splitter padding, including points outside the painted triangles.
+		const axis = grid.querySelector<HTMLElement>('.editor-axis');
+		const bounds = axis?.getBoundingClientRect();
+		const contains = (box: DOMRect) =>
+			event.clientX >= box.left &&
+			event.clientX <= box.right &&
+			event.clientY >= box.top &&
+			event.clientY <= box.bottom;
+		const handle = [...grid.querySelectorAll<HTMLElement>('.editor-timeline .thumb')]
+			.filter((node) => {
+				const grab = node.querySelector('.triangle-grab');
+				return grab && contains(grab.getBoundingClientRect());
+			})
+			.sort((a, b) => {
+				const tip = (node: HTMLElement) =>
+					bounds!.left +
+					(Number(node.getAttribute('aria-valuenow')) /
+						Number(node.getAttribute('aria-valuemax'))) *
+						bounds!.width;
+				return Math.abs(event.clientX - tip(a)) - Math.abs(event.clientX - tip(b));
+			})[0];
+		const timelineTarget =
+			handle ??
+			(bounds && contains(bounds) ? axis!.querySelector<HTMLElement>('.navigation') : null);
+		if (timelineTarget) {
+			timelineTarget.dispatchEvent(
+				new PointerEvent('pointerdown', {
+					pointerId: event.pointerId,
+					pointerType: event.pointerType,
+					isPrimary: event.isPrimary,
+					button: event.button,
+					buttons: event.buttons,
+					clientX: event.clientX,
+					clientY: event.clientY,
+					cancelable: true,
+					bubbles: true
+				})
+			);
+			event.preventDefault();
+			return;
+		}
 		const target = event.currentTarget as HTMLElement;
 		// Focus must not move the document or couple split position to browser chrome.
 		target.focus({ preventScroll: true });
@@ -550,15 +592,15 @@
 		inset: 0;
 		background: var(--nc-border, #ababab);
 	}
-	/* The thin track has a 27px hit area; pane padding keeps controls clear. */
+	/* Extend resize padding only into settings; the preview owns its pointers. */
 	.splitter::after {
-		inset: 0 -12px;
+		inset: 0 0 0 -12px;
 	}
 	[data-layout='rows'] .splitter {
 		cursor: row-resize;
 	}
 	[data-layout='rows'] .splitter::after {
-		inset: -12px 0;
+		inset: 0 0 -12px;
 	}
 	.splitter:focus-visible {
 		outline: 2px solid #01aaff;

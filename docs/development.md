@@ -38,11 +38,16 @@ To compare the four API proofs with the live provider, use
 The old extended/provider/UI commands have been replaced by this explicit advisory
 command; use `--grep @provider-free` when useful.
 
-Timeline proofs cover source navigation, endpoint swap/focus/capture, temporary
-frame inspection and restoration, and red-line alignment. They are probationary
-through PR 2 in [issue #62](https://github.com/Leftium/youloop/issues/62), when
-they should be reviewed for retirement or promotion. They add no routine browser
-executions. The small numeric swap/relative-step checks remain in `test:clip`.
+Timeline proofs cover endpoint swap/focus/capture, temporary frame inspection,
+and video scrubbing in editor/watch. PR 2 retired the separate source-navigation
+and broad red-line layout journeys; scrub cases now check signed URL preservation,
+line alignment, and provider identity directly. Four cases still run in Chromium
+and WebKit (eight executions), with no routine additions. These browser checks
+remain probationary through PR 3 in [issue #62](https://github.com/Leftium/youloop/issues/62),
+when hold-to-step changes should trigger retirement or promotion review. Small
+numeric swap/relative-step and gesture lifecycle checks remain in `test:clip`;
+the gesture checks permanently guard accidental playback and cancellation without
+browser startup or provider timing.
 
 Routine coverage retains clip bounds and Loop/Once, signed URL/share semantics,
 reload/history, picker commits, modal focus, splitter input and playback/provider

@@ -14,9 +14,7 @@ export async function setSliderValue(page: Page, name: string, value: number | s
 				const axis = document.querySelector('.editor-axis')!.getBoundingClientRect();
 				const max = Number(el.getAttribute('aria-valuemax'));
 				const current = Number(el.getAttribute('aria-valuenow'));
-				const thumb =
-					el.getAttribute('aria-label') !== 'Current time' ||
-					(event.target as Element).closest('.playhead');
+				const thumb = el.getAttribute('aria-label') !== 'Current time';
 				el.setAttribute('data-proof-pointer', String(pointer.pointerId));
 				el.setAttribute(
 					'data-proof-offset',
@@ -26,10 +24,21 @@ export async function setSliderValue(page: Page, name: string, value: number | s
 			{ once: true, capture: true }
 		)
 	);
-	await page.mouse.move(
-		box.x + box.width / 2,
-		name === 'Current time' ? axis.y + 2 : box.y + box.height / 2
-	);
+	let acquireX = box.x + box.width / 2;
+	if (name === 'Current time') {
+		// Navigation and A/B share a track; start on empty track rather than a handle.
+		const handles = await page.locator('.endpoints .thumb').evaluateAll((elements) =>
+			elements.map((element) => {
+				const bounds = element.getBoundingClientRect();
+				return { left: bounds.left, right: bounds.right };
+			})
+		);
+		acquireX =
+			[0.5, 0.25, 0.75, 0.1, 0.9]
+				.map((fraction) => axis.x + axis.width * fraction)
+				.find((x) => handles.every((handle) => x < handle.left || x > handle.right)) ?? acquireX;
+	}
+	await page.mouse.move(acquireX, name === 'Current time' ? axis.y + 2 : box.y + box.height / 2);
 	await page.mouse.down();
 	// Browser automation rounds hardware coordinates. Supply an exact fractional
 	// move while real pointer capture is held for URL precision characterization.

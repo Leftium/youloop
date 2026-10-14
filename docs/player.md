@@ -19,30 +19,77 @@ verification procedures.
 
 ### Editor timeline
 
-The editor's source-wide timeline separates navigation from A/B editing. Click
-empty track space or drag the red playhead to seek without changing the selected
-clip or its share URL. Seeking outside A:B pauses for inspection; Play returns
-to A when the transport is outside the clip. Frame stepping also uses the full
+The editor's source-wide timeline combines navigation and A/B handles on one
+20px track, flush with the video above and retaining the gap before the buttons
+below. That space is reserved before the video duration loads. The track spans the full preview width; triangle tips mark exact times
+and all three vertices stay within the track. Both A and B point up.
+Their bases shift inward at source edges and away from each other when endpoints
+approach, while crossing retains endpoint swapping. Timeline edits retain at least 1/30 second between endpoints. At source edges,
+the outer handle may become very narrow; the wider handle can reopen the range.
+Both endpoints remain keyboard editable. The timeline and full handle grab areas take priority over splitter hit padding,
+so clicks and drags on the track never resize the panes. Splitter hit padding
+extends only toward settings; the video side remains available for playback
+taps and scrubbing.
+
+Colors match watch mode: red marks
+played time outside A:B, deep orange marks played time inside A:B, pale yellow marks the
+unplayed selection, and gray marks remaining source time. Click empty track
+space or drag along the track to seek without changing the selected clip or its share URL. Edit mode starts in VIDEO scope so Play can run outside A:B. The "Clip Only" toggle
+beside Sound and Loop uses an A:B icon and switches to A:B for loop preview, entering A when the playhead is
+outside the selection. In A:B scope, seeking outside the selection pauses for
+inspection; Play returns to A. Frame stepping also uses the full
 source. Watch playback retains its own VIDEO/A:B scope and progress bar.
 
 A/B handles use the generic range slider's swap policy. Crossing another handle
 changes the moving handle's role while retaining its physical focus and pointer
 capture. Arrow keys edit by a relative 0.1 seconds, preserving non-grid offsets;
-Page keys move ten increments, and Home/End select source bounds. Collapsed
-ranges remain editable, although they cannot be played or shared until B is after A.
+Page keys move ten increments, and Home/End select source bounds. Timeline edits clamp equality to a positive interval without an error or layout
+shift. Invalid imported ranges remain repairable, although they cannot be played
+or shared until B is after A.
 
-`transportTime` is the logical playback position; `currentTime` is the displayed
-or requested media position. Endpoint inspection saves the transport and playback
-state, pauses, and requests the endpoint frame. Release, keyup, cancellation,
+`transportTime` follows the displayed/requested `currentTime` during navigation
+and video scrubbing, so progress previews the destination that release will commit.
+Endpoint inspection saves the transport and playback state, pauses, and requests
+the endpoint frame while keeping transport fixed. Release, keyup, cancellation,
 Escape, blur, and teardown restore the saved transport and state. A source
 replacement clears the old preview before the new provider bootstraps. Pending
 seeks protect requested time from stale provider observations for up to two seconds.
 YouTube can display a delayed or approximate frame; inspection is not frame-exact.
 
-The noninteractive translucent red line spans the preview and timeline against
-the same source-wide axis. Resizing and changing layout or framing reposition
+Solid blue A and purple B triangles use white labels, with matching markers in
+the Clip range summary and dialog. Their invisible 44px grab targets stay within
+the track width and take priority over splitter padding. Overlapping targets
+choose the nearest tip, with A winning ties. The noninteractive playhead line spans the preview and ends
+at the top of the timeline, against the same source-wide axis. It is orange
+inside A:B and red outside, without a shadow.
+There is no transport arrow. Resizing and changing layout or framing reposition
 the chrome without adding a provider. The Clip range dialog remains available
 for precise signed or absolute entry and explicit Set at playhead actions.
+
+### Video gestures
+
+In editor and watch modes, a horizontal drag on the video jumps to the time at the
+cursor position, like the timeline. The left and right edges map to the full
+source bounds in the editor or the selected VIDEO/A:B bounds in watch. Editor
+dragging uses the full-width timeline axis, so the playhead lines up with the cursor. Watch dragging uses the visible progress track between any
+clip tails, and keeps that axis when Theater hides the chrome. Black margins
+remain tappable; dragging outside the axis clamps to the selected scope bounds. Direction locks after 8 CSS
+pixels: horizontal travel scrubs; vertical travel retains native document scrolling.
+The surface uses static `touch-action: pan-y pinch-zoom`, with pointer capture
+only after horizontal intent. A stationary tap toggles playback once; controls
+and keyboard playback retain separate activation.
+
+Scrubbing pauses playback and updates `currentTime` and `transportTime` together.
+The scrub session privately retains its original position for cancellation. Provider seeks are coalesced to one per animation frame.
+Release commits the target and restores playback when the scope permits;
+cancellation restores the saved position and playback. Source replacement drops
+the old session and queued seek. Editor inspection outside A:B stays paused in A:B scope;
+watch targets clamp to the selected scope. Neither gesture changes A/B or the
+share URL. YouTube may render the requested frame late.
+
+Physical iPhone Safari and Android verification remains manual: check native
+vertical scrolling and toolbar collapse, diagonal locking, pinch, stationary
+taps, cancellation, and provider latency in both modes.
 
 ## Clip links and navigation
 
@@ -100,11 +147,11 @@ way to show/hide the cluster by switching Default/Theater; surface taps request
 playback rather than toggling control visibility.
 
 `watch-controls.ts` reuses installed Video.js playback/controls features,
-the tap recognizer, and controls element. It attaches to the existing media
+and controls element. The shared `video-gesture.ts` owns surface taps and scrubbing. It attaches to the existing media
 without replacing YouLoop's A/B state machine or remounting the iframe.
 
-The persistent three-pixel Default timeline follows the intersection of the
-media canvas and `visualViewport`. Viewport changes reposition only the chrome;
+The persistent three-pixel Default timeline spans the visible player width,
+including black side margins, at the visible media canvas bottom edge. Viewport changes reposition only the chrome;
 they do not resize the `100lvh` stage or the centered `16000px` iframe crop.
 Downward document-scroll travel selects Theater; upward travel selects Default,
 including after the empty runway grows. Returning from Theater explicitly reveals
@@ -113,11 +160,11 @@ title, controls, and timeline. Fullscreen is independent of those modes. Safari 
 the Theater button only advances the native document scroll.
 
 The time button at the left of the control row switches between VIDEO and A:B
-without seeking or changing playback or the share URL. The blue `A:B` label
+without seeking or changing playback or the share URL. The yellow `A:B` label
 follows the duration in clip mode; full-video mode has no visible mode label.
-VIDEO shows absolute time and red full-video progress, with the blue selection at its true proportional
-position. The elapsed part of A:B is purple where progress overlaps selection.
-A:B shows elapsed clip time with purple progress over the blue clip track. Fixed
+VIDEO shows absolute time and red full-video progress, with the yellow selection at its true proportional
+position. The elapsed part of A:B is orange where progress overlaps selection.
+A:B shows elapsed clip time with orange progress over the yellow clip track. Fixed
 six-percent dashed tails indicate excluded video: red before A, gray after B.
 The tails are inert. Full-video selections have no highlight, tails, or available toggle.
 

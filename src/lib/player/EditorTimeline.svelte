@@ -1,9 +1,10 @@
 <script lang="ts">
 	import { onDestroy, untrack } from 'svelte';
 	import RangeSlider from '../components/RangeSlider.svelte';
+	import { rangeMarkerColors } from '../components/range-marker-colors';
+	import { timelineRange } from './watch-timeline';
 	import {
 		rangeValueAtPosition,
-		rangeValuePercent,
 		stepRangeValue,
 		type NumericRange
 	} from '../components/range-slider';
@@ -33,13 +34,13 @@
 		onpreviewend: () => void;
 	} = $props();
 	let axis = $state<HTMLDivElement>(undefined!);
-	let drag: { pointerId: number; node: HTMLElement; offset: number } | undefined;
-	let progress = $derived(rangeValuePercent(transportTime, 0, duration));
-	let displayed = $derived(rangeValuePercent(currentTime, 0, duration));
+	let drag: { pointerId: number; node: HTMLElement } | undefined;
+	let range = $derived(timelineRange(duration, start, end, transportTime));
+	let progress = $derived(range.videoProgress * 100);
 	function move(event: PointerEvent) {
 		if (!drag || event.pointerId !== drag.pointerId) return;
 		const box = axis.getBoundingClientRect();
-		onseek(rangeValueAtPosition(event.clientX - box.left - drag.offset, box.width, 0, duration));
+		onseek(rangeValueAtPosition(event.clientX - box.left, box.width, 0, duration));
 	}
 	function begin(event: PointerEvent) {
 		if (disabled || drag || event.button !== 0 || !event.isPrimary) return;
@@ -47,13 +48,9 @@
 		const node = event.currentTarget as HTMLElement;
 		node.focus();
 		node.setPointerCapture(event.pointerId);
-		const box = axis.getBoundingClientRect();
 		drag = {
 			pointerId: event.pointerId,
-			node,
-			offset: (event.target as Element).closest('.playhead')
-				? event.clientX - box.left - (displayed / 100) * box.width
-				: 0
+			node
 		};
 		move(event);
 	}
@@ -126,9 +123,19 @@
 			onblur={() => finish()}
 		>
 			<div class="progress" style:width={`${progress}%`}></div>
-			<div class="playhead" style:left={`${displayed}%`} aria-hidden="true"></div>
+			<div
+				class="selection"
+				style:left={`${range.selectionStart * 100}%`}
+				style:width={`${range.selectionWidth * 100}%`}
+			>
+				<div class="overlap" style:width={`${range.clipProgress * 100}%`}></div>
+			</div>
 		</div>
-		<div class="endpoints">
+		<div
+			class="endpoints"
+			style:--range-slider-thumb={rangeMarkerColors.start}
+			style:--range-slider-end-thumb={rangeMarkerColors.end}
+		>
 			<RangeSlider
 				min={0}
 				max={duration}
@@ -139,6 +146,8 @@
 				keyboardIncrement={0.1}
 				keyboardStepMode="relative"
 				thumbInteraction="swap"
+				thumbShape="triangles"
+				minimumSpan={1 / 30}
 				label="Timeline clip range"
 				startLabel="Repeat start"
 				endLabel="Repeat end"
@@ -154,58 +163,47 @@
 
 <style>
 	.editor-timeline {
-		padding-inline: var(--editor-axis-inset, 22px);
+		padding-bottom: 16px;
 	}
 	.editor-axis {
 		position: relative;
-		height: 72px;
+		z-index: 3;
+		height: 20px;
 	}
 	.navigation {
 		position: absolute;
 		inset: 0;
+		background: #aaa;
 		cursor: crosshair;
 		touch-action: none;
 		outline-offset: 2px;
 	}
-	.navigation::before {
-		content: '';
+	.progress,
+	.selection,
+	.overlap {
 		position: absolute;
-		top: 18px;
-		height: 6px;
-		width: 100%;
-		background: #e2e8f0;
+		top: 0;
+		height: 100%;
 		pointer-events: none;
 	}
 	.progress {
-		position: absolute;
-		top: 18px;
-		height: 6px;
-		background: #64748b;
-		pointer-events: none;
+		background: #f33;
 	}
-	.playhead {
-		position: absolute;
-		top: 0;
-		width: 24px;
-		height: 25px;
-		transform: translateX(-50%);
-		cursor: grab;
+	.selection {
+		background: #ffe66d;
 	}
-	.playhead::after {
-		content: '';
-		position: absolute;
-		left: 7px;
-		top: 6px;
-		border-inline: 5px solid transparent;
-		border-top: 10px solid #ef4444;
+	.overlap {
+		background: #f07800;
 	}
 	.endpoints {
 		position: absolute;
-		inset: 24px 0 0;
+		inset: 0;
 		pointer-events: none;
 		--range-slider-inset: 0;
-		--range-slider-track: #e2e8f0;
-		--range-slider-selection: rgb(38 139 210 / 45%);
-		--range-slider-end-thumb: #6366f1;
+		--range-slider-height: 20px;
+		--range-slider-thumb-size: 20px;
+		--range-slider-track: transparent;
+		--range-slider-selection: transparent;
+		--range-slider-color: #268bd2;
 	}
 </style>

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import RangeMarker from '../components/RangeMarker.svelte';
 	import { tick } from 'svelte';
 	import { resolveClipRange, subtractSeconds, type ShareUrlState } from '../share-url.ts';
 	import { editorTime, parseEditorTime } from './editor-time';
@@ -110,7 +111,7 @@
 	}}
 >
 	<div class="bound-label">
-		<span class="marker">{endpoint === 'start' ? 'A' : 'B'}</span>{label}
+		<RangeMarker {endpoint} />{label}
 	</div>
 	{#if !editing}
 		<button
@@ -186,18 +187,6 @@
 		gap: 8px;
 		font-weight: 600;
 		min-height: 44px;
-	}
-	.marker {
-		border: 1px solid currentColor;
-		border-radius: 50%;
-		width: 24px;
-		height: 24px;
-		display: inline-grid;
-		place-items: center;
-		color: #79c0ff;
-	}
-	[data-endpoint='end'] .marker {
-		color: #b0a3e8;
 	}
 	button {
 		margin: 0;

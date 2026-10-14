@@ -119,7 +119,7 @@ export async function runView() {
 			!!selection &&
 				Math.abs(parseFloat(selection.style.left) - range.selectionStart * 100) < 0.000001 &&
 				Math.abs(parseFloat(selection.style.width) - range.selectionWidth * 100) < 0.000001,
-			'Rendered blue selection preserves exact proportional boundaries'
+			'Rendered yellow selection preserves exact proportional boundaries'
 		);
 		const overlap = selection!.querySelector<HTMLElement>('.timeline-overlap')!;
 		const absoluteTime = Number(timeline().getAttribute('aria-valuenow'));

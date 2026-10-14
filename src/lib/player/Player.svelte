@@ -4,6 +4,7 @@
 	import { onMount, untrack, type Snippet } from 'svelte';
 	import EditorWorkspace from './EditorWorkspace.svelte';
 	import EditorTimeline from './EditorTimeline.svelte';
+	import { attachVideoGesture, type VideoScrub } from './video-gesture';
 	import type { NumericRange } from '../components/range-slider';
 	import BoundEditor from './BoundEditor.svelte';
 	import ClipRange from './ClipRange.svelte';
@@ -154,6 +155,9 @@
 
 	let currentTime = $state(repeatA);
 	let transportTime = $state(repeatA);
+	let navigationScrub: { time: number; paused: boolean; target: number } | undefined;
+	let scrubFrame = 0;
+	let cancelVideoGesture: (() => void) | undefined;
 	let endpointPreview: { time: number; paused: boolean } | undefined;
 	let previewBounds: Pick<ShareUrlState, 'start' | 'end'> | undefined;
 	let pendingSeek: { time: number; requestedAt: number } | undefined;
@@ -164,13 +168,15 @@
 	const scopeChoice = createTimelineMode();
 	let playbackScope = $state<TimelineMode>('video');
 	let range = $derived(timelineRange(duration, repeatA, repeatB, currentTime));
-	let activeScope = $derived(minimal && range.valid ? playbackScope : 'clip');
+	let activeScope = $derived(range.valid ? playbackScope : 'clip');
 	let activeBounds = $derived(playbackBounds(duration, repeatA, repeatB, activeScope));
 	let clipTimeline = $derived(range.restricted && activeScope === 'clip');
 	let timelineTime = $derived(clipTimeline ? range.elapsed : range.absolute);
 	let timelineDuration = $derived(clipTimeline ? range.length : range.total);
 	function toggleTimeline() {
+		cancelVideoGesture?.();
 		if (!range.restricted || !player) return;
+		endEndpointPreview();
 		playbackScope = scopeChoice.toggle();
 		const target = scopeSwitchTarget(player.currentTime, activeBounds);
 		if (target !== player.currentTime) seek(target, requestedPaused);
@@ -224,6 +230,7 @@
 		void requestedBounds;
 		untrack(() => {
 			if (!metadataReceived || !player) return;
+			cancelVideoGesture?.();
 			if (
 				endpointPreview &&
 				previewBounds &&
@@ -231,7 +238,7 @@
 			)
 				endEndpointPreview();
 			if (duration !== undefined && !validateBounds()) return;
-			if (endpointPreview || (!minimal && requestedPaused)) return;
+			if (navigationScrub || endpointPreview || (!minimal && requestedPaused)) return;
 			if (player.currentTime < activeBounds.start || player.currentTime > activeBounds.end) {
 				seek(activeBounds.start);
 			}
@@ -326,6 +333,7 @@
 		window.addEventListener('message', handleProviderMessage);
 		return () => {
 			disposed = true;
+			discardNavigationScrub();
 			endEndpointPreview();
 			clearTimeout(durationTimer);
 			document.removeEventListener('fullscreenchange', syncFullscreen);
@@ -335,13 +343,28 @@
 
 	$effect(() => {
 		if (!minimal || !player || !controlsPlayer || !controlsModule) return;
-		return controlsModule.attachWatchControls(
-			controlsPlayer,
-			player,
-			playerContainer,
+		return controlsModule.attachWatchControls(controlsPlayer, player, playerContainer);
+	});
+
+	$effect(() => {
+		if (!videoSurface) return;
+		const attachment = attachVideoGesture(
 			videoSurface,
-			togglePaused
+			prepareNavigationScrub,
+			togglePaused,
+			() => {
+				// Use the full-width timeline axis in both modes, including watch clip tails.
+				const axis = minimal
+					? playerContainer.querySelector('.watch-timeline .timeline-track')
+					: timelineBox?.querySelector('.editor-axis');
+				return (axis ?? (minimal ? mediaCanvas : videoSurface)).getBoundingClientRect();
+			}
 		);
+		cancelVideoGesture = attachment.cancel;
+		return () => {
+			attachment.destroy();
+			if (cancelVideoGesture === attachment.cancel) cancelVideoGesture = undefined;
+		};
 	});
 
 	$effect(() => {
@@ -525,8 +548,8 @@
 		return () => clearInterval(timer);
 	});
 
-	// Clip enforcement and watch seeking retain their existing bounds. Editor navigation
-	// and endpoint inspection use the full source without rewriting those bounds.
+	// Playback follows the selected VIDEO/A:B scope. Editor navigation and
+	// endpoint inspection retain the full source axis.
 	function seek(time: number, stayPaused = minimal ? requestedPaused : player.paused) {
 		setMediaTime(Math.max(activeBounds.start, Math.min(activeBounds.end, time)), stayPaused);
 	}
@@ -534,21 +557,65 @@
 	function setMediaTime(time: number, stayPaused: boolean, preview = false) {
 		pauseAfterSeek = stayPaused;
 		currentTime = Math.max(0, Math.min(duration ?? player.duration, time));
-		if (!preview) transportTime = currentTime;
+		if (!preview || navigationScrub) transportTime = currentTime;
 		pendingSeek = { time: currentTime, requestedAt: Date.now() };
 		if (retrySeekTime !== undefined && !preview) retrySeekTime = recoverySeekTarget(currentTime);
 		player.currentTime = currentTime;
 	}
 
 	function navigateSource(time: number) {
+		cancelVideoGesture?.();
 		endEndpointPreview();
-		// Navigation outside A:B is paused inspection. Play re-enters the clip,
-		// while navigation within it preserves the existing playing/paused state.
+		// In A:B scope, navigation outside the selection pauses for inspection.
+		// VIDEO navigation preserves playback anywhere within the source.
 		if (time < activeBounds.start || time >= activeBounds.end) pause();
 		setMediaTime(time, requestedPaused);
 	}
 
+	function prepareNavigationScrub(): VideoScrub | undefined {
+		if (!player || duration === undefined || !metadataReceived || boundsError) return;
+		const saved = { time: transportTime, paused: requestedPaused, target: transportTime };
+		const bounds = minimal ? { ...activeBounds } : { start: 0, end: duration };
+		return {
+			begin() {
+				endEndpointPreview();
+				navigationScrub = saved;
+				transportTime = saved.time;
+				pause();
+			},
+			move(position) {
+				if (navigationScrub !== saved) return;
+				saved.target = Math.max(
+					bounds.start,
+					Math.min(bounds.end, bounds.start + position * (bounds.end - bounds.start))
+				);
+				currentTime = saved.target;
+				transportTime = saved.target;
+				// Responsive display; at most one provider seek per animation frame.
+				if (!scrubFrame)
+					scrubFrame = requestAnimationFrame(() => {
+						scrubFrame = 0;
+						if (navigationScrub === saved) setMediaTime(saved.target, true, true);
+					});
+			},
+			end(commit) {
+				if (navigationScrub !== saved) return;
+				if (scrubFrame) cancelAnimationFrame(scrubFrame);
+				scrubFrame = 0;
+				navigationScrub = undefined;
+				const target = commit ? saved.target : saved.time;
+				const outside = target < activeBounds.start || target >= activeBounds.end;
+				const stayPaused =
+					saved.paused || !!boundsError || (commit && outside && (!minimal || !loop));
+				setMediaTime(target, stayPaused);
+				if (stayPaused) pause();
+				else void play();
+			}
+		};
+	}
+
 	function beginEndpointPreview(time: number) {
+		cancelVideoGesture?.();
 		if (!player || endpointPreview) return;
 		endpointPreview = { time: transportTime, paused: requestedPaused };
 		previewBounds = { ...requestedBounds };
@@ -588,7 +655,7 @@
 		const root = previewRoot;
 		const timeline = timelineBox;
 		const measure = () => {
-			playheadHeight = timeline.getBoundingClientRect().bottom - root.getBoundingClientRect().top;
+			playheadHeight = timeline.getBoundingClientRect().top - root.getBoundingClientRect().top;
 		};
 		const observer = new ResizeObserver(measure);
 		observer.observe(root);
@@ -609,6 +676,7 @@
 		if (!validateBounds()) return;
 		if (minimal) playbackScope = scopeChoice.choose(nextDuration, repeatA, repeatB);
 		if (
+			!navigationScrub &&
 			!endpointPreview &&
 			(minimal || firstDuration || !requestedPaused) &&
 			(player.currentTime < activeBounds.start || player.currentTime > activeBounds.end)
@@ -703,7 +771,7 @@
 	}
 
 	function handlePlaying() {
-		if (endpointPreview) {
+		if (navigationScrub || endpointPreview) {
 			player.pause();
 			return;
 		}
@@ -756,7 +824,7 @@
 		if (duration === undefined || boundsError || player.seeking) return;
 		// YouTube observations can arrive from the previous seek. Keep requested
 		// display time until acknowledgement, with a bounded recovery window.
-		if (endpointPreview) return;
+		if (navigationScrub || endpointPreview) return;
 		const observed = player.currentTime;
 		if (
 			pendingSeek &&
@@ -778,7 +846,7 @@
 	}
 
 	function handleEnded() {
-		if (endpointPreview || boundsError) return;
+		if (navigationScrub || endpointPreview || boundsError) return;
 		if (initialFramePending) {
 			firstFrameReady = true;
 			pause();
@@ -805,6 +873,7 @@
 	}
 
 	function togglePaused() {
+		cancelVideoGesture?.();
 		if (!player || !metadataReceived || boundsError) return;
 		// The adapter can retain paused=false when YouTube returns to unstarted/cued.
 		// Treat those states as a Play request so a stalled startup can be retried.
@@ -890,8 +959,17 @@
 		if (changed || !source.clip) sourceVersion += 1;
 	}
 
+	function discardNavigationScrub() {
+		// Teardown has no provider to restore. Invalidate before gesture cleanup.
+		navigationScrub = undefined;
+		if (scrubFrame) cancelAnimationFrame(scrubFrame);
+		scrubFrame = 0;
+		cancelVideoGesture?.();
+	}
+
 	function resetSource() {
 		// A new provider owns bootstrap; never resume the old source from teardown.
+		discardNavigationScrub();
 		endpointPreview = undefined;
 		previewBounds = undefined;
 		pendingSeek = undefined;
@@ -987,46 +1065,47 @@
 						style:width={`${visibleBounds.width}px`}
 						style:height={`${visibleBounds.height}px`}
 					>
-						{#if !theater}
-							<div
-								class="watch-timeline"
-								class:clip={clipTimeline}
-								data-mode={clipTimeline ? 'clip' : 'video'}
-								role="progressbar"
-								aria-label={clipTimeline ? 'A:B progress' : 'Video progress'}
-								aria-valuemin="0"
-								aria-valuemax={timelineDuration}
-								aria-valuenow={timelineTime}
-								aria-valuetext={`${range.valid ? formatVideoTime(timelineTime) : '?:??'} / ${range.valid ? formatVideoTime(timelineDuration) : '?:??'}`}
-							>
-								{#if clipTimeline && range.leftTail}<div
-										class="timeline-tail left"
-										aria-hidden="true"
-									></div>{/if}
-								<div class="timeline-track">
-									{#if !clipTimeline && range.restricted}
-										<div
-											class="timeline-selection"
-											style:left={`${range.selectionStart * 100}%`}
-											style:width={`${range.selectionWidth * 100}%`}
-										>
-											<div
-												class="timeline-overlap"
-												style:width={`${range.clipProgress * 100}%`}
-											></div>
-										</div>
-									{/if}
+						<div
+							class="watch-timeline"
+							style:left={`${controlsBounds.left - visibleBounds.left}px`}
+							style:width={`${controlsBounds.width}px`}
+							aria-hidden={theater}
+							class:clip={clipTimeline}
+							data-mode={clipTimeline ? 'clip' : 'video'}
+							role="progressbar"
+							aria-label={clipTimeline ? 'A:B progress' : 'Video progress'}
+							aria-valuemin="0"
+							aria-valuemax={timelineDuration}
+							aria-valuenow={timelineTime}
+							aria-valuetext={`${range.valid ? formatVideoTime(timelineTime) : '?:??'} / ${range.valid ? formatVideoTime(timelineDuration) : '?:??'}`}
+						>
+							{#if clipTimeline && range.leftTail}<div
+									class="timeline-tail left"
+									aria-hidden="true"
+								></div>{/if}
+							<div class="timeline-track">
+								{#if !clipTimeline && range.restricted}
 									<div
-										class="timeline-fill"
-										style:width={`${(clipTimeline ? range.clipProgress : range.videoProgress) * 100}%`}
-									></div>
-								</div>
-								{#if clipTimeline && range.rightTail}<div
-										class="timeline-tail right"
-										aria-hidden="true"
-									></div>{/if}
+										class="timeline-selection"
+										style:left={`${range.selectionStart * 100}%`}
+										style:width={`${range.selectionWidth * 100}%`}
+									>
+										<div
+											class="timeline-overlap"
+											style:width={`${range.clipProgress * 100}%`}
+										></div>
+									</div>
+								{/if}
+								<div
+									class="timeline-fill"
+									style:width={`${(clipTimeline ? range.clipProgress : range.videoProgress) * 100}%`}
+								></div>
 							</div>
-						{/if}
+							{#if clipTimeline && range.rightTail}<div
+									class="timeline-tail right"
+									aria-hidden="true"
+								></div>{/if}
+						</div>
 					</div>
 					<div
 						class="watch-controls-region"
@@ -1105,8 +1184,9 @@
 				</youloop-controls-player>
 			{/if}
 		{:else}
+			<div class="video-surface" aria-hidden="true" bind:this={videoSurface}></div>
 			<button
-				class="video-toggle"
+				class="video-toggle editor-playback"
 				aria-label={paused ? 'Play video' : 'Pause video'}
 				onclick={togglePaused}
 			></button>
@@ -1135,8 +1215,9 @@
 		{#if duration}
 			<div
 				class="editor-playhead-line"
+				class:inside-clip={currentTime >= repeatA && currentTime <= repeatB}
 				aria-hidden="true"
-				style:left={`calc(var(--editor-axis-inset) + (100% - 2 * var(--editor-axis-inset)) * ${Math.max(0, Math.min(1, currentTime / duration))})`}
+				style:left={`${Math.max(0, Math.min(1, currentTime / duration)) * 100}%`}
 				style:height={`${playheadHeight}px`}
 			></div>
 		{/if}
@@ -1245,6 +1326,17 @@
 							onclick={toggleLoop}
 							>{#if loop}<FluentArrowRepeat />{:else}<FluentArrowRepeatOff />{/if}<span
 								class="secondary-label">Loop</span
+							></button
+						>
+						<button
+							class="transport-scope"
+							aria-label={`${activeScope === 'clip' ? 'A:B' : 'VIDEO'} playback, switch to ${activeScope === 'clip' ? 'VIDEO' : 'A:B'} playback`}
+							aria-pressed={activeScope === 'clip'}
+							disabled={!range.restricted}
+							data-tooltip={activeScope === 'clip' ? 'Play full video' : 'Play only A:B'}
+							onclick={toggleTimeline}
+							><span class="scope-icon" aria-hidden="true">A:B</span><span class="secondary-label"
+								>Clip Only</span
 							></button
 						>
 						<button class="transport-fill" disabled aria-hidden="true" tabindex="-1"></button>
@@ -1508,13 +1600,14 @@
 		display: contents;
 	}
 	.video-surface {
+		touch-action: pan-y pinch-zoom;
 		position: absolute;
 		inset: 0;
 	}
 	.watch-overlay {
 		--timeline-progress: #f33;
-		--timeline-selection: #39f;
-		--timeline-overlap: #a855f7;
+		--timeline-selection: #ffe66d;
+		--timeline-overlap: #f07800;
 		--timeline-remaining: #aaa;
 		position: absolute;
 		pointer-events: none;
@@ -1613,7 +1706,7 @@
 		gap: 0.3em;
 	}
 	.watch-time .time-label {
-		color: #39f;
+		color: #ffe66d;
 	}
 	.watch-controls .watch-time:disabled {
 		opacity: 1;
@@ -1663,11 +1756,15 @@
 	.watch-timeline {
 		position: absolute;
 		left: 0;
-		right: 0;
+		right: auto;
 		bottom: 0;
 		height: 3px;
 		display: flex;
 		pointer-events: none;
+	}
+	// Retain the axis for scrubbing when Theater hides the chrome.
+	.watch-overlay.theater .watch-timeline {
+		visibility: hidden;
 	}
 	.timeline-track {
 		position: relative;
@@ -1728,16 +1825,19 @@
 		background: transparent;
 	}
 
-	.watch-playback {
+	.watch-playback,
+	.editor-playback {
 		pointer-events: none;
 	}
-	.watch-playback:focus-visible {
+	.watch-playback:focus-visible,
+	.editor-playback:focus-visible {
 		outline: 2px solid white;
 		outline-offset: -4px;
 	}
 
 	.editor-preview-content {
-		--editor-axis-inset: 22px;
+		--editor-axis-inset-left: max(8px, env(safe-area-inset-left));
+		--editor-axis-inset-right: max(8px, env(safe-area-inset-right));
 		position: relative;
 		display: grid;
 		grid-template-rows: minmax(0, 1fr) auto;
@@ -1748,17 +1848,25 @@
 	.editor-playhead-line {
 		position: absolute;
 		top: 0;
-		width: 1px;
-		background: rgb(239 68 68 / 55%);
+		width: 2px;
+		transform: translateX(-50%);
+		background: #f33;
 		pointer-events: none;
 		z-index: 5;
+	}
+	.editor-playhead-line.inside-clip {
+		background: #f07800;
+	}
+	.timeline-box {
+		/* Reserve the 20px track and its 16px bottom gap before duration settles. */
+		min-height: 36px;
 	}
 	.editor-transport {
 		padding: 0 0 max(1rem, env(safe-area-inset-bottom));
 		container: transport / inline-size;
 	}
 	.preview-actions {
-		padding-inline: max(8px, env(safe-area-inset-left));
+		padding-inline: var(--editor-axis-inset-left) var(--editor-axis-inset-right);
 		display: flex;
 		align-items: center;
 	}
@@ -1797,6 +1905,29 @@
 		opacity: 1;
 		cursor: default;
 	}
+	.scope-icon {
+		position: relative;
+		width: var(--youloop-control-icon-size);
+		display: inline-flex;
+		justify-content: center;
+		font-size: 0.65rem;
+		font-weight: bold;
+		letter-spacing: -0.04em;
+		white-space: nowrap;
+	}
+
+	.transport-scope[aria-pressed='false'] .scope-icon::after {
+		content: '';
+		position: absolute;
+		left: 50%;
+		top: 50%;
+		width: calc(100% + 4px);
+		height: 2px;
+		border-radius: 1px;
+		background: currentColor;
+		transform: translate(-50%, -50%) rotate(45deg);
+	}
+
 	.preview-playback .transport-rate {
 		display: none;
 		width: auto;
@@ -1880,7 +2011,8 @@
 			display: inline;
 		}
 		.preview-playback .transport-sound,
-		.preview-playback .transport-loop {
+		.preview-playback .transport-loop,
+		.preview-playback .transport-scope {
 			width: auto;
 		}
 	}
@@ -2114,8 +2246,8 @@
 	}
 	.timestamps {
 		position: absolute;
-		inset: auto max(8px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom))
-			max(8px, env(safe-area-inset-left));
+		inset: auto var(--editor-axis-inset-right) max(8px, env(safe-area-inset-bottom))
+			var(--editor-axis-inset-left);
 		z-index: 1;
 		display: flex;
 		flex-wrap: wrap;

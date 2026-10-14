@@ -127,3 +127,21 @@ export function applyThumbInteraction(
 	}
 	return { range: moveRangeThumb(current, edge, value, min, max), edge };
 }
+
+// Preserve the stationary endpoint where possible, including after role swaps.
+export function ensureRangeSpan(
+	range: NumericRange,
+	edge: RangeEdge,
+	min: number,
+	max: number,
+	minimumSpan: number
+): NumericRange {
+	const span = Math.min(Math.max(0, minimumSpan), max - min);
+	if (range.end - range.start >= span) return range;
+	if (edge === 'start') {
+		const start = Math.max(min, range.end - span);
+		return { start, end: Math.max(range.end, start + span) };
+	}
+	const end = Math.min(max, range.start + span);
+	return { start: Math.min(range.start, end - span), end };
+}

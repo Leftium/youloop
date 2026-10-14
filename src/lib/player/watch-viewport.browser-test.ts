@@ -75,6 +75,7 @@ export async function run() {
 		}
 	}
 	function aligned() {
+		const outer = document.querySelector('.player')!.getBoundingClientRect();
 		const canvas = document.querySelector('.media-canvas')!.getBoundingClientRect();
 		const overlay = document.querySelector('.watch-overlay')!.getBoundingClientRect();
 		const timeline = document.querySelector('.watch-timeline')!.getBoundingClientRect();
@@ -86,11 +87,12 @@ export async function run() {
 			'Overlay uses visible canvas horizontal coordinates'
 		);
 		check(
-			Math.abs(timeline.left - left) < 1 &&
-				Math.abs(timeline.right - right) < 1 &&
+			Math.abs(timeline.left - Math.max(outer.left, viewport.offsetLeft)) < 1 &&
+				Math.abs(timeline.right - Math.min(outer.right, viewport.offsetLeft + viewport.width)) <
+					1 &&
 				Math.abs(timeline.bottom - bottom) < 1 &&
 				timeline.height === 3,
-			'Timeline matches visible canvas width and bottom edge'
+			'Timeline spans visible player width at the canvas bottom edge'
 		);
 	}
 	try {
