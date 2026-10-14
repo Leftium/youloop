@@ -28,6 +28,7 @@ Chromium uses full headless Chromium with `--mute-audio`.
 | `pnpm test:browser`          | Required routine suite, with external requests blocked in browser and server.                     |
 | `pnpm test:browser:routine`  | Alias for the required routine suite.                                                             |
 | `pnpm test:browser:mock`     | Four focused Video.js API/identity and watch Loop/Once proofs, also included in routine.          |
+| `pnpm test:browser:frames`   | Offline Chromium/WebKit press-and-hold frame proofs, excluded from routine gates.                 |
 | `pnpm test:browser:timeline` | Offline Chromium/WebKit editor timeline proofs, excluded from routine gates.                      |
 | `pnpm test:browser:advisory` | On-demand broader Chromium/WebKit coverage with live YouTube and metadata. Not a deployment gate. |
 
@@ -43,11 +44,35 @@ and video scrubbing in editor/watch. PR 2 retired the separate source-navigation
 and broad red-line layout journeys; scrub cases now check signed URL preservation,
 line alignment, and provider identity directly. Four cases still run in Chromium
 and WebKit (eight executions), with no routine additions. These browser checks
-remain probationary through PR 3 in [issue #62](https://github.com/Leftium/youloop/issues/62),
-when hold-to-step changes should trigger retirement or promotion review. Small
-numeric swap/relative-step and gesture lifecycle checks remain in `test:clip`;
-the gesture checks permanently guard accidental playback and cancellation without
-browser startup or provider timing.
+were reviewed in PR 3: endpoint capture/swap, keyboard restoration, and editor/watch
+scrub cancellation still exercise distinct browser contracts. They remain probationary
+through the Clip-settings PR 4 in [issue #62](https://github.com/Leftium/youloop/issues/62),
+which can revisit their overlap with settings and transport coverage. The two frame
+stepping proofs (four Chromium/WebKit executions) are also probationary through PR 4,
+selected separately by `test:browser:frames`. Neither group expands the routine gate.
+Small numeric swap/relative-step and gesture lifecycle checks remain in `test:clip`;
+the gesture and frame-stepper checks permanently guard accidental playback,
+cancellation, stale provider observations and seek coalescing without browser startup.
+
+Prev Frame and Next Frame request a nominal 1/30 second step, pause, and leave playback
+paused. Holding starts repeat after 350 ms, then requests at most once per 200 ms.
+Rapid taps update the logical playhead immediately and replace the pending seek;
+the latest target is sent within 200 ms. Release stops repeat without another step.
+Other navigation discards pending frame requests. In Clip Only, both Prev Frame and
+Next Frame honor A/B. Loop wraps Next past B to A and Prev before A to B, including
+while held; Once clamps and stops at those edges. In VIDEO, the same behavior applies
+to the entire source. Switching scope cancels repeat and queued frame seeks. Timeline and video
+scrubbing can still inspect outside A:B; Play re-enters the clip when necessary.
+
+The 30 fps default is an approximation, not detected source FPS. The pure helper can
+accept another nominal quantum later, but the UI does not infer FPS or add a selector.
+[YouTube's documented API](https://developers.google.com/youtube/iframe_api_reference#Playback_controls)
+and the [Video.js YouTube element](https://videojs.org/docs/framework/html/reference/components/youtube-video)
+expose time seeks without an exact-frame operation. Provider observations do not
+confirm a decoded frame, so paused inspection retains its last logical request until
+Play or other navigation. Visible frames can repeat or skip, particularly in unbuffered
+regions and long videos. Mocked tests verify request ordering and cleanup; real YouTube
+latency and physical iPhone Safari/Android behavior remain pending manual verification.
 
 Routine coverage retains clip bounds and Loop/Once, signed URL/share semantics,
 reload/history, picker commits, modal focus, splitter input and playback/provider

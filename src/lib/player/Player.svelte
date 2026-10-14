@@ -5,6 +5,7 @@
 	import EditorWorkspace from './EditorWorkspace.svelte';
 	import EditorTimeline from './EditorTimeline.svelte';
 	import { attachVideoGesture, type VideoScrub } from './video-gesture';
+	import { attachFrameHold, createFrameStepper } from './frame-stepping';
 	import type { NumericRange } from '../components/range-slider';
 	import BoundEditor from './BoundEditor.svelte';
 	import ClipRange from './ClipRange.svelte';
@@ -65,8 +66,6 @@
 	let controlsBounds = $state({ left: 0, top: 0, width: 0, height: 0 });
 	let controlsPlacement = $state({ left: 0, top: 0, width: 0, height: 44, mode: 'video' });
 	let visibleBounds = $state({ left: 0, top: 0, width: 0, height: 0 });
-
-	const framerate = 30;
 
 	const YOUTUBE_ORIGINS = ['https://www.youtube-nocookie.com', 'https://www.youtube.com'];
 	const YOUTUBE_STATE_UNSTARTED = -1;
@@ -160,6 +159,19 @@
 	let cancelVideoGesture: (() => void) | undefined;
 	let endpointPreview: { time: number; paused: boolean } | undefined;
 	let previewBounds: Pick<ShareUrlState, 'start' | 'end'> | undefined;
+	let prevFrameButton = $state<HTMLButtonElement>();
+	let nextFrameButton = $state<HTMLButtonElement>();
+	let cancelFrameHold: (() => void) | undefined;
+	const frameStepper = createFrameStepper({
+		position: () => transportTime,
+		bounds: () => activeBounds,
+		loop: () => loop,
+		show(time) {
+			pause();
+			currentTime = transportTime = time;
+		},
+		seek: (time) => setMediaTime(time, true, false, true)
+	});
 	let pendingSeek: { time: number; requestedAt: number } | undefined;
 	let previewRoot = $state<HTMLDivElement>();
 	let timelineBox = $state<HTMLDivElement>();
@@ -177,8 +189,10 @@
 		cancelVideoGesture?.();
 		if (!range.restricted || !player) return;
 		endEndpointPreview();
+		const position = frameStepper.target ?? player.currentTime;
+		resetFrameStepping();
 		playbackScope = scopeChoice.toggle();
-		const target = scopeSwitchTarget(player.currentTime, activeBounds);
+		const target = scopeSwitchTarget(position, activeBounds);
 		if (target !== player.currentTime) seek(target, requestedPaused);
 	}
 	let paused = $state(true);
@@ -229,6 +243,7 @@
 	$effect(() => {
 		void requestedBounds;
 		untrack(() => {
+			resetFrameStepping();
 			if (!metadataReceived || !player) return;
 			cancelVideoGesture?.();
 			if (
@@ -333,12 +348,28 @@
 		window.addEventListener('message', handleProviderMessage);
 		return () => {
 			disposed = true;
+			resetFrameStepping();
 			discardNavigationScrub();
 			endEndpointPreview();
 			clearTimeout(durationTimer);
 			document.removeEventListener('fullscreenchange', syncFullscreen);
 			window.removeEventListener('message', handleProviderMessage);
 		};
+	});
+
+	$effect(() => {
+		if (!prevFrameButton || !nextFrameButton) return;
+		const hold = attachFrameHold([prevFrameButton, nextFrameButton], stepFrame);
+		cancelFrameHold = hold.cancel;
+		return () => {
+			hold.destroy();
+			frameStepper.reset();
+			if (cancelFrameHold === hold.cancel) cancelFrameHold = undefined;
+		};
+	});
+	$effect(() => {
+		if (minimal || !metadataReceived || boundsError || playerError || !duration)
+			untrack(resetFrameStepping);
 	});
 
 	$effect(() => {
@@ -554,7 +585,8 @@
 		setMediaTime(Math.max(activeBounds.start, Math.min(activeBounds.end, time)), stayPaused);
 	}
 
-	function setMediaTime(time: number, stayPaused: boolean, preview = false) {
+	function setMediaTime(time: number, stayPaused: boolean, preview = false, frameStep = false) {
+		if (!frameStep) resetFrameStepping();
 		pauseAfterSeek = stayPaused;
 		currentTime = Math.max(0, Math.min(duration ?? player.duration, time));
 		if (!preview || navigationScrub) transportTime = currentTime;
@@ -578,6 +610,7 @@
 		const bounds = minimal ? { ...activeBounds } : { start: 0, end: duration };
 		return {
 			begin() {
+				resetFrameStepping();
 				endEndpointPreview();
 				navigationScrub = saved;
 				transportTime = saved.time;
@@ -771,7 +804,7 @@
 	}
 
 	function handlePlaying() {
-		if (navigationScrub || endpointPreview) {
+		if (navigationScrub || endpointPreview || frameStepper.target !== undefined) {
 			player.pause();
 			return;
 		}
@@ -824,7 +857,9 @@
 		if (duration === undefined || boundsError || player.seeking) return;
 		// YouTube observations can arrive from the previous seek. Keep requested
 		// display time until acknowledgement, with a bounded recovery window.
-		if (navigationScrub || endpointPreview) return;
+		// Logical frame requests remain authoritative while paused; a nearby provider
+		// timestamp is not a decoded-frame acknowledgement. Other navigation resets it.
+		if (navigationScrub || endpointPreview || frameStepper.target !== undefined) return;
 		const observed = player.currentTime;
 		if (
 			pendingSeek &&
@@ -846,7 +881,8 @@
 	}
 
 	function handleEnded() {
-		if (navigationScrub || endpointPreview || boundsError) return;
+		if (navigationScrub || endpointPreview || frameStepper.target !== undefined || boundsError)
+			return;
 		if (initialFramePending) {
 			firstFrameReady = true;
 			pause();
@@ -860,6 +896,7 @@
 	}
 
 	async function play() {
+		resetFrameStepping();
 		if (boundsError) return;
 		requestedPaused = false;
 		pauseAfterSeek = false;
@@ -873,6 +910,7 @@
 	}
 
 	function togglePaused() {
+		cancelFrameHold?.();
 		cancelVideoGesture?.();
 		if (!player || !metadataReceived || boundsError) return;
 		// The adapter can retain paused=false when YouTube returns to unstarted/cued.
@@ -883,12 +921,11 @@
 				providerStalled = true;
 				retrySeekTime = recoverySeekTarget();
 			}
-			if (
-				player.ended ||
-				player.currentTime < activeBounds.start ||
-				player.currentTime >= activeBounds.end
-			) {
+			const position = frameStepper.target ?? player.currentTime;
+			if (player.ended || position < activeBounds.start || position >= activeBounds.end) {
 				seek(activeBounds.start);
+			} else if (frameStepper.target !== undefined) {
+				setMediaTime(position, true);
 			}
 			void play();
 		} else {
@@ -945,12 +982,16 @@
 		}
 	}
 
-	function makeStepFrame(numFrames: number) {
-		return function () {
-			pause();
-			if (minimal) seek(player.currentTime + numFrames / framerate, true);
-			else navigateSource(currentTime + numFrames / framerate);
-		};
+	function resetFrameStepping() {
+		cancelFrameHold?.();
+		frameStepper.reset();
+	}
+
+	function stepFrame(direction: number) {
+		if (!player || !metadataReceived || boundsError || playerError || !duration) return false;
+		cancelVideoGesture?.();
+		endEndpointPreview();
+		return frameStepper.step(direction);
 	}
 
 	function applySource(source: EditorSource) {
@@ -968,6 +1009,7 @@
 	}
 
 	function resetSource() {
+		resetFrameStepping();
 		// A new provider owns bootstrap; never resume the old source from teardown.
 		discardNavigationScrub();
 		endpointPreview = undefined;
@@ -1272,7 +1314,7 @@
 							class="transport-frame"
 							aria-label="Prev Frame"
 							data-tooltip="Prev Frame"
-							onclick={makeStepFrame(-1)}
+							bind:this={prevFrameButton}
 							disabled={!!boundsError}
 							><IcRoundSkipPrevious /><span class="frame-label">Prev Frame</span></button
 						>
@@ -1280,7 +1322,7 @@
 							class="transport-frame"
 							aria-label="Next Frame"
 							data-tooltip="Next Frame"
-							onclick={makeStepFrame(1)}
+							bind:this={nextFrameButton}
 							disabled={!!boundsError}
 							><IcRoundSkipNext /><span class="frame-label">Next Frame</span></button
 						>
@@ -1969,6 +2011,10 @@
 	}
 	.play-label {
 		min-width: 5ch;
+	}
+	.preview-playback .transport-frame {
+		touch-action: none;
+		-webkit-touch-callout: none;
 	}
 	.preview-playback button[data-tooltip] {
 		position: relative;
