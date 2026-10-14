@@ -114,7 +114,7 @@ async function dragBy(page: Page, delta: number) {
 	await expect(page.locator('.workspace-grid')).not.toHaveClass(/dragging/);
 }
 
-test('side-by-side puts settings left of video; stacking retains video on top', async ({ page }) => {
+test('form leads in columns; video leads in rows', async ({ page }) => {
 	await page.setViewportSize({ width: 1280, height: 800 });
 	await openEditor(page);
 	const order = () =>
@@ -456,10 +456,10 @@ for (const viewport of [
 		await expect(page.getByRole('button', { name: /fullscreen/i })).toHaveCount(0);
 		const group = preview.getByRole('group', { name: 'Workspace layout' });
 		const corners = await preview.evaluate((element) => {
-			const box = (selector: string) => element.querySelector(selector)!.getBoundingClientRect();
-			const brand = box('.preview-brand');
-			const layout = box('.workspace-layout');
-			const mode = box('.mode-toggle');
+			const rect = (s: string) => element.querySelector(s)!.getBoundingClientRect();
+			const brand = rect('.preview-brand');
+			const layout = rect('.workspace-layout');
+			const mode = rect('.mode-toggle');
 			return {
 				brandLeftOfLayout: brand.right < layout.left,
 				layoutLeftOfMode: layout.right < mode.left,

@@ -152,9 +152,8 @@
 	function moveDrag(event: PointerEvent) {
 		if (drag?.id !== event.pointerId) return;
 		const position = layout === 'columns' ? event.clientX : event.clientY;
-		resize(
-			drag.size + (layout === 'columns' ? drag.origin - position : position - drag.origin)
-		);
+		const delta = position - drag.origin;
+		resize(drag.size + (layout === 'columns' ? -delta : delta));
 		event.preventDefault();
 	}
 
