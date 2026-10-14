@@ -1336,7 +1336,7 @@
 							data-tooltip={activeScope === 'clip' ? 'Play full video' : 'Play only A:B'}
 							onclick={toggleTimeline}
 							><span class="scope-icon" aria-hidden="true">A:B</span><span class="secondary-label"
-								>Clip only</span
+								>Clip Only</span
 							></button
 						>
 						<button class="transport-fill" disabled aria-hidden="true" tabindex="-1"></button>

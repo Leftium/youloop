@@ -31,7 +31,7 @@ Both endpoints remain keyboard editable. Overlapping handles take priority over 
 Colors match watch mode: red marks
 played time outside A:B, orange marks played time inside A:B, yellow marks the
 unplayed selection, and gray marks remaining source time. Click empty track
-space or drag along the track to seek without changing the selected clip or its share URL. Edit mode starts in VIDEO scope so Play can run outside A:B. The "Clip only" toggle
+space or drag along the track to seek without changing the selected clip or its share URL. Edit mode starts in VIDEO scope so Play can run outside A:B. The "Clip Only" toggle
 beside Sound and Loop uses an A:B icon and switches to A:B for loop preview, entering A when the playhead is
 outside the selection. In A:B scope, seeking outside the selection pauses for
 inspection; Play returns to A. Frame stepping also uses the full
