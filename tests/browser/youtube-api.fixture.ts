@@ -152,10 +152,15 @@ export async function expectMockBootstrap(page: Page) {
 export const test = base.extend<{ youtubeApi: void }>({
 	youtubeApi: [
 		async ({ context, page }, use, testInfo) => {
-			const proof = testInfo.tags.includes('@youtube-mock');
+			// Timeline proofs depend on fixed durations even when selected through
+			// the broader advisory command. Their tag does not admit routine gates.
+			const timelineProof = testInfo.tags.includes('@timeline-proof');
+			const proof = testInfo.tags.includes('@youtube-mock') || timelineProof;
 			if (process.env.YOULOOP_OFFLINE_PROOF !== '1' && !proof) return use();
 			const live =
-				process.env.YOULOOP_OFFLINE_PROOF !== '1' && process.env.YOULOOP_LIVE_PROOF === '1';
+				!timelineProof &&
+				process.env.YOULOOP_OFFLINE_PROOF !== '1' &&
+				process.env.YOULOOP_LIVE_PROOF === '1';
 			let intercepted = 0;
 			let externalResponses = 0;
 			let fulfilled = 0;

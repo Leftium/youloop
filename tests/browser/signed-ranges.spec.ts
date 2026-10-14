@@ -1,3 +1,4 @@
+import { setSliderValue } from './editor-timeline.fixture';
 import { expect, type Page } from '@playwright/test';
 import { test, browserOrigin } from './youtube-api.fixture';
 
@@ -66,7 +67,9 @@ test('signed fractions survive watch/editor/copy/reload/history and explicit bou
 	] as const) {
 		expect(
 			Math.abs(
-				Number(await page.getByRole('slider', { name, exact: true }).inputValue()) - expected
+				Number(
+					await page.getByRole('slider', { name, exact: true }).getAttribute('aria-valuenow')
+				) - expected
 			)
 		).toBeLessThan(0.000001);
 	}
@@ -81,7 +84,7 @@ test('signed fractions survive watch/editor/copy/reload/history and explicit bou
 	await expect(page).toHaveURL(browserOrigin + watch);
 	await page.goForward();
 	await settled(page);
-	await page.getByRole('slider', { name: 'Repeat start', exact: true }).fill('20');
+	await setSliderValue(page, 'Repeat start', '20');
 	await expect(page.getByRole('link', { name: 'Share URL', exact: true })).toHaveAttribute(
 		'href',
 		new URL(`/${id}/20~-5.25?once&mute&speed=1.5&vertical=0&fill=0`, browserOrigin).href
@@ -149,7 +152,7 @@ for (const flags of ['mute', 'once&mute&speed=1.5&vertical=0&fill=0']) {
 		await expect(
 			page.getByRole('link', { name: 'Share URL', exact: true, includeHidden: true })
 		).toHaveCount(0);
-		await page.getByRole('slider', { name: 'Repeat start', exact: true }).fill('5');
+		await setSliderValue(page, 'Repeat start', '5');
 		const repaired = `/${id}/5~-30?${flags}`;
 		await expect(page.getByRole('alert')).toHaveCount(0);
 		await expect(page.getByRole('link', { name: 'Share URL', exact: true })).toHaveAttribute(

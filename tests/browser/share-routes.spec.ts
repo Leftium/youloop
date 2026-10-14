@@ -1,3 +1,4 @@
+import { setSliderValue } from './editor-timeline.fixture';
 import { expect, type Page } from '@playwright/test';
 import { test, browserOrigin } from './youtube-api.fixture';
 
@@ -98,8 +99,8 @@ test('editor aliases, live state, canonical sharing, reload and Back/Forward @ro
 		(window as unknown as { savedMedia: Element | null }).savedMedia =
 			document.querySelector('youtube-video');
 	});
-	await page.getByRole('slider', { name: 'Repeat start', exact: true }).fill('25.5');
-	await page.getByRole('slider', { name: 'Repeat end', exact: true }).fill('33.2');
+	await setSliderValue(page, 'Repeat start', '25.5');
+	await setSliderValue(page, 'Repeat end', '33.2');
 	await page
 		.getByRole('group', { name: 'Crop', exact: true })
 		.getByRole('button', { name: 'Fill', exact: true })
@@ -180,7 +181,7 @@ test('new editor parameters win over aliases, seek/step/loop/once work with real
 	await page.getByRole('button', { name: 'Play', exact: true }).click();
 	await expect.poll(async () => (await mediaState(page)).time).toBeLessThan(33);
 	await page.getByRole('button', { name: 'Pause', exact: true }).click();
-	await page.getByRole('slider', { name: 'Current time', exact: true }).fill('40');
+	await setSliderValue(page, 'Current time', '40');
 	await expect(page.getByRole('link', { name: 'Share URL', exact: true })).toHaveAttribute(
 		'href',
 		new RegExp('/31~40')

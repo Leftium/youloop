@@ -122,8 +122,14 @@ test('dialog cancel preserves live media, bounds, title and splitter', async ({ 
 		before.layout
 	);
 	await expect(page.getByLabel('YouTube video title', { exact: true })).toHaveText(before.title!);
-	await expect(page.getByRole('slider', { name: 'Repeat start', exact: true })).toHaveValue('31');
-	await expect(page.getByRole('slider', { name: 'Repeat end', exact: true })).toHaveValue('38');
+	await expect(page.getByRole('slider', { name: 'Repeat start', exact: true })).toHaveAttribute(
+		'aria-valuenow',
+		'31'
+	);
+	await expect(page.getByRole('slider', { name: 'Repeat end', exact: true })).toHaveAttribute(
+		'aria-valuenow',
+		'38'
+	);
 	expect(
 		await page.locator('youtube-video').evaluate((media) => (media as HTMLMediaElement).paused)
 	).toBe(true);

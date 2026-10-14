@@ -3,6 +3,8 @@
 	import type { YouTubeVideoElement } from '@videojs/html/media/youtube-video';
 	import { onMount, untrack, type Snippet } from 'svelte';
 	import EditorWorkspace from './EditorWorkspace.svelte';
+	import EditorTimeline from './EditorTimeline.svelte';
+	import type { NumericRange } from '../components/range-slider';
 	import BoundEditor from './BoundEditor.svelte';
 	import ClipRange from './ClipRange.svelte';
 	import SourceEditor from './SourceEditor.svelte';
@@ -151,6 +153,13 @@
 	}
 
 	let currentTime = $state(repeatA);
+	let transportTime = $state(repeatA);
+	let endpointPreview: { time: number; paused: boolean } | undefined;
+	let previewBounds: Pick<ShareUrlState, 'start' | 'end'> | undefined;
+	let pendingSeek: { time: number; requestedAt: number } | undefined;
+	let previewRoot = $state<HTMLDivElement>();
+	let timelineBox = $state<HTMLDivElement>();
+	let playheadHeight = $state(0);
 	let duration: number | undefined = $state();
 	const scopeChoice = createTimelineMode();
 	let playbackScope = $state<TimelineMode>('video');
@@ -172,9 +181,6 @@
 	let muted = $state(false);
 	let loop = $derived(!once);
 	let playbackRate = $state(100);
-
-	let percentA = $derived(`${duration === undefined ? 0 : (repeatA / duration) * 100}%`);
-	let percentB = $derived(`${100 - (duration === undefined ? 0 : (repeatB / duration) * 100)}%`);
 
 	let fullscreen = $state(false);
 	let canvasWidth = $state(0);
@@ -218,7 +224,14 @@
 		void requestedBounds;
 		untrack(() => {
 			if (!metadataReceived || !player) return;
+			if (
+				endpointPreview &&
+				previewBounds &&
+				(requestedBounds.start !== previewBounds.start || requestedBounds.end !== previewBounds.end)
+			)
+				endEndpointPreview();
 			if (duration !== undefined && !validateBounds()) return;
+			if (endpointPreview || (!minimal && requestedPaused)) return;
 			if (player.currentTime < activeBounds.start || player.currentTime > activeBounds.end) {
 				seek(activeBounds.start);
 			}
@@ -313,6 +326,7 @@
 		window.addEventListener('message', handleProviderMessage);
 		return () => {
 			disposed = true;
+			endEndpointPreview();
 			clearTimeout(durationTimer);
 			document.removeEventListener('fullscreenchange', syncFullscreen);
 			window.removeEventListener('message', handleProviderMessage);
@@ -511,23 +525,94 @@
 		return () => clearInterval(timer);
 	});
 
+	// Clip enforcement and watch seeking retain their existing bounds. Editor navigation
+	// and endpoint inspection use the full source without rewriting those bounds.
 	function seek(time: number, stayPaused = minimal ? requestedPaused : player.paused) {
+		setMediaTime(Math.max(activeBounds.start, Math.min(activeBounds.end, time)), stayPaused);
+	}
+
+	function setMediaTime(time: number, stayPaused: boolean, preview = false) {
 		pauseAfterSeek = stayPaused;
-		currentTime = Math.max(activeBounds.start, Math.min(activeBounds.end, time));
-		if (retrySeekTime !== undefined) retrySeekTime = recoverySeekTarget(currentTime);
+		currentTime = Math.max(0, Math.min(duration ?? player.duration, time));
+		if (!preview) transportTime = currentTime;
+		pendingSeek = { time: currentTime, requestedAt: Date.now() };
+		if (retrySeekTime !== undefined && !preview) retrySeekTime = recoverySeekTarget(currentTime);
 		player.currentTime = currentTime;
 	}
+
+	function navigateSource(time: number) {
+		endEndpointPreview();
+		// Navigation outside A:B is paused inspection. Play re-enters the clip,
+		// while navigation within it preserves the existing playing/paused state.
+		if (time < activeBounds.start || time >= activeBounds.end) pause();
+		setMediaTime(time, requestedPaused);
+	}
+
+	function beginEndpointPreview(time: number) {
+		if (!player || endpointPreview) return;
+		endpointPreview = { time: transportTime, paused: requestedPaused };
+		previewBounds = { ...requestedBounds };
+		pause();
+		previewEndpoint(time);
+	}
+
+	function previewEndpoint(time: number) {
+		if (endpointPreview) setMediaTime(time, true, true);
+	}
+
+	function endEndpointPreview() {
+		if (!endpointPreview || !player) return;
+		const saved = endpointPreview;
+		endpointPreview = undefined;
+		previewBounds = undefined;
+		setMediaTime(saved.time, saved.paused);
+		if (saved.paused || boundsError) pause();
+		else void play();
+	}
+
+	function changeTimelineRange(next: NumericRange) {
+		const changedStart = next.start !== repeatA;
+		const changedEnd = next.end !== repeatB;
+		previewBounds = {
+			start: changedStart ? next.start : requestedBounds.start,
+			end: changedEnd ? next.end : requestedBounds.end
+		};
+		if (changedStart) onstartchange?.(next.start, true);
+		if (changedEnd) onendchange?.(next.end, true);
+		repeatA = next.start;
+		repeatB = next.end;
+	}
+
+	$effect(() => {
+		if (minimal || !previewRoot || !timelineBox) return;
+		const root = previewRoot;
+		const timeline = timelineBox;
+		const measure = () => {
+			playheadHeight = timeline.getBoundingClientRect().bottom - root.getBoundingClientRect().top;
+		};
+		const observer = new ResizeObserver(measure);
+		observer.observe(root);
+		observer.observe(timeline);
+		observer.observe(mediaCanvas);
+		measure();
+		return () => observer.disconnect();
+	});
 
 	function publishDuration() {
 		// YouTube's cued duration can be rounded. Read the post-playback value,
 		// and wait for a quiet interval before showing the first timeline.
 		const nextDuration = player.engine?.getDuration() ?? player.duration;
 		if (!Number.isFinite(nextDuration) || nextDuration <= 0) return;
+		const firstDuration = duration === undefined;
 		duration = nextDuration;
 		ondurationresolved?.(duration);
 		if (!validateBounds()) return;
 		if (minimal) playbackScope = scopeChoice.choose(nextDuration, repeatA, repeatB);
-		if (player.currentTime < activeBounds.start || player.currentTime > activeBounds.end) {
+		if (
+			!endpointPreview &&
+			(minimal || firstDuration || !requestedPaused) &&
+			(player.currentTime < activeBounds.start || player.currentTime > activeBounds.end)
+		) {
 			seek(activeBounds.start);
 		}
 	}
@@ -542,7 +627,7 @@
 			repeatA = resolve(requestedBounds.start ?? 0);
 			repeatB = requestedBounds.end === undefined ? duration : resolve(requestedBounds.end);
 			boundsError = 'Invalid clip: the resolved end must be after the start within this video.';
-			pause();
+			if (!endpointPreview) pause();
 			return false;
 		}
 		boundsError = '';
@@ -605,6 +690,7 @@
 			!resolveClipRange(requestedBounds, player.duration).ok || repeatA >= player.duration - 1
 				? Math.min(1, player.duration / 2)
 				: Math.max(repeatA, Math.min(1, repeatB));
+		transportTime = currentTime;
 		player.currentTime = currentTime;
 		const version = sourceVersion;
 		void player.play().catch((error) => {
@@ -617,6 +703,10 @@
 	}
 
 	function handlePlaying() {
+		if (endpointPreview) {
+			player.pause();
+			return;
+		}
 		if (boundsError) {
 			pause();
 			return;
@@ -664,7 +754,20 @@
 	function handleTimeUpdate() {
 		if (!videoTitle) readVideoTitle();
 		if (duration === undefined || boundsError || player.seeking) return;
-		currentTime = player.currentTime;
+		// YouTube observations can arrive from the previous seek. Keep requested
+		// display time until acknowledgement, with a bounded recovery window.
+		if (endpointPreview) return;
+		const observed = player.currentTime;
+		if (
+			pendingSeek &&
+			Math.abs(observed - pendingSeek.time) > 0.35 &&
+			Date.now() - pendingSeek.requestedAt < 2000
+		)
+			return;
+		pendingSeek = undefined;
+		currentTime = observed;
+		transportTime = observed;
+		if (!minimal && requestedPaused) return;
 		const action = playbackBoundaryAction(currentTime, activeBounds, loop, !player.paused);
 		if (action === 'clamp-start') seek(activeBounds.start);
 		else if (action === 'repeat') seek(activeBounds.start, false);
@@ -675,7 +778,7 @@
 	}
 
 	function handleEnded() {
-		if (boundsError) return;
+		if (endpointPreview || boundsError) return;
 		if (initialFramePending) {
 			firstFrameReady = true;
 			pause();
@@ -776,61 +879,9 @@
 	function makeStepFrame(numFrames: number) {
 		return function () {
 			pause();
-			seek(player.currentTime + numFrames / framerate, true);
+			if (minimal) seek(player.currentTime + numFrames / framerate, true);
+			else navigateSource(currentTime + numFrames / framerate);
 		};
-	}
-
-	function handleInputCurrentTime(event: Event) {
-		currentTime = Number((event.currentTarget as HTMLInputElement).value);
-		if (currentTime < repeatA) {
-			repeatA = currentTime;
-			onstartchange?.(repeatA, true);
-		}
-		if (currentTime > repeatB) {
-			repeatB = currentTime;
-			onendchange?.(repeatB, true);
-		}
-		seek(currentTime);
-	}
-
-	function handleInputRepeatA(event: Event) {
-		repeatA = Number((event.currentTarget as HTMLInputElement).value);
-		onstartchange?.(repeatA, true);
-		if (repeatA > repeatB) {
-			repeatB = repeatA;
-			onendchange?.(repeatB, true);
-		}
-		seek(repeatA);
-	}
-
-	function handleInputRepeatB(event: Event) {
-		repeatB = Number((event.currentTarget as HTMLInputElement).value);
-		onendchange?.(repeatB, true);
-		if (repeatB < repeatA) {
-			repeatA = repeatB;
-			onstartchange?.(repeatA, true);
-		}
-		seek(repeatB);
-	}
-
-	function handleBoundKeydown(event: KeyboardEvent, bound: 'start' | 'end') {
-		const direction = ['ArrowRight', 'ArrowUp'].includes(event.key)
-			? 1
-			: ['ArrowLeft', 'ArrowDown'].includes(event.key)
-				? -1
-				: 0;
-		if (!direction) return;
-		event.preventDefault();
-		const input = event.currentTarget as HTMLInputElement;
-		// step=any retains signed fractions; keyboard edits still move by 0.1 seconds.
-		input.value = String(
-			Math.max(
-				0,
-				Math.min(duration ?? repeatB, Number((Number(input.value) + direction * 0.1).toFixed(10)))
-			)
-		);
-		if (bound === 'start') handleInputRepeatA(event);
-		else handleInputRepeatB(event);
 	}
 
 	function applySource(source: EditorSource) {
@@ -840,6 +891,10 @@
 	}
 
 	function resetSource() {
+		// A new provider owns bootstrap; never resume the old source from teardown.
+		endpointPreview = undefined;
+		previewBounds = undefined;
+		pendingSeek = undefined;
 		scopeChoice.reset();
 		playbackScope = 'video';
 		clearTimeout(durationTimer);
@@ -849,6 +904,7 @@
 		duration = undefined;
 		ondurationresolved?.(undefined);
 		currentTime = repeatA;
+		transportTime = repeatA;
 		paused = true;
 		requestedPaused = true;
 		providerStalled = false;
@@ -1075,7 +1131,15 @@
 {/snippet}
 
 {#snippet preview(layoutControls: Snippet)}
-	<div class="editor-preview-content">
+	<div class="editor-preview-content" bind:this={previewRoot}>
+		{#if duration}
+			<div
+				class="editor-playhead-line"
+				aria-hidden="true"
+				style:left={`calc(var(--editor-axis-inset) + (100% - 2 * var(--editor-axis-inset)) * ${Math.max(0, Math.min(1, currentTime / duration))})`}
+				style:height={`${playheadHeight}px`}
+			></div>
+		{/if}
 		{#snippet corners()}
 			<div class="preview-corners">
 				<div class="preview-brand">
@@ -1092,47 +1156,20 @@
 		{/snippet}
 		{@render media(corners)}
 		<div class="editor-transport">
-			<div class="wrap-sliders">
-				<input type="range" aria-hidden="true" tabindex="-1" />
-
-				<div class="wrap-connector">
-					<div class="connector" style:left={percentA} style:right={percentB}></div>
-				</div>
-
+			<div class="timeline-box" bind:this={timelineBox}>
 				{#if duration}
-					<input
-						type="range"
-						aria-label="Current time"
-						class="current-time"
-						min="0"
-						step="0.1"
-						oninput={handleInputCurrentTime}
-						bind:value={currentTime}
-						max={duration}
-					/>
-
-					<input
-						type="range"
-						aria-label="Repeat start"
-						class="repeat-a"
-						min="0"
-						step="any"
-						oninput={handleInputRepeatA}
-						onkeydown={(event) => handleBoundKeydown(event, 'start')}
-						bind:value={repeatA}
-						max={duration}
-					/>
-
-					<input
-						type="range"
-						aria-label="Repeat end"
-						class="repeat-b"
-						min="0"
-						step="any"
-						oninput={handleInputRepeatB}
-						onkeydown={(event) => handleBoundKeydown(event, 'end')}
-						bind:value={repeatB}
-						max={duration}
+					<EditorTimeline
+						{duration}
+						{currentTime}
+						{transportTime}
+						start={repeatA}
+						end={repeatB}
+						disabled={!metadataReceived}
+						onseek={navigateSource}
+						onrangechange={changeTimelineRange}
+						onpreviewstart={beginEndpointPreview}
+						onpreview={previewEndpoint}
+						onpreviewend={endEndpointPreview}
 					/>
 				{/if}
 			</div>
@@ -1700,23 +1737,28 @@
 	}
 
 	.editor-preview-content {
+		--editor-axis-inset: 22px;
+		position: relative;
 		display: grid;
 		grid-template-rows: minmax(0, 1fr) auto;
 		height: 100%;
 		min-width: 0;
 		min-height: 0;
 	}
-	.editor-transport {
-		padding: 0.5rem max(8px, env(safe-area-inset-right)) max(1rem, env(safe-area-inset-bottom))
-			max(8px, env(safe-area-inset-left));
+	.editor-playhead-line {
+		position: absolute;
+		top: 0;
+		width: 1px;
+		background: rgb(239 68 68 / 55%);
+		pointer-events: none;
+		z-index: 5;
 	}
-	.editor-transport .wrap-sliders {
-		margin-bottom: 0.5rem;
-	}
 	.editor-transport {
+		padding: 0 0 max(1rem, env(safe-area-inset-bottom));
 		container: transport / inline-size;
 	}
 	.preview-actions {
+		padding-inline: max(8px, env(safe-area-inset-left));
 		display: flex;
 		align-items: center;
 	}
@@ -2094,173 +2136,6 @@
 		background: var(--youloop-overlay-background);
 		text-shadow: 0 1px 2px rgb(0 0 0 / 60%);
 		white-space: nowrap;
-	}
-
-	.wrap-sliders {
-		position: relative;
-
-		// Pico range slider values:
-		height: 1.25rem;
-		margin-bottom: var(--nc-spacing);
-
-		.wrap-connector {
-			position: absolute;
-			top: 0;
-			bottom: 0;
-
-			// Shrink width by half of slider thumb on each side.
-			left: calc(1.25rem / 2);
-			right: calc(1.25rem / 2);
-
-			.connector {
-				position: absolute;
-				top: 0;
-				bottom: 0;
-				background-color: $grey-300;
-			}
-		}
-
-		input[type='range'] {
-			// Match Pico's range input dimensions exactly:
-			// track: 0.375rem tall, thumb: 1.25rem diameter
-			-webkit-appearance: none;
-			-moz-appearance: none;
-			appearance: none;
-			background: none;
-			margin: 0;
-			padding: 0;
-			width: 100%;
-			height: 1.25rem; // = thumb height
-
-			// Base track styling (visible on the first slider)
-			&::-webkit-slider-runnable-track {
-				width: 100%;
-				height: 0.375rem;
-				border-radius: 0.1875rem;
-				background-color: $slate-100; // exact Pico range-border-color
-			}
-			&::-moz-range-track {
-				width: 100%;
-				height: 0.375rem;
-				border-radius: 0.1875rem;
-				background-color: $slate-100;
-			}
-
-			// Base thumb styling
-			&::-webkit-slider-thumb {
-				-webkit-appearance: none;
-				width: 1.25rem;
-				height: 1.25rem;
-				border-radius: 50%;
-				border: 2px solid transparent;
-				background-color: var(--nc-primary);
-				cursor: pointer;
-				margin-top: #{(-(1.25rem * 0.5) + (0.375rem * 0.5))}; // center on track
-			}
-			&::-moz-range-thumb {
-				width: 1.25rem;
-				height: 1.25rem;
-				border-radius: 50%;
-				border: 2px solid transparent;
-				background-color: var(--nc-primary);
-				cursor: pointer;
-			}
-
-			position: absolute;
-			top: 0;
-			left: 0;
-			right: 0;
-			pointer-events: none; // Prevent direction interaction.
-
-			// Just want track; hide thumb of first slider.
-			@mixin hide-thumb-first-slider {
-				display: none;
-				pointer-events: none;
-				background-color: transparent;
-			}
-			&:first-child::-webkit-slider-thumb {
-				@include hide-thumb-first-slider;
-			}
-			&:first-child::-moz-range-thumb {
-				@include hide-thumb-first-slider;
-			}
-
-			// Hide tracks of other sliders.
-			&:not(:first-child)::-webkit-slider-runnable-track {
-				background: transparent;
-			}
-			&:not(:first-child)::-moz-range-track {
-				background: transparent;
-			}
-
-			@mixin slider-thumb {
-				pointer-events: all; // Re-enable interaction.
-				background-color: $azure-250;
-				border-color: transparent;
-			}
-			&::-webkit-slider-thumb {
-				@include slider-thumb;
-			}
-			&::-moz-range-thumb {
-				@include slider-thumb;
-				width: 1rem;
-				height: 1rem;
-			}
-
-			@mixin slider-thumb-b {
-				background-color: $indigo-300;
-			}
-			&.repeat-b::-webkit-slider-thumb {
-				@include slider-thumb-b;
-			}
-			&.repeat-b::-moz-range-thumb {
-				@include slider-thumb-b;
-			}
-
-			@mixin current-time-slider-track {
-				pointer-events: all; // Re-enable interaction.
-				height: 1.25rem;
-			}
-			&.current-time::-webkit-slider-runnable-track {
-				@include current-time-slider-track;
-			}
-			&.current-time::-moz-range-track {
-				position: relative;
-				@include current-time-slider-track;
-			}
-
-			@mixin current-time-slider-thumb {
-				width: 1rem;
-				height: 1rem;
-				margin-top: 0.125rem; // center 1rem thumb in 1.25rem track: (1.25 - 1) / 2
-				border-color: transparent;
-				background-color: $red-550;
-
-				position: relative;
-				z-index: 1000 !important;
-			}
-			&.current-time::-webkit-slider-thumb {
-				@include current-time-slider-thumb;
-			}
-			&.current-time::-moz-range-thumb {
-				@include current-time-slider-thumb;
-				width: 0.75rem;
-				height: 0.75rem;
-			}
-
-			// Adjust width of slider to account for smaller thumb radius.
-			&.current-time {
-				padding-inline: 2px;
-			}
-
-			// Scale thumb on drag (matches Pico's :active behavior)
-			&:active::-webkit-slider-thumb {
-				transform: scale(1.25);
-			}
-			&:active::-moz-range-thumb {
-				transform: scale(1.25);
-			}
-		}
 	}
 
 	.nc-join {

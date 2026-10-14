@@ -1,3 +1,4 @@
+import { setSliderValue } from './editor-timeline.fixture';
 import { expect, type Page } from '@playwright/test';
 import { test } from './youtube-api.fixture';
 import { test as mockedTest, expectMockBootstrap } from './youtube-api.fixture';
@@ -388,7 +389,7 @@ test('responsive preview, independent scrolling and Fit/Fill across mobile viewp
 				el.prepend(extra);
 			});
 			const before = await page.locator('#editor-preview').boundingBox();
-			const timelineBefore = await page.locator('.wrap-sliders').boundingBox();
+			const timelineBefore = await page.locator('.editor-timeline').boundingBox();
 			const transportBefore = await page.locator('.preview-actions').boundingBox();
 			await page.locator('.settings-scroll').hover();
 			await page.mouse.wheel(0, 800);
@@ -396,7 +397,7 @@ test('responsive preview, independent scrolling and Fit/Fill across mobile viewp
 				.poll(() => page.locator('.settings-scroll').evaluate((el) => el.scrollTop))
 				.toBeGreaterThan(0);
 			expect(await page.locator('#editor-preview').boundingBox()).toEqual(before);
-			expect(await page.locator('.wrap-sliders').boundingBox()).toEqual(timelineBefore);
+			expect(await page.locator('.editor-timeline').boundingBox()).toEqual(timelineBefore);
 			expect(await page.locator('.preview-actions').boundingBox()).toEqual(transportBefore);
 			await page.locator('[data-viewport-scroll-probe]').evaluate((el) => el.remove());
 			await geometry(page);
@@ -525,12 +526,12 @@ test('preview transport, branding and grouped layout fill desktop and mobile vie
 			const preview = page.locator('#editor-preview');
 			const settings = page.locator('.settings-scroll');
 			await expect(preview.locator('.timestamps')).toHaveCount(1);
-			await expect(preview.locator('.wrap-sliders')).toHaveCount(1);
+			await expect(preview.locator('.editor-timeline')).toHaveCount(1);
 			await expect(
 				preview.getByRole('slider', { name: /Current time|Repeat start|Repeat end/ })
 			).toHaveCount(3);
 			await expect(
-				settings.locator('.wrap-sliders,.timestamps,.workspace-layout,.preview-playback')
+				settings.locator('.editor-timeline,.timestamps,.workspace-layout,.preview-playback')
 			).toHaveCount(0);
 			await expect(page.locator('.workspace-toolbar')).toHaveCount(0);
 			await expect(page.getByRole('button', { name: /fullscreen/i })).toHaveCount(0);
@@ -585,7 +586,7 @@ test('preview transport, branding and grouped layout fill desktop and mobile vie
 				await preview.evaluate((preview) => {
 					const picture = preview.querySelector('.player')!.getBoundingClientRect();
 					const brand = preview.querySelector('.preview-brand')!.getBoundingClientRect();
-					const timeline = preview.querySelector('.wrap-sliders')!.getBoundingClientRect();
+					const timeline = preview.querySelector('.editor-timeline')!.getBoundingClientRect();
 					const pictureCenter = document.elementFromPoint(
 						picture.left + picture.width / 2,
 						picture.top + picture.height / 2
@@ -629,7 +630,7 @@ test('preview transport, branding and grouped layout fill desktop and mobile vie
 			const start = preview.getByRole('slider', { name: 'Repeat start', exact: true });
 			await start.focus();
 			await start.press('ArrowRight');
-			await expect(start).toHaveValue('5.1');
+			await expect(start).toHaveAttribute('aria-valuenow', '5.1');
 			const url = page.url();
 			const box = (await divider(page).boundingBox())!;
 			const columns = (await divider(page).getAttribute('aria-orientation')) === 'vertical';
@@ -658,7 +659,7 @@ test('preview transport, branding and grouped layout fill desktop and mobile vie
 			await identity(page);
 			// Restore the range before the next viewport uses the same provider.
 			await start.press('ArrowLeft');
-			await expect(start).toHaveValue('5');
+			await expect(start).toHaveAttribute('aria-valuenow', '5');
 		});
 	}
 });
@@ -863,7 +864,9 @@ test.describe('automatic mobile document scrolling', () => {
 							page.evaluate(() => {
 								const grid = document.querySelector('.workspace-grid')!.getBoundingClientRect();
 								const preview = document.querySelector('#editor-preview')!.getBoundingClientRect();
-								const timeline = document.querySelector('.wrap-sliders')!.getBoundingClientRect();
+								const timeline = document
+									.querySelector('.editor-timeline')!
+									.getBoundingClientRect();
 								const settings = document.querySelector('.settings-scroll')!;
 								const pane = settings.getBoundingClientRect();
 								const edge = document.querySelector('.settings-edge')!;
@@ -1191,12 +1194,12 @@ test('named bound actions respect precision, retain Once, and share direct speed
 		.getByRole('dialog', { name: 'Edit clip range' })
 		.getByRole('button', { name: 'Close clip range', exact: true })
 		.click();
-	await page.getByRole('slider', { name: 'Current time', exact: true }).fill('12.5');
+	await setSliderValue(page, 'Current time', '12.5');
 	await page.getByRole('button', { name: 'Edit clip range', exact: true }).click();
 	await page.getByRole('button', { name: 'Set start at playhead' }).press('Enter');
 	await expect(
 		page.getByRole('slider', { name: 'Repeat start', exact: true, includeHidden: true })
-	).toHaveValue('12.5');
+	).toHaveAttribute('aria-valuenow', '12.5');
 	await expect(page.getByRole('button', { name: 'Edit start from start', exact: true })).toHaveText(
 		'0:12.5'
 	);
@@ -1205,17 +1208,17 @@ test('named bound actions respect precision, retain Once, and share direct speed
 		.getByRole('dialog', { name: 'Edit clip range' })
 		.getByRole('button', { name: 'Close clip range', exact: true })
 		.click();
-	await page.getByRole('slider', { name: 'Current time', exact: true }).fill('30.5');
+	await setSliderValue(page, 'Current time', '30.5');
 	await page.getByRole('button', { name: 'Edit clip range', exact: true }).click();
 	await page.getByRole('button', { name: 'Set end at playhead' }).click();
 	await expect(
 		page.getByRole('slider', { name: 'Repeat end', exact: true, includeHidden: true })
-	).toHaveValue('30.5');
+	).toHaveAttribute('aria-valuenow', '30.5');
 	await page
 		.getByRole('dialog', { name: 'Edit clip range' })
 		.getByRole('button', { name: 'Close clip range', exact: true })
 		.click();
-	await page.getByRole('slider', { name: 'Repeat start', exact: true }).fill('15.25');
+	await setSliderValue(page, 'Repeat start', '15.25');
 	await page.getByRole('button', { name: 'Edit clip range', exact: true }).click();
 	await expect(page.getByRole('button', { name: 'Edit start from start', exact: true })).toHaveText(
 		'0:15.25'
@@ -1426,14 +1429,14 @@ test('compact bounds retain signed fractions and refresh after source navigation
 	const duration = Number(
 		await page
 			.getByRole('slider', { name: 'Current time', exact: true, includeHidden: true })
-			.getAttribute('max')
+			.getAttribute('aria-valuemax')
 	);
 	const start = Math.floor(duration) - 20.5;
 	await page
 		.getByRole('dialog', { name: 'Edit clip range' })
 		.getByRole('button', { name: 'Close clip range', exact: true })
 		.click();
-	await page.getByRole('slider', { name: 'Current time', exact: true }).fill(String(start));
+	await setSliderValue(page, 'Current time', String(start));
 	await page.getByRole('button', { name: 'Edit clip range', exact: true }).click();
 	await page.getByRole('button', { name: 'Set start at playhead' }).click();
 	expect(new URL(page.url()).searchParams.get('t')).toBe(`${start}~-5.25`);
@@ -1446,11 +1449,14 @@ test('compact bounds retain signed fractions and refresh after source navigation
 		.getByRole('dialog', { name: 'Edit clip range' })
 		.getByRole('button', { name: 'Close clip range', exact: true })
 		.click();
-	await page.getByRole('slider', { name: 'Repeat end', exact: true }).fill('5.75');
 	await page.getByRole('button', { name: 'Edit clip range', exact: true }).click();
+	await page.getByRole('button', { name: 'Edit end from start', exact: true }).click();
+	await page.getByRole('textbox', { name: 'Edit end', exact: true }).fill('5.75');
+	await page.getByRole('textbox', { name: 'Edit end', exact: true }).press('Enter');
+	await expect(page.getByRole('alert')).toContainText('End after Start');
 	await expect(
 		page.getByRole('link', { name: 'Share URL', exact: true, includeHidden: true })
-	).toHaveCount(0);
+	).toHaveCount(1);
 	expect(page.url()).toBe(lastValidUrl);
 	await identity(page);
 	await openEditor(page, '/?v=M7lc1UVf-VE&t=2.5~8.75&once&mute');

@@ -2,6 +2,42 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { editorTime, parseEditorTime } from '../src/lib/player/editor-time.ts';
 import { parseEditorSource } from '../src/lib/player/editor-source.ts';
+import {
+	applyThumbInteraction,
+	rangeValueAtPosition,
+	rangeValuePercent,
+	stepRangeValue
+} from '../src/lib/components/range-slider.ts';
+
+test('swap range edits retain the stationary endpoint, role and fractional offsets', () => {
+	const swapped = applyThumbInteraction(
+		{ start: 12.345, end: 20.125 },
+		'start',
+		22.25,
+		0,
+		60.25,
+		'swap'
+	);
+	assert.deepEqual(swapped, { range: { start: 20.125, end: 22.25 }, edge: 'end' });
+	assert.deepEqual(applyThumbInteraction(swapped.range, swapped.edge, 10.375, 0, 60.25, 'swap'), {
+		range: { start: 10.375, end: 20.125 },
+		edge: 'start'
+	});
+	assert.equal(stepRangeValue(12.345, 1, 0, 60.25, 0.1, 1, 'relative'), 12.445);
+	assert.equal(stepRangeValue(60.245, 1, 0, 60.25, 0.1, 1, 'relative'), 60.25);
+	assert.deepEqual(applyThumbInteraction({ start: 0, end: 0 }, 'start', 0.1, 0, 60.25, 'swap'), {
+		range: { start: 0, end: 0.1 },
+		edge: 'end'
+	});
+	assert.equal(rangeValueAtPosition(-10, 100, 0, 60.25), 0);
+	assert.equal(rangeValueAtPosition(110, 100, 0, 60.25), 60.25);
+	assert.equal(rangeValueAtPosition(10, 0, 0, 60.25), 0);
+	assert.equal(rangeValuePercent(20, 0, 0), 0);
+	assert.deepEqual(applyThumbInteraction({ start: 60, end: 30.25 }, 'start', 5, 0, 60.25, 'swap'), {
+		range: { start: 5, end: 30.25 },
+		edge: 'start'
+	});
+});
 
 test('clock editing preserves signed fractional precision and marks whole-second approximations', () => {
 	for (const [value, expected] of [
