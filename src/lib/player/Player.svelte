@@ -1224,6 +1224,7 @@
 		<section aria-label="Clip settings and sharing" class="settings-section">
 			<SourceEditor
 				videoId={youtubeId ?? ''}
+				startSeconds={repeatA}
 				title={videoTitle}
 				unavailable={titleUnavailable || !!playerError}
 				onapply={applySource}

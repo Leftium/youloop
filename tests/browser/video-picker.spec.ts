@@ -73,14 +73,13 @@ for (const example of videoExamples) {
 		);
 		await expect(page.getByRole('alert')).toHaveCount(0);
 		await expect(page.locator('youtube-video')).toHaveCount(1);
-		await expect(
-			page.getByRole('link', { name: `youtu.be/${source.videoId}`, exact: true })
-		).toBeVisible();
+		const originalLink = page.locator('.source-link a');
+		await expect(originalLink).toBeVisible();
+		await expect(originalLink).toContainText(`youtu.be/${source.videoId}`);
 		await page.reload();
 		await expect(page.locator('youtube-video')).toHaveCount(1);
-		await expect(
-			page.getByRole('link', { name: `youtu.be/${source.videoId}`, exact: true })
-		).toBeVisible();
+		await expect(originalLink).toBeVisible();
+		await expect(originalLink).toContainText(`youtu.be/${source.videoId}`);
 	});
 }
 

@@ -6,15 +6,23 @@
 	import type { EditorSource } from './editor-source';
 	let {
 		videoId,
+		startSeconds,
 		title,
 		unavailable,
 		onapply
 	}: {
 		videoId: string;
+		startSeconds: number;
 		title: string;
 		unavailable: boolean;
 		onapply: (source: EditorSource) => void;
 	} = $props();
+	// YouTube accepts absolute seconds; don't include a timestamp at the beginning.
+	let sourceUrl = $derived.by(() => {
+		const start = Number.isFinite(startSeconds) ? Math.floor(startSeconds) : 0;
+		const url = `https://youtu.be/${videoId}`;
+		return start > 0 ? `${url}?t=${start}` : url;
+	});
 	let picker: VideoPicker;
 	let ready = $state(false);
 	onMount(() => {
@@ -33,11 +41,8 @@
 		{title || (unavailable ? 'Video title unavailable' : 'Loading video title...')}
 	</p>
 	<div class="source-link">
-		<a
-			href={`https://youtu.be/${videoId}`}
-			target="_blank"
-			rel="noreferrer"
-			aria-describedby="source-new-tab">youtu.be/{videoId}<IcRoundOpenInNew aria-hidden="true" /></a
+		<a href={sourceUrl} target="_blank" rel="noreferrer" aria-describedby="source-new-tab"
+			>{sourceUrl.slice('https://'.length)}<IcRoundOpenInNew aria-hidden="true" /></a
 		>
 		<span id="source-new-tab" class="visually-hidden">Opens in a new tab</span>
 	</div>
