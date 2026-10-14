@@ -380,15 +380,8 @@
 		right: 0;
 		top: calc(100% + 4px);
 		width: max-content;
-		/* Leave room for the upper-right mode button and both safe-area insets. */
-		max-width: min(
-			260px,
-			calc(
-				100cqw - max(8px, env(safe-area-inset-left)) -
-					max(8px, env(safe-area-inset-right)) - var(--youloop-control-size) -
-					var(--youloop-control-gap) - 16px
-			)
-		);
+		/* In narrow previews, reserve room for the adjacent upper-right mode action. */
+		max-width: min(260px, calc(100cqw - 96px));
 		box-sizing: border-box;
 		overflow-wrap: anywhere;
 		padding: 6px 8px;

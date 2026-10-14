@@ -1151,9 +1151,7 @@ test('named bound actions respect precision, retain Once, and share direct speed
 	}
 });
 
-test('upper-right tooltips fit inside the preview at narrow and wide sizes', async ({
-	page
-}) => {
+test('upper-right tooltips fit inside the preview at narrow and wide sizes', async ({ page }) => {
 	await page.setViewportSize({ width: 1280, height: 800 });
 	await openEditor(page);
 	const measure = () =>
@@ -1192,7 +1190,7 @@ test('upper-right tooltips fit inside the preview at narrow and wide sizes', asy
 			expect(tooltip.right, tooltip.selector).toBeLessThanOrEqual(bounds.preview.right + 1);
 		}
 	}
-	await page.getByRole('separator', { name: 'Resize video preview' }).press('End');
+	await page.getByRole('separator', { name: 'Resize video preview' }).press('Home');
 	const narrow = await measure();
 	for (const tooltip of narrow.tooltips)
 		expect(tooltip.left, tooltip.selector).toBeGreaterThanOrEqual(narrow.preview.left - 1);
