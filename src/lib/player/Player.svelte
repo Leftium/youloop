@@ -1269,13 +1269,6 @@
 							>
 						</button>
 						<button
-							class="transport-scope"
-							aria-label={`${activeScope === 'clip' ? 'A:B' : 'VIDEO'} playback, switch to ${activeScope === 'clip' ? 'VIDEO' : 'A:B'} playback`}
-							aria-pressed={activeScope === 'clip'}
-							disabled={!range.restricted}
-							onclick={toggleTimeline}>{activeScope === 'clip' ? 'A:B' : 'VIDEO'}</button
-						>
-						<button
 							class="transport-frame"
 							aria-label="Prev Frame"
 							data-tooltip="Prev Frame"
@@ -1333,6 +1326,17 @@
 							onclick={toggleLoop}
 							>{#if loop}<FluentArrowRepeat />{:else}<FluentArrowRepeatOff />{/if}<span
 								class="secondary-label">Loop</span
+							></button
+						>
+						<button
+							class="transport-scope"
+							aria-label={`${activeScope === 'clip' ? 'A:B' : 'VIDEO'} playback, switch to ${activeScope === 'clip' ? 'VIDEO' : 'A:B'} playback`}
+							aria-pressed={activeScope === 'clip'}
+							disabled={!range.restricted}
+							data-tooltip={activeScope === 'clip' ? 'Play full video' : 'Play only A:B'}
+							onclick={toggleTimeline}
+							><span class="scope-icon" aria-hidden="true">A:B</span><span class="secondary-label"
+								>Clip only</span
 							></button
 						>
 						<button class="transport-fill" disabled aria-hidden="true" tabindex="-1"></button>
@@ -1897,11 +1901,16 @@
 		opacity: 1;
 		cursor: default;
 	}
-	.preview-playback .transport-scope {
-		width: auto;
-		min-width: 5ch;
-		padding-inline: 8px;
+	.scope-icon {
+		width: var(--youloop-control-icon-size);
+		display: inline-flex;
+		justify-content: center;
+		font-size: 0.65rem;
+		font-weight: bold;
+		letter-spacing: -0.04em;
+		white-space: nowrap;
 	}
+
 	.preview-playback .transport-rate {
 		display: none;
 		width: auto;
@@ -1985,7 +1994,8 @@
 			display: inline;
 		}
 		.preview-playback .transport-sound,
-		.preview-playback .transport-loop {
+		.preview-playback .transport-loop,
+		.preview-playback .transport-scope {
 			width: auto;
 		}
 	}

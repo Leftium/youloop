@@ -341,6 +341,10 @@ test.describe('editor timeline', { tag: '@timeline-proof' }, () => {
 				expect(combined.overlap).toBeCloseTo(5 / 10.125, 2);
 				// VIDEO permits playback outside A:B; switching to A:B enters the
 				// selected loop without changing endpoints or the provider.
+				await expect(page.locator('.transport-options .transport-scope .scope-icon')).toHaveText(
+					'A:B'
+				);
+				await expect(page.locator('.transport-scope')).toContainText('Clip only');
 				await setSliderValue(page, 'Current time', 30);
 				await page.getByRole('button', { name: 'Play', exact: true }).click();
 				await expect(page.getByRole('button', { name: 'Pause', exact: true })).toBeVisible();
