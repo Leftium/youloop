@@ -3,7 +3,8 @@ import { defineConfig } from '@playwright/test';
 // Routine gates exercise our UI and adapter without depending on YouTube availability.
 const advisory = process.env.YOULOOP_BROWSER_ADVISORY === '1';
 const timelineProof = process.env.YOULOOP_TIMELINE_PROOF === '1';
-const offlineProof = timelineProof || !advisory;
+const frameProof = process.env.YOULOOP_FRAME_PROOF === '1';
+const offlineProof = timelineProof || frameProof || !advisory;
 process.env.YOULOOP_OFFLINE_PROOF = offlineProof ? '1' : '0';
 const port = offlineProof ? 5174 : 5173;
 
@@ -13,7 +14,13 @@ export default defineConfig({
 	projects: [
 		{
 			name: 'chromium',
-			grep: timelineProof ? /@timeline-proof/ : advisory ? undefined : /@routine|@youtube-mock/,
+			grep: frameProof
+				? /@frame-proof/
+				: timelineProof
+					? /@timeline-proof/
+					: advisory
+						? undefined
+						: /@routine|@youtube-mock/,
 			use: {
 				browserName: 'chromium',
 				channel: 'chromium',
@@ -22,18 +29,21 @@ export default defineConfig({
 		},
 		{
 			name: 'webkit',
-			grep: timelineProof
-				? /@timeline-proof/
-				: advisory
-					? undefined
-					: /@webkit-smoke|@youtube-mock/,
+			grep: frameProof
+				? /@frame-proof/
+				: timelineProof
+					? /@timeline-proof/
+					: advisory
+						? undefined
+						: /@webkit-smoke|@youtube-mock/,
 			testMatch: [
 				'**/editor-workspace.spec.ts',
 				'**/editor-polish.spec.ts',
 				'**/video-picker.spec.ts',
 				'**/framing.spec.ts',
 				'**/share-footer.spec.ts',
-				'**/editor-timeline.spec.ts'
+				'**/editor-timeline.spec.ts',
+				'**/frame-stepping.spec.ts'
 			],
 			use: { browserName: 'webkit', channel: undefined }
 		}

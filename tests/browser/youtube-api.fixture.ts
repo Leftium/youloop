@@ -154,7 +154,8 @@ export const test = base.extend<{ youtubeApi: void }>({
 		async ({ context, page }, use, testInfo) => {
 			// Timeline proofs depend on fixed durations even when selected through
 			// the broader advisory command. Their tag does not admit routine gates.
-			const timelineProof = testInfo.tags.includes('@timeline-proof');
+			const timelineProof =
+				testInfo.tags.includes('@timeline-proof') || testInfo.tags.includes('@frame-proof');
 			const proof = testInfo.tags.includes('@youtube-mock') || timelineProof;
 			if (process.env.YOULOOP_OFFLINE_PROOF !== '1' && !proof) return use();
 			const live =

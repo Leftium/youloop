@@ -2,7 +2,7 @@ import { expect, type Page } from '@playwright/test';
 import { test } from './youtube-api.fixture';
 import { setSliderValue } from './editor-timeline.fixture';
 
-// Probationary through PR 3 in #62; excluded from routine gates. These checks
+// Reviewed in PR 3; probationary through Clip-settings PR 4 in #62, outside routine. These checks
 // cover capture/focus/media ordering that numeric unit tests cannot exercise.
 test.describe('editor timeline', { tag: '@timeline-proof' }, () => {
 	test.use({ hasTouch: true });
