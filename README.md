@@ -16,14 +16,48 @@ Use `pnpm check` for Svelte and TypeScript validation. `pnpm build` creates the
 Vercel server artifact in `.vercel/output/`. Query-based social previews require
 a server; the static build and its CI check have been retired.
 
-Run the automated real-YouTube browser suite with `pnpm test:browser` after
-`pnpm exec playwright install chromium`. Chromium launches with `--mute-audio`,
+Run the complete browser suite with `pnpm test:browser` after
+`pnpm exec playwright install chromium webkit`. Chromium launches with `--mute-audio`,
 so playback is silent even while tests verify unmuted state and `mute=0`.
 The runner uses `channel: 'chromium'` for full Chromium's headless mode, avoiding
 the separate headless-shell binary that produced macOS renderer crash reports.
 Production playback defaults are unchanged. Console watch regressions mute the
 media before playing and leave it muted afterward; their unmute assertions pause
 the provider first unless browser output is already suppressed.
+
+| Command                      | Selection                                                                                |
+| ---------------------------- | ---------------------------------------------------------------------------------------- |
+| `pnpm test:browser`          | All Chromium cases and the configured WebKit subset, including extended cases.           |
+| `pnpm test:browser:routine`  | Everything except cases tagged `@extended`; still uses real YouTube.                     |
+| `pnpm test:browser:extended` | Additional preset journeys tagged `@extended`.                                           |
+| `pnpm test:browser:provider` | Cases that can mount a YouTube provider, excluding `@provider-free`.                     |
+| `pnpm test:browser:ui`       | Picker and invalid/empty-route cases tagged `@provider-free`; no YouTube player startup. |
+
+Routine and extended partition the full suite. Provider reliance is a separate
+classification: a provider case may verify mounting/navigation without waiting
+for playback, or require real duration, frames, seeking and playback. Provider-free
+cases can still request metadata and thumbnails; they are not an offline suite.
+These commands select coverage explicitly and do not change the default suite or
+hosting CI gates. Existing Chromium CDP touch cases remain skipped on WebKit.
+
+Only the Native portrait, Portrait crop and Advanced timing picker presets are
+extended. Their additional source journeys overlap the framing fixtures and
+signed-range coverage; all five presets still check picker preview, canonical
+commit, real duration, a single provider and the original source link in the full
+suite. Basic A:B loop also checks reload. Landscape crop stays routine, including
+its duration wait: the previously reported YouTube timeout must remain visible.
+Landing cards check every destination and exercise their common navigation once.
+Signed/crop reload and history remain covered by the framing, signed-range and
+editor-polish suites. Workspace/scroll, provider identity, focus, playback and
+legacy `/s` regressions remain in the routine suite.
+
+Pure watch-control placement contracts run under Node with `pnpm test:clip`;
+rendered geometry remains covered in Playwright. When adding coverage, keep
+deterministic logic in Node and reserve browser cases for DOM, interaction or
+provider behavior. Use extended coverage only for additional fixture journeys
+whose primary contracts already have routine coverage. See
+[PR #53](https://github.com/Leftium/youloop/pull/53) for pruning measurements and
+the retained coverage inventory.
 
 With `pnpm dev` running, open the app and run
 the browser regressions in its developer console. Wait for the YouTube iframe

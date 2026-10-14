@@ -9,7 +9,6 @@ export default defineConfig({
 			name: 'webkit',
 			testMatch: [
 				'**/editor-workspace.spec.ts',
-				'**/watch-controls-placement.spec.ts',
 				'**/editor-polish.spec.ts',
 				'**/video-picker.spec.ts',
 				'**/framing.spec.ts',

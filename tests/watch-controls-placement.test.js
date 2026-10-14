@@ -1,5 +1,6 @@
-import { test, expect } from '@playwright/test';
-import { placeWatchControls, placeWatchTitle } from '../../src/lib/player/watch-controls-placement';
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import { placeWatchControls, placeWatchTitle } from '../src/lib/player/watch-controls-placement.ts';
 
 const safe = { left: 8, top: 8, right: 674, bottom: 1312 };
 const tallVideo = { left: 0, top: 70, right: 682, bottom: 1282 };
@@ -12,9 +13,9 @@ test('upper controls reserve the rightmost mode-button column', () => {
 		{ time: 100, actions: 112, height: 32 },
 		rightButton
 	);
-	expect(controls.mode).toBe('above');
-	expect(controls.left + controls.width).toBeLessThanOrEqual(rightButton.left - 8);
-	expect(controls.width).toBeGreaterThan(220);
+	assert.equal(controls.mode, 'above');
+	assert.ok(controls.left + controls.width <= rightButton.left - 8);
+	assert.ok(controls.width > 220);
 });
 
 test('upper controls can still avoid a top-left action', () => {
@@ -25,8 +26,8 @@ test('upper controls can still avoid a top-left action', () => {
 		{ time: 100, actions: 112, height: 32 },
 		leftButton
 	);
-	expect(controls.mode).toBe('above');
-	expect(controls.left).toBeGreaterThanOrEqual(leftButton.right + 8);
+	assert.equal(controls.mode, 'above');
+	assert.ok(controls.left >= leftButton.right + 8);
 });
 
 test('wide title fits the upper gutter before the right-side action', () => {
@@ -37,10 +38,10 @@ test('wide title fits the upper gutter before the right-side action', () => {
 		(width) => (width <= 420 ? 80 : 32),
 		rightButton
 	);
-	expect(title.mode).toBe('above');
-	expect(title.top).toBeGreaterThanOrEqual(safe.top);
-	expect(title.top + 32).toBeLessThanOrEqual(tallVideo.top - 8);
-	expect(title.left + title.width).toBeLessThanOrEqual(rightButton.left - 8);
+	assert.equal(title.mode, 'above');
+	assert.ok(title.top >= safe.top);
+	assert.ok(title.top + 32 <= tallVideo.top - 8);
+	assert.ok(title.left + title.width <= rightButton.left - 8);
 });
 
 test('paused title starts at the top beside an upper-right action', () => {
@@ -51,10 +52,10 @@ test('paused title starts at the top beside an upper-right action', () => {
 		48,
 		rightButton
 	);
-	expect(title.mode).toBe('video');
-	expect(title.top).toBe(safe.top);
-	expect(title.left + title.width).toBeLessThanOrEqual(rightButton.left - 8);
-	expect(title.maxHeight).toBeGreaterThan(48);
+	assert.equal(title.mode, 'video');
+	assert.equal(title.top, safe.top);
+	assert.ok(title.left + title.width <= rightButton.left - 8);
+	assert.ok(title.maxHeight > 48);
 });
 
 test('title moves below an upper action when the remaining column is too narrow', () => {
@@ -65,6 +66,6 @@ test('title moves below an upper action when the remaining column is too narrow'
 		32,
 		{ left: 140, top: 8, right: 172, bottom: 40 }
 	);
-	expect(title.mode).toBe('video');
-	expect(title.top).toBeGreaterThanOrEqual(48);
+	assert.equal(title.mode, 'video');
+	assert.ok(title.top >= 48);
 });

@@ -56,31 +56,44 @@ for (const width of [1280, 390]) {
 }
 
 for (const example of videoExamples) {
-	test(`preset ${example.label} commits canonical state and reloads`, async ({ page }) => {
-		await page.goto('/');
-		await page.getByRole('button', { name: 'Choose video', exact: true }).click();
-		const source = parseEditorSource(example.href)!;
-		await page.getByRole('dialog').getByRole('link', { name: example.label, exact: true }).click();
-		await expect(page.getByRole('dialog').getByRole('textbox')).toHaveValue(example.href);
-		await expect(page).toHaveURL('http://localhost:5173/');
-		await expect(page.locator('youtube-video')).toHaveCount(0);
-		await page.getByRole('dialog').getByRole('button', { name: 'Load', exact: true }).click();
-		await expect(page).toHaveURL('http://localhost:5173' + serializeEditorUrl(source.clip!));
-		await page.waitForFunction(
-			() => (document.querySelector('youtube-video') as HTMLMediaElement)?.duration > 10,
-			undefined,
-			{ timeout: 30_000 }
-		);
-		await expect(page.getByRole('alert')).toHaveCount(0);
-		await expect(page.locator('youtube-video')).toHaveCount(1);
-		const originalLink = page.locator('.source-link a');
-		await expect(originalLink).toBeVisible();
-		await expect(originalLink).toContainText(`youtu.be/${source.videoId}`);
-		await page.reload();
-		await expect(page.locator('youtube-video')).toHaveCount(1);
-		await expect(originalLink).toBeVisible();
-		await expect(originalLink).toContainText(`youtu.be/${source.videoId}`);
-	});
+	// Fixture-specific framing and signed-range journeys also run in their dedicated suites.
+	const extended = ['Native portrait', 'Portrait crop', 'Advanced timing'].includes(example.label);
+	const reload = example.label === 'Basic A:B loop';
+	test(
+		`preset ${example.label} commits canonical state${reload ? ' and reloads' : ''}`,
+		{ tag: extended ? '@extended' : [] },
+		async ({ page }) => {
+			await page.goto('/');
+			await page.getByRole('button', { name: 'Choose video', exact: true }).click();
+			const source = parseEditorSource(example.href)!;
+			await page
+				.getByRole('dialog')
+				.getByRole('link', { name: example.label, exact: true })
+				.click();
+			await expect(page.getByRole('dialog').getByRole('textbox')).toHaveValue(example.href);
+			await expect(page).toHaveURL('http://localhost:5173/');
+			await expect(page.locator('youtube-video')).toHaveCount(0);
+			await page.getByRole('dialog').getByRole('button', { name: 'Load', exact: true }).click();
+			await expect(page).toHaveURL('http://localhost:5173' + serializeEditorUrl(source.clip!));
+			await page.waitForFunction(
+				() => (document.querySelector('youtube-video') as HTMLMediaElement)?.duration > 10,
+				undefined,
+				{ timeout: 30_000 }
+			);
+			await expect(page.getByRole('alert')).toHaveCount(0);
+			await expect(page.locator('youtube-video')).toHaveCount(1);
+			const originalLink = page.locator('.source-link a');
+			await expect(originalLink).toBeVisible();
+			await expect(originalLink).toContainText(`youtu.be/${source.videoId}`);
+			// Reload the common picker commit path once; signed/crop reloads have dedicated coverage.
+			if (reload) {
+				await page.reload();
+				await expect(page.locator('youtube-video')).toHaveCount(1);
+				await expect(originalLink).toBeVisible();
+				await expect(originalLink).toContainText(`youtu.be/${source.videoId}`);
+			}
+		}
+	);
 }
 
 test('dialog cancel preserves live media, bounds, title and splitter', async ({ page }) => {
@@ -125,91 +138,99 @@ test('dialog cancel preserves live media, bounds, title and splitter', async ({ 
 	await expect(page.getByRole('button', { name: 'Change video' })).toBeFocused();
 });
 
-test('short preview keeps all examples reachable and dialog contains scroll through rotation', async ({
-	page
-}) => {
-	await page.setViewportSize({ width: 844, height: 390 });
-	await page.goto('/');
-	const last = page.locator('.welcome .cards a:last-child');
-	await last.scrollIntoViewIfNeeded();
-	const boxes = await page.evaluate(() => {
-		const area = document.querySelector('.welcome')!.getBoundingClientRect();
-		const link = document.querySelector('.welcome .cards a:last-child')!.getBoundingClientRect();
-		return { areaBottom: area.bottom, linkBottom: link.bottom };
-	});
-	expect(boxes.linkBottom).toBeLessThanOrEqual(boxes.areaBottom + 1);
-	await page.getByRole('button', { name: 'Choose video', exact: true }).click();
-	const dialog = page.getByRole('dialog');
-	await expect
-		.poll(() => page.evaluate(() => getComputedStyle(document.documentElement).overflow))
-		.toBe('hidden');
-	await page.setViewportSize({ width: 390, height: 844 });
-	await dialog.getByRole('textbox').focus();
-	await page.setViewportSize({ width: 390, height: 360 });
-	await dialog.getByRole('button', { name: 'Load', exact: true }).scrollIntoViewIfNeeded();
-	const bounds = await dialog.getByRole('button', { name: 'Load', exact: true }).boundingBox();
-	expect(bounds!.y).toBeGreaterThanOrEqual(0);
-	expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(360);
-	await dialog.getByRole('button', { name: 'Close video picker', exact: true }).click();
-	await expect
-		.poll(() => page.evaluate(() => getComputedStyle(document.documentElement).overflow))
-		.not.toBe('hidden');
-});
+test(
+	'short preview keeps all examples reachable and dialog contains scroll through rotation',
+	{ tag: '@provider-free' },
+	async ({ page }) => {
+		await page.setViewportSize({ width: 844, height: 390 });
+		await page.goto('/');
+		const last = page.locator('.welcome .cards a:last-child');
+		await last.scrollIntoViewIfNeeded();
+		const boxes = await page.evaluate(() => {
+			const area = document.querySelector('.welcome')!.getBoundingClientRect();
+			const link = document.querySelector('.welcome .cards a:last-child')!.getBoundingClientRect();
+			return { areaBottom: area.bottom, linkBottom: link.bottom };
+		});
+		expect(boxes.linkBottom).toBeLessThanOrEqual(boxes.areaBottom + 1);
+		await page.getByRole('button', { name: 'Choose video', exact: true }).click();
+		const dialog = page.getByRole('dialog');
+		await expect
+			.poll(() => page.evaluate(() => getComputedStyle(document.documentElement).overflow))
+			.toBe('hidden');
+		await page.setViewportSize({ width: 390, height: 844 });
+		await dialog.getByRole('textbox').focus();
+		await page.setViewportSize({ width: 390, height: 360 });
+		await dialog.getByRole('button', { name: 'Load', exact: true }).scrollIntoViewIfNeeded();
+		const bounds = await dialog.getByRole('button', { name: 'Load', exact: true }).boundingBox();
+		expect(bounds!.y).toBeGreaterThanOrEqual(0);
+		expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(360);
+		await dialog.getByRole('button', { name: 'Close video picker', exact: true }).click();
+		await expect
+			.poll(() => page.evaluate(() => getComputedStyle(document.documentElement).overflow))
+			.not.toBe('hidden');
+	}
+);
 
-test('one Escape wins over input blur handlers and respects composition', async ({ page }) => {
-	await page.goto('/');
-	const choose = page.getByRole('button', { name: 'Choose video', exact: true });
-	await choose.click();
-	const dialog = page.getByRole('dialog');
-	const input = dialog.getByRole('textbox');
-	await input.fill('draft to retain');
-	await input.evaluate((element) =>
-		element.addEventListener('keydown', (event) => {
-			if ((event as KeyboardEvent).key === 'Escape') {
-				event.preventDefault();
-				event.stopPropagation();
-				(element as HTMLElement).blur();
-			}
-		})
-	);
-	await input.press('Escape');
-	await expect(dialog).not.toBeVisible();
-	await expect(choose).toBeFocused();
-	await choose.click();
-	await expect(input).toHaveValue('');
-	await input.focus();
-	await input.dispatchEvent('compositionstart');
-	await input.press('Escape');
-	await expect(dialog).toBeVisible();
-	await input.dispatchEvent('compositionend');
-	await input.focus();
-	await input.press('Escape');
-	await expect(dialog).not.toBeVisible();
-});
+test(
+	'one Escape wins over input blur handlers and respects composition',
+	{ tag: '@provider-free' },
+	async ({ page }) => {
+		await page.goto('/');
+		const choose = page.getByRole('button', { name: 'Choose video', exact: true });
+		await choose.click();
+		const dialog = page.getByRole('dialog');
+		const input = dialog.getByRole('textbox');
+		await input.fill('draft to retain');
+		await input.evaluate((element) =>
+			element.addEventListener('keydown', (event) => {
+				if ((event as KeyboardEvent).key === 'Escape') {
+					event.preventDefault();
+					event.stopPropagation();
+					(element as HTMLElement).blur();
+				}
+			})
+		);
+		await input.press('Escape');
+		await expect(dialog).not.toBeVisible();
+		await expect(choose).toBeFocused();
+		await choose.click();
+		await expect(input).toHaveValue('');
+		await input.focus();
+		await input.dispatchEvent('compositionstart');
+		await input.press('Escape');
+		await expect(dialog).toBeVisible();
+		await input.dispatchEvent('compositionend');
+		await input.focus();
+		await input.press('Escape');
+		await expect(dialog).not.toBeVisible();
+	}
+);
 
-test('dialog whitespace is inert, actual backdrop dismisses, and links fit their visible text', async ({
-	page
-}) => {
-	await page.setViewportSize({ width: 1280, height: 800 });
-	await page.goto('/');
-	await page.getByRole('button', { name: 'Choose video', exact: true }).click();
-	const dialog = page.getByRole('dialog');
-	const input = dialog.getByRole('textbox');
-	await input.fill('retained');
-	const link = dialog.getByRole('link', { name: 'Basic A:B loop', exact: true });
-	const linkBox = (await link.boundingBox())!;
-	const box = (await dialog.boundingBox())!;
-	expect(linkBox.width).toBeLessThan(box.width / 2);
-	await page.mouse.click(box.x + box.width - 28, linkBox.y + linkBox.height / 2);
-	await expect(dialog).toBeVisible();
-	await expect(page).toHaveURL('http://localhost:5173/');
-	await page.mouse.click(4, 4);
-	await expect(dialog).not.toBeVisible();
-	await page.getByRole('button', { name: 'Choose video', exact: true }).click();
-	await expect(input).toHaveValue('');
-	await dialog.getByRole('button', { name: 'Close video picker' }).click();
-	await expect(dialog).not.toBeVisible();
-});
+test(
+	'dialog whitespace is inert, actual backdrop dismisses, and links fit their visible text',
+	{ tag: '@provider-free' },
+	async ({ page }) => {
+		await page.setViewportSize({ width: 1280, height: 800 });
+		await page.goto('/');
+		await page.getByRole('button', { name: 'Choose video', exact: true }).click();
+		const dialog = page.getByRole('dialog');
+		const input = dialog.getByRole('textbox');
+		await input.fill('retained');
+		const link = dialog.getByRole('link', { name: 'Basic A:B loop', exact: true });
+		const linkBox = (await link.boundingBox())!;
+		const box = (await dialog.boundingBox())!;
+		expect(linkBox.width).toBeLessThan(box.width / 2);
+		await page.mouse.click(box.x + box.width - 28, linkBox.y + linkBox.height / 2);
+		await expect(dialog).toBeVisible();
+		await expect(page).toHaveURL('http://localhost:5173/');
+		await page.mouse.click(4, 4);
+		await expect(dialog).not.toBeVisible();
+		await page.getByRole('button', { name: 'Choose video', exact: true }).click();
+		await expect(input).toHaveValue('');
+		await dialog.getByRole('button', { name: 'Close video picker' }).click();
+		await expect(dialog).not.toBeVisible();
+	}
+);
 
 test('candidate metadata is debounced, stale-safe, optional, and never commits playback', async ({
 	page
@@ -291,34 +312,43 @@ test('clipboard preview does not commit until Load', async ({ page }) => {
 
 test.describe('invisible touch targets', () => {
 	test.use({ hasTouch: true, viewport: { width: 390, height: 844 } });
-	test('X closes when tapped outside its visible icon', async ({ page }) => {
-		await page.goto('/');
-		await page.getByRole('button', { name: 'Choose video', exact: true }).click();
-		const dialog = page.getByRole('dialog');
-		const close = dialog.getByRole('button', { name: 'Close video picker' });
-		const box = (await close.boundingBox())!;
-		expect(box.height).toBeLessThan(44);
-		const target = await close.evaluate((el) => ({
-			height: getComputedStyle(el, '::after').height,
-			background: getComputedStyle(el).backgroundColor
-		}));
-		expect(parseFloat(target.height)).toBeGreaterThanOrEqual(44);
-		expect(target.background).toBe('rgba(0, 0, 0, 0)');
-		await page.touchscreen.tap(box.x + box.width / 2, box.y - 3);
-		await expect(dialog).not.toBeVisible();
-	});
+	test(
+		'X closes when tapped outside its visible icon',
+		{ tag: '@provider-free' },
+		async ({ page }) => {
+			await page.goto('/');
+			await page.getByRole('button', { name: 'Choose video', exact: true }).click();
+			const dialog = page.getByRole('dialog');
+			const close = dialog.getByRole('button', { name: 'Close video picker' });
+			const box = (await close.boundingBox())!;
+			expect(box.height).toBeLessThan(44);
+			const target = await close.evaluate((el) => ({
+				height: getComputedStyle(el, '::after').height,
+				background: getComputedStyle(el).backgroundColor
+			}));
+			expect(parseFloat(target.height)).toBeGreaterThanOrEqual(44);
+			expect(target.background).toBe('rgba(0, 0, 0, 0)');
+			await page.touchscreen.tap(box.x + box.width / 2, box.y - 3);
+			await expect(dialog).not.toBeVisible();
+		}
+	);
 });
 
-test('landing cards directly open canonical editor clips without the picker', async ({ page }) => {
+test('landing cards expose every preset and directly open a canonical editor clip', async ({
+	page
+}) => {
+	await page.goto('/');
 	for (const [index, example] of videoExamples.entries()) {
-		await page.goto('/');
-		const card = page.locator('.cards a').nth(index);
-		await expect(card).toHaveAttribute('href', example.href);
-		await card.click();
-		await expect(page).toHaveURL(
-			'http://localhost:5173' + serializeEditorUrl(parseEditorSource(example.href)!.clip!)
-		);
-		await expect(page.locator('youtube-video')).toHaveCount(1);
-		await expect(page.getByRole('dialog')).not.toBeVisible();
+		await expect(page.locator('.cards a').nth(index)).toHaveAttribute('href', example.href);
 	}
+	// Every preset still loads through the picker; exercise the shared direct-card navigation once.
+	// The picker button enables after mount; an early native navigation can interrupt hydration.
+	await expect(page.getByRole('button', { name: 'Choose video', exact: true })).toBeEnabled();
+	const example = videoExamples[0];
+	await page.locator('.cards a').first().click();
+	await expect(page).toHaveURL(
+		'http://localhost:5173' + serializeEditorUrl(parseEditorSource(example.href)!.clip!)
+	);
+	await expect(page.locator('youtube-video')).toHaveCount(1);
+	await expect(page.getByRole('dialog')).not.toBeVisible();
 });
