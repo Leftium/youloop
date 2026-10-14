@@ -205,7 +205,7 @@ export async function run() {
 			wrappedTitle.mode === 'above',
 			'Title uses a wider upper gutter at reported 1952x1261 boundary'
 		);
-		const modeButton = { left: 8, top: 8, right: 40, bottom: 40 };
+		const modeButton = { left: 642, top: 8, right: 674, bottom: 40 };
 		const upperSafe = { left: 8, top: 8, right: 674, bottom: 1312 };
 		const tallVideo = { left: 0, top: 70, right: 682, bottom: 1282 };
 		const upperControls = placeWatchControls(
@@ -215,8 +215,9 @@ export async function run() {
 			modeButton
 		);
 		check(
-			upperControls.mode === 'above' && upperControls.left >= modeButton.right + 8,
-			'Upper controls leave room for the mode button'
+			upperControls.mode === 'above' &&
+				upperControls.left + upperControls.width <= modeButton.left - 8,
+			'Upper controls use the space left of the top-right mode button'
 		);
 		const titleBelowUpperControls = placeWatchTitle(
 			upperSafe,
@@ -230,6 +231,19 @@ export async function run() {
 				titleBelowUpperControls.maxHeight >= 140 &&
 				titleBelowUpperControls.top >= upperControls.top + upperControls.height + 8,
 			'Long titles keep usable height when controls occupy the upper gutter'
+		);
+		const topTitle = placeWatchTitle(
+			upperSafe,
+			{ left: 0, top: 0, right: 682, bottom: 1320 },
+			{ left: 8, top: 1250, width: 666, height: 44 },
+			48,
+			modeButton
+		);
+		check(
+			topTitle.mode === 'video' &&
+				topTitle.top === upperSafe.top &&
+				topTitle.left + topTitle.width <= modeButton.left - 8,
+			'Paused title starts at top and leaves the rightmost button column clear'
 		);
 		return results;
 	} finally {

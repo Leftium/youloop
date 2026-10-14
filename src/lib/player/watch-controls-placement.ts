@@ -49,12 +49,14 @@ export function placeWatchControls(
 		}
 		if (video.top - safe.top >= gap + height) {
 			const top = video.top - gap - height;
-			const clearLeft =
-				reserved && top < reserved.bottom + gap && top + height > reserved.top - gap
-					? Math.max(left, reserved.right + gap)
-					: left;
-			if (left + width - clearLeft >= minimumWidth) {
-				return row(clearLeft, top, left + width, 'above');
+			if (reserved && top < reserved.bottom + gap && top + height > reserved.top - gap) {
+				const clearRight = Math.min(left + width, reserved.left - gap);
+				if (clearRight - left >= minimumWidth) return row(left, top, clearRight, 'above');
+				const clearLeft = Math.max(left, reserved.right + gap);
+				if (left + width - clearLeft >= minimumWidth)
+					return row(clearLeft, top, left + width, 'above');
+			} else {
+				return row(left, top, left + width, 'above');
 			}
 		}
 	}
@@ -79,6 +81,9 @@ export function placeWatchTitle(
 	reserved?: Bounds
 ) {
 	const gap = 8;
+	function heightAt(width: number) {
+		return typeof measureHeight === 'number' ? measureHeight : measureHeight(width);
+	}
 	const clearTop = (left: number, top: number, width: number, height: number) =>
 		reserved &&
 		left < reserved.right + gap &&
@@ -114,10 +119,24 @@ export function placeWatchTitle(
 	];
 	for (const candidate of candidates) {
 		if (candidate.width < Math.min(180, width)) continue;
-		const height =
-			typeof measureHeight === 'number' ? measureHeight : measureHeight(candidate.width);
-		if (candidate.mode === 'above') candidate.top -= height;
-		candidate.top = clearTop(candidate.left, candidate.top, candidate.width, height);
+		const anchorTop = candidate.top;
+		let height = heightAt(candidate.width);
+		let top = candidate.mode === 'above' ? anchorTop - height : anchorTop;
+		if (
+			reserved &&
+			candidate.left < reserved.left - gap &&
+			candidate.left + candidate.width > reserved.left - gap &&
+			top < reserved.bottom + gap &&
+			top + height > reserved.top - gap
+		) {
+			const availableLeft = reserved.left - gap - candidate.left;
+			if (availableLeft >= Math.min(180, width)) {
+				candidate.width = availableLeft;
+				height = heightAt(candidate.width);
+				top = candidate.mode === 'above' ? anchorTop - height : anchorTop;
+			}
+		}
+		candidate.top = clearTop(candidate.left, top, candidate.width, height);
 		const right = candidate.left + candidate.width;
 		const bottom = candidate.top + height;
 		const outsidePicture =
@@ -143,9 +162,23 @@ export function placeWatchTitle(
 		}
 	}
 	const left = Math.max(safe.left, video.left + gap);
-	const fallbackWidth = Math.max(0, Math.min(safe.right, video.right - gap) - left);
-	const height = typeof measureHeight === 'number' ? measureHeight : measureHeight(fallbackWidth);
-	let top = clearTop(left, Math.max(safe.top, video.top + gap), fallbackWidth, height);
+	let fallbackWidth = Math.max(0, Math.min(safe.right, video.right - gap) - left);
+	const initialTop = Math.max(safe.top, video.top + gap);
+	let height = heightAt(fallbackWidth);
+	if (
+		reserved &&
+		left < reserved.left - gap &&
+		left + fallbackWidth > reserved.left - gap &&
+		initialTop < reserved.bottom + gap &&
+		initialTop + height > reserved.top - gap
+	) {
+		const availableLeft = reserved.left - gap - left;
+		if (availableLeft >= Math.min(180, fallbackWidth)) {
+			fallbackWidth = availableLeft;
+			height = heightAt(fallbackWidth);
+		}
+	}
+	let top = clearTop(left, initialTop, fallbackWidth, height);
 	// Upper controls leave the picture below them available for the title.
 	if (top >= controls.top - gap && top < controls.top + controls.height + gap) {
 		top = controls.top + controls.height + gap;

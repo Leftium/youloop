@@ -114,6 +114,104 @@ async function dragBy(page: Page, delta: number) {
 	await expect(page.locator('.workspace-grid')).not.toHaveClass(/dragging/);
 }
 
+test('form leads in columns; video leads in rows', async ({ page }) => {
+	await page.setViewportSize({ width: 1280, height: 800 });
+	await openEditor(page);
+	const order = () =>
+		page.evaluate(() => {
+			const rect = (selector: string) =>
+				document.querySelector(selector)!.getBoundingClientRect().toJSON();
+			const preview = rect('#editor-preview');
+			const settings = rect('#editor-settings');
+			const splitter = rect('.splitter');
+			const mode = rect('.mode-toggle');
+			return { preview, settings, splitter, mode };
+		});
+	let boxes = await order();
+	expect(boxes.settings.right).toBeLessThanOrEqual(boxes.splitter.left + 1);
+	expect(boxes.splitter.right).toBeLessThanOrEqual(boxes.preview.left + 1);
+	expect(boxes.mode.left).toBeGreaterThanOrEqual(boxes.preview.left);
+	expect(Math.abs(boxes.mode.right - boxes.preview.right)).toBeLessThanOrEqual(16);
+	const firstPreview = boxes.preview.width;
+	await dragBy(page, -40);
+	boxes = await order();
+	expect(boxes.preview.width).toBeGreaterThan(firstPreview);
+	await identity(page);
+	await chooseLayout(page, 'rows');
+	boxes = await order();
+	expect(boxes.preview.bottom).toBeLessThanOrEqual(boxes.splitter.top + 1);
+	expect(boxes.splitter.bottom).toBeLessThanOrEqual(boxes.settings.top + 1);
+	await identity(page);
+	await page.setViewportSize({ width: 390, height: 844 });
+	boxes = await order();
+	expect(boxes.preview.bottom).toBeLessThanOrEqual(boxes.splitter.top + 1);
+	await page.setViewportSize({ width: 1280, height: 800 });
+	await chooseLayout(page, 'columns');
+	boxes = await order();
+	expect(boxes.settings.right).toBeLessThanOrEqual(boxes.preview.left);
+	await identity(page);
+});
+
+test('viewport resize commits the new axis before animation frames without interrupting playback', async ({
+	page
+}) => {
+	await page.setViewportSize({ width: 1280, height: 800 });
+	await openEditor(page);
+	await page.evaluate(async () => {
+		await (document.querySelector('youtube-video') as HTMLMediaElement).play();
+	});
+	await page.waitForFunction(
+		() => !(document.querySelector('youtube-video') as HTMLMediaElement).paused
+	);
+	for (const reducedMotion of ['no-preference', 'reduce'] as const) {
+		await page.emulateMedia({ reducedMotion });
+		for (const viewport of [
+			{ width: 390, height: 844 },
+			{ width: 844, height: 390 },
+			{ width: 659, height: 800 },
+			{ width: 660, height: 800 },
+			{ width: 1280, height: 800 }
+		]) {
+			await page.evaluate(() => {
+				(window as unknown as { firstResizeFrame: unknown }).firstResizeFrame = null;
+				window.addEventListener(
+					'resize',
+					() =>
+						requestAnimationFrame(() => {
+							const grid = document.querySelector<HTMLElement>('.workspace-grid')!;
+							Object.assign(window, {
+								firstResizeFrame: {
+									layout: grid.dataset.layout
+								}
+							});
+						}),
+					{ once: true }
+				);
+			});
+			await page.setViewportSize(viewport);
+			await page.waitForFunction(
+				() => (window as unknown as { firstResizeFrame: unknown }).firstResizeFrame
+			);
+			const first = await page.evaluate(
+				() =>
+					(
+						window as unknown as {
+							firstResizeFrame: { layout: string };
+						}
+					).firstResizeFrame
+			);
+			expect(first.layout).toBe(viewport.width < 660 ? 'rows' : 'columns');
+			await identity(page);
+			expect(
+				await page.evaluate(
+					() => (document.querySelector('youtube-video') as HTMLMediaElement).paused
+				)
+			).toBe(false);
+			await geometry(page);
+		}
+	}
+});
+
 test('pointer and keyboard splitter bounds, capture cleanup, axes and reset', async ({ page }) => {
 	await page.setViewportSize({ width: 1440, height: 900 });
 	await openEditor(page);
@@ -121,10 +219,10 @@ test('pointer and keyboard splitter bounds, capture cleanup, axes and reset', as
 	await expect(handle).toHaveAttribute('aria-controls', 'editor-preview editor-settings');
 	await expect(handle).toHaveAttribute('aria-orientation', 'vertical');
 	const initial = await value(page);
-	await dragBy(page, 80);
+	await dragBy(page, -80);
 	expect(Math.abs((await value(page)) - initial - 80)).toBeLessThanOrEqual(1);
 	await handle.press('ArrowLeft');
-	expect(Math.abs((await value(page)) - initial - 64)).toBeLessThanOrEqual(1);
+	expect(Math.abs((await value(page)) - initial - 96)).toBeLessThanOrEqual(1);
 	for (const key of ['Home', 'End']) {
 		await handle.press(key);
 		expect(await value(page)).toBe(
@@ -132,7 +230,7 @@ test('pointer and keyboard splitter bounds, capture cleanup, axes and reset', as
 		);
 		await geometry(page);
 	}
-	await dragBy(page, -2000);
+	await dragBy(page, 2000);
 	expect(await value(page)).toBe(Number(await handle.getAttribute('aria-valuemin')));
 	await handle.focus();
 	expect(await handle.evaluate((el) => getComputedStyle(el).outlineStyle)).toBe('solid');
@@ -333,8 +431,10 @@ test('session preferences restore, reconcile on resize, reset and stay out of sh
 });
 
 test('touch capture and cancellation clean up without changing provider identity', async ({
-	browser
+	browser,
+	browserName
 }) => {
+	test.skip(browserName !== 'chromium', 'Touch dispatch and cancellation require Chromium CDP.');
 	const context = await browser.newContext({
 		viewport: { width: 390, height: 844 },
 		hasTouch: true
@@ -417,6 +517,22 @@ for (const viewport of [
 		await expect(page.locator('.workspace-toolbar')).toHaveCount(0);
 		await expect(page.getByRole('button', { name: /fullscreen/i })).toHaveCount(0);
 		const group = preview.getByRole('group', { name: 'Workspace layout' });
+		const corners = await preview.evaluate((element) => {
+			const rect = (s: string) => element.querySelector(s)!.getBoundingClientRect();
+			const brand = rect('.preview-brand');
+			const layout = rect('.workspace-layout');
+			const mode = rect('.mode-toggle');
+			return {
+				brandLeftOfLayout: brand.right < layout.left,
+				layoutLeftOfMode: layout.right < mode.left,
+				sameTop: Math.abs(brand.top - layout.top) < 1
+			};
+		});
+		expect(corners).toEqual({
+			brandLeftOfLayout: true,
+			layoutLeftOfMode: true,
+			sameTop: true
+		});
 		await expect(group.locator('button')).toHaveCount(1);
 		await expect(group.locator('button')).not.toHaveAttribute('aria-pressed');
 		await expect(
@@ -523,6 +639,10 @@ for (const viewport of [
 }
 
 test.describe('mobile pane scrolling', () => {
+	test.skip(
+		({ browserName }) => browserName !== 'chromium',
+		'Native swipe injection requires Chromium CDP.'
+	);
 	test.use({ hasTouch: true, isMobile: true, viewport: { width: 390, height: 844 } });
 	const rootOffset = (page: Page) => page.evaluate(() => scrollY);
 	for (const viewport of [
@@ -573,7 +693,8 @@ test.describe('mobile pane scrolling', () => {
 					}
 					await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
 					await expect(page.locator('.workspace-grid')).not.toHaveClass(/dragging/);
-					expect(Math.abs((await value(page)) - before - delta)).toBeLessThanOrEqual(1);
+					const expected = before + (columns ? -delta : delta);
+					expect(Math.abs((await value(page)) - expected)).toBeLessThanOrEqual(1);
 					expect(await rootOffset(page)).toBe(offset);
 					await geometry(page);
 					await identity(page);
@@ -677,6 +798,10 @@ test.describe('mobile pane scrolling', () => {
 });
 
 test.describe('automatic mobile document scrolling', () => {
+	test.skip(
+		({ browserName }) => browserName !== 'chromium',
+		'Native swipe injection requires Chromium CDP.'
+	);
 	for (const viewport of [
 		{ width: 390, height: 844 },
 		{ width: 844, height: 390 }
@@ -840,7 +965,8 @@ test.describe('automatic mobile document scrolling', () => {
 						columns ? delta : 0,
 						columns ? 0 : delta
 					);
-					expect(Math.abs((await value(page)) - before - delta)).toBeLessThanOrEqual(1);
+					const expected = before + (columns ? -delta : delta);
+					expect(Math.abs((await value(page)) - expected)).toBeLessThanOrEqual(1);
 					expect(await offset()).toBe(root);
 					await expect(page.locator('.workspace-grid')).not.toHaveClass(/dragging/);
 					await pinned();
@@ -935,6 +1061,10 @@ for (const viewport of [
 	{ width: 844, height: 390 }
 ]) {
 	test.describe(`short controls ${viewport.width}x${viewport.height}`, () => {
+		test.skip(
+			({ browserName }) => browserName !== 'chromium',
+			'Native swipe injection requires Chromium CDP.'
+		);
 		test.use({ hasTouch: true, isMobile: true, viewport, screen: viewport });
 		test('fitting controls retain gesture ownership and provider identity', async ({
 			page,
@@ -976,7 +1106,7 @@ for (const viewport of [
 	});
 }
 
-test('layout stays in the upper-left over picture without reserving height through resize, reflow and settings scroll', async ({
+test('layout stays in the upper-right beside mode action without reserving height through resize, reflow and settings scroll', async ({
 	page
 }) => {
 	await page.setViewportSize({ width: 1280, height: 800 });
@@ -986,16 +1116,20 @@ test('layout stays in the upper-left over picture without reserving height throu
 			const pane = preview.getBoundingClientRect();
 			const group = preview.querySelector('.workspace-layout')!.getBoundingClientRect();
 			const brand = preview.querySelector('.brand')!.getBoundingClientRect();
+			const mode = preview.querySelector('.mode-toggle')!.getBoundingClientRect();
 			const picture = preview.querySelector('.player')!.getBoundingClientRect();
 			return {
-				x: group.left - pane.left,
+				x: pane.right - group.right,
 				y: group.top - pane.top,
 				clear:
 					group.top >= picture.top &&
 					group.bottom <= picture.bottom &&
 					brand.bottom <= picture.bottom &&
 					picture.top === preview.getBoundingClientRect().top &&
-					group.right <= brand.left
+					brand.right <= group.left &&
+					group.right <= mode.left &&
+					mode.right <= pane.right &&
+					Math.abs(group.top - mode.top) < 1
 			};
 		});
 		expect(result.clear).toBe(true);
@@ -1093,6 +1227,98 @@ test('named bound actions respect precision, retain Once, and share direct speed
 			.toBe(rate);
 		await identity(page);
 	}
+});
+
+test('upper-right tooltips fit inside the preview at narrow and wide sizes', async ({
+	page,
+	browserName
+}) => {
+	await page.setViewportSize({ width: 1280, height: 800 });
+	await openEditor(page);
+	const measure = () =>
+		page.evaluate(() => {
+			const preview = document.querySelector('#editor-preview')!.getBoundingClientRect();
+			const tooltips = ['.workspace-layout button', '.mode-toggle'].map((selector) => {
+				const action = document.querySelector<HTMLElement>(selector)!;
+				const style = getComputedStyle(action, '::after');
+				// The layout tooltip is positioned within its relative parent;
+				// the mode tooltip is positioned within its button.
+				const anchor = action.matches('.mode-toggle')
+					? action.getBoundingClientRect()
+					: action.closest('.workspace-layout')!.getBoundingClientRect();
+				const width =
+					parseFloat(style.width) +
+					(style.boxSizing === 'border-box'
+						? 0
+						: parseFloat(style.paddingLeft) + parseFloat(style.paddingRight));
+				const right = anchor.right - parseFloat(style.right);
+				const top = anchor.top + parseFloat(style.top);
+				const height =
+					parseFloat(style.height) +
+					(style.boxSizing === 'border-box'
+						? 0
+						: parseFloat(style.paddingTop) + parseFloat(style.paddingBottom));
+				return { selector, left: right - width, right, width, top, bottom: top + height };
+			});
+			return {
+				preview: {
+					left: preview.left,
+					right: preview.right,
+					top: preview.top,
+					bottom: preview.bottom
+				},
+				tooltips
+			};
+		});
+	const checkTooltips = async (safeInset = 0) => {
+		for (const selector of ['.workspace-layout button', '.mode-toggle']) {
+			await page.locator(selector).hover();
+			expect(
+				await page.locator(selector).evaluate((el) => getComputedStyle(el, '::after').opacity)
+			).toBe('1');
+			const bounds = await measure();
+			const tooltip = bounds.tooltips.find((t) => t.selector === selector)!;
+			expect(tooltip.width, selector).toBeGreaterThan(0);
+			expect(tooltip.left, selector).toBeGreaterThanOrEqual(bounds.preview.left + safeInset - 1);
+			expect(tooltip.right, selector).toBeLessThanOrEqual(bounds.preview.right - safeInset + 1);
+			expect(tooltip.top, selector).toBeGreaterThanOrEqual(bounds.preview.top - 1);
+			expect(tooltip.bottom, selector).toBeLessThanOrEqual(bounds.preview.bottom + 1);
+		}
+	};
+	for (const viewport of [
+		{ width: 240, height: 568 },
+		{ width: 320, height: 568 },
+		{ width: 390, height: 844 },
+		{ width: 844, height: 390 },
+		{ width: 1280, height: 800 }
+	]) {
+		await page.setViewportSize(viewport);
+		await checkTooltips();
+	}
+	await page.getByRole('separator', { name: 'Resize video preview' }).press('Home');
+	await checkTooltips();
+	// CDP overrides actual env() values, rather than replacing the tooltip CSS.
+	if (browserName === 'chromium') {
+		const cdp = await page.context().newCDPSession(page);
+		await cdp.send('Emulation.setSafeAreaInsetsOverride', {
+			insets: { left: 44, right: 44, top: 20, bottom: 20 }
+		});
+		try {
+			for (const viewport of [
+				{ width: 240, height: 568 },
+				{ width: 320, height: 568 },
+				{ width: 390, height: 844 },
+				{ width: 844, height: 390 }
+			]) {
+				await page.setViewportSize(viewport);
+				await checkTooltips(44);
+			}
+		} finally {
+			await cdp.send('Emulation.setSafeAreaInsetsOverride', { insets: {} });
+			await cdp.detach();
+		}
+	}
+	await identity(page);
 });
 
 test('destination layout icon, tooltip and name follow keyboard switches and responsive constraints', async ({

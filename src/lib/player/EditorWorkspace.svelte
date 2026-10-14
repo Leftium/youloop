@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onMount, tick, untrack, type Snippet } from 'svelte';
+	import { flushSync, onMount, tick, untrack, type Snippet } from 'svelte';
 	import IcRoundViewAgenda from '~icons/ic/round-view-agenda';
 	import IcRoundRestartAlt from '~icons/ic/round-restart-alt';
 
@@ -63,7 +63,7 @@
 		const updateScrollMode = () => (nativeScroll = query.matches);
 		updateScrollMode();
 		query.addEventListener('change', updateScrollMode);
-		const observer = new ResizeObserver(() => {
+		function measure() {
 			endDrag();
 			width = grid.clientWidth;
 			height = grid.clientHeight;
@@ -74,10 +74,17 @@
 				parseFloat(contentStyle.maxWidth) +
 				parseFloat(scrollStyle.paddingLeft) +
 				parseFloat(scrollStyle.paddingRight);
-		});
+		}
+		// Reconcile the breakpoint before animation frames, rather than waiting
+		// for ResizeObserver. It still catches later viewport-unit/container changes.
+		const syncMeasure = () => flushSync(measure);
+		measure();
+		window.addEventListener('resize', syncMeasure);
+		const observer = new ResizeObserver(syncMeasure);
 		observer.observe(grid);
 		return () => {
 			query.removeEventListener('change', updateScrollMode);
+			window.removeEventListener('resize', syncMeasure);
 			observer.disconnect();
 			endDrag();
 		};
@@ -152,7 +159,8 @@
 	function moveDrag(event: PointerEvent) {
 		if (drag?.id !== event.pointerId) return;
 		const position = layout === 'columns' ? event.clientX : event.clientY;
-		resize(drag.size + position - drag.origin);
+		const delta = position - drag.origin;
+		resize(drag.size + (layout === 'columns' ? -delta : delta));
 		event.preventDefault();
 	}
 
@@ -171,9 +179,8 @@
 		if (event.key === 'Home') resize(minimum);
 		else if (event.key === 'End') resize(maximum);
 		else if (keys.includes(event.key)) {
-			resize(
-				size + (event.key === keys[0] ? -1 : 1) * (layout === 'columns' ? 16 : available * 0.02)
-			);
+			const step = layout === 'columns' ? -16 : available * 0.02;
+			resize(size + (event.key === keys[0] ? -step : step));
 		} else return;
 		event.preventDefault();
 	}
@@ -277,7 +284,7 @@
 	<span
 		class="settings-edge"
 		aria-hidden="true"
-		style:left={layout === 'columns' ? `${size + dividerSize}px` : '0px'}
+		style:right={layout === 'columns' ? `${size + dividerSize}px` : '0px'}
 	></span>
 	<div
 		class="video-scroll-runway"
@@ -377,10 +384,19 @@
 	.workspace-layout button::after {
 		content: attr(data-tooltip);
 		position: absolute;
-		left: 0;
+		right: 0;
 		top: calc(100% + 4px);
 		width: max-content;
-		max-width: min(260px, calc(100vw - 32px));
+		/* In narrow previews, reserve room for the adjacent upper-right mode action. */
+		max-width: min(
+			260px,
+			calc(
+				100cqw - max(8px, env(safe-area-inset-left)) - max(8px, env(safe-area-inset-right)) -
+					var(--youloop-control-size) - var(--youloop-control-gap)
+			)
+		);
+		box-sizing: border-box;
+		overflow-wrap: anywhere;
 		padding: 6px 8px;
 		border-radius: var(--youloop-control-radius);
 		background: #222;
@@ -425,8 +441,20 @@
 		height: 100%;
 		min-width: 0;
 		min-height: 0;
-		grid-template-columns: minmax(0, var(--preview-size)) var(--divider-size) minmax(0, 1fr);
+		grid-template-columns: minmax(0, 1fr) var(--divider-size) minmax(0, var(--preview-size));
 		grid-template-rows: minmax(0, 1fr);
+	}
+	.workspace-grid[data-layout='columns'] .settings-pane {
+		grid-column: 1;
+		grid-row: 1;
+	}
+	.workspace-grid[data-layout='columns'] .splitter {
+		grid-column: 2;
+		grid-row: 1;
+	}
+	.workspace-grid[data-layout='columns'] .preview-pane {
+		grid-column: 3;
+		grid-row: 1;
 	}
 	.workspace-grid[data-layout='rows'] {
 		grid-template-columns: minmax(0, 1fr);
@@ -479,6 +507,7 @@
 		position: fixed;
 		/* Anchor directly to the viewport rather than waiting for dvh updates. */
 		bottom: 0;
+		left: 0;
 		right: 0;
 		height: 1px;
 		background: var(--nc-border);

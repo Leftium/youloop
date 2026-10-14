@@ -1078,12 +1078,12 @@
 	<div class="editor-preview-content">
 		{#snippet corners()}
 			<div class="preview-corners">
-				{@render layoutControls()}
 				<div class="preview-brand">
 					<a class="brand" href="/" data-sveltekit-reload title="YouLoop home">
 						<img src="/logo.svg" alt="" />YouLoop
 					</a>
 				</div>
+				{@render layoutControls()}
 			</div>
 			<div class="timestamps">
 				<div>{formatVideoTime(currentTime)} / {formatVideoTime(duration)}</div>
@@ -1851,11 +1851,12 @@
 	}
 	.preview-corners {
 		position: absolute;
-		inset: max(8px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) auto
+		inset: max(8px, env(safe-area-inset-top))
 			calc(
-				max(8px, env(safe-area-inset-left)) + var(--youloop-control-size) +
+				max(8px, env(safe-area-inset-right)) + var(--youloop-control-size) +
 					var(--youloop-control-gap)
-			);
+			)
+			auto max(8px, env(safe-area-inset-left));
 		z-index: 1;
 		display: flex;
 		align-items: flex-start;
@@ -1866,7 +1867,7 @@
 	.mode-toggle {
 		position: absolute;
 		top: max(8px, env(safe-area-inset-top));
-		left: max(8px, env(safe-area-inset-left));
+		right: max(8px, env(safe-area-inset-right));
 		z-index: 2;
 		display: grid;
 		place-items: center;
@@ -1906,10 +1907,15 @@
 	.mode-toggle::after {
 		content: attr(data-tooltip);
 		position: absolute;
-		left: 0;
+		right: 0;
 		top: calc(100% + 4px);
 		width: max-content;
-		max-width: min(260px, calc(100vw - 32px));
+		max-width: min(
+			260px,
+			calc(100cqw - max(8px, env(safe-area-inset-left)) - max(8px, env(safe-area-inset-right)))
+		);
+		box-sizing: border-box;
+		overflow-wrap: anywhere;
 		padding: 6px 8px;
 		border-radius: var(--youloop-control-radius);
 		background: #222;
