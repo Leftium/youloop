@@ -9,14 +9,14 @@ importers:
   .:
     dependencies:
       '@videojs/core':
-        specifier: 10.0.1
-        version: 10.0.1(@videojs/element@10.0.1)(react@19.3.0)
+        specifier: 10.1.0
+        version: 10.1.0(@videojs/element@10.1.0)(react@19.3.0)
       '@videojs/html':
-        specifier: 10.0.1
-        version: 10.0.1(@videojs/youtube-video@10.0.1)(react@19.3.0)
+        specifier: 10.1.0
+        version: 10.1.0(@videojs/youtube-video@10.1.0)(react@19.3.0)
       '@videojs/youtube-video':
-        specifier: 10.0.1
-        version: 10.0.1
+        specifier: 10.1.0
+        version: 10.1.0
     devDependencies:
       '@eslint/compat':
         specifier: ^2.1.1
@@ -973,29 +973,30 @@ packages:
     engines: {node: '>=20'}
     hasBin: true
 
-  '@videojs/core@10.0.1':
-    resolution: {integrity: sha512-N+f41wgFcmpe0QUhO0Q9sFHpMxKvr38ojkX5FlxAo3LKDAo2UrG2KIeklte+1VVae3oaJfP6J/KYtrRRObRxxw==}
+  '@videojs/core@10.1.0':
+    resolution: {integrity: sha512-jETPa4qmI5JzKRj0FoMSuh7hNwY4BQMvLVrwjZ8vW3tC00f2TzBsiilSAtg5GPy6DIdupWCd9x0MlPTAzomhiw==}
 
-  '@videojs/element@10.0.1':
-    resolution: {integrity: sha512-s42yzkN3PH3573ZVcFRLNAXCbQTraXX9X/nUUVjx4NH3n36VGTmFiqJ3jrGhU+IWg4euasKyuVnwSp6qp4C1lg==}
+  '@videojs/element@10.1.0':
+    resolution: {integrity: sha512-BxkSMpEDjasLFVpq/mZr01JBG+L4JpFcNUvH0QFllQMYdNaTHyWbKgh3wvsj3mc/y5NK+uKH8X/rYtWdBSKlgw==}
 
-  '@videojs/html@10.0.1':
-    resolution: {integrity: sha512-QAkGefFJU/u+w7ZNod4XyQSOBQ3Ij/uPHTO/hfW+ALlIeDYEsYzplQtHoLzU+Fh4mzHFhKKJI2iEW4x15fxj9Q==}
+  '@videojs/html@10.1.0':
+    resolution: {integrity: sha512-8gC8/Wm9ZZtqWzRmiA++QYmlxkPYskl0TUu/5EW4u7vosu35kMU5ZGT2DcL4o+SwxuBMHKSez1MlJhh9cnthPw==}
     peerDependencies:
-      '@videojs/cloudflare-video': 10.0.1
-      '@videojs/dash-video': 10.0.1
-      '@videojs/google-cast': 10.0.1
-      '@videojs/hlsjs-video': 10.0.1
-      '@videojs/mux-audio': 10.0.1
-      '@videojs/mux-data': 10.0.1
-      '@videojs/mux-video': 10.0.1
-      '@videojs/shaka-video': 10.0.1
-      '@videojs/spotify-audio': 10.0.1
-      '@videojs/tiktok-video': 10.0.1
-      '@videojs/twitch-video': 10.0.1
-      '@videojs/vimeo-video': 10.0.1
-      '@videojs/wistia-video': 10.0.1
-      '@videojs/youtube-video': 10.0.1
+      '@videojs/cloudflare-video': 10.1.0
+      '@videojs/dash-video': 10.1.0
+      '@videojs/google-cast': 10.1.0
+      '@videojs/hlsjs-video': 10.1.0
+      '@videojs/mux-audio': 10.1.0
+      '@videojs/mux-data': 10.1.0
+      '@videojs/mux-video': 10.1.0
+      '@videojs/playerjs-video': 10.1.0
+      '@videojs/shaka-video': 10.1.0
+      '@videojs/spotify-audio': 10.1.0
+      '@videojs/tiktok-video': 10.1.0
+      '@videojs/twitch-video': 10.1.0
+      '@videojs/vimeo-video': 10.1.0
+      '@videojs/wistia-video': 10.1.0
+      '@videojs/youtube-video': 10.1.0
     peerDependenciesMeta:
       '@videojs/cloudflare-video':
         optional: true
@@ -1010,6 +1011,8 @@ packages:
       '@videojs/mux-data':
         optional: true
       '@videojs/mux-video':
+        optional: true
+      '@videojs/playerjs-video':
         optional: true
       '@videojs/shaka-video':
         optional: true
@@ -1026,19 +1029,19 @@ packages:
       '@videojs/youtube-video':
         optional: true
 
-  '@videojs/media@10.0.1':
-    resolution: {integrity: sha512-hMC2aS/8PovwJBi8y2qShC/amYfH6SBce7SZAM54qzRq8hl4FwWGFeUMMmXp8x4agRxLuCSqGqZg/EoGH2I5mQ==}
+  '@videojs/media@10.1.0':
+    resolution: {integrity: sha512-Ene6V7Es+Wddcj/Pzy+7+SbZq5H6M3L3ZdhwWHtoP6AULVt096Pn/PJl4L4W1Vypx9xxRP//ZftVv52eu5clww==}
 
-  '@videojs/native-hls-video@10.0.1':
-    resolution: {integrity: sha512-MElgeDaxOJUj+OjHV3++TuW8TTgipTuzlRkfFDMMbnutlPLkSlX3VKhXo5ZNPhhXkt47oBVx4RGnAQJLWzilPw==}
+  '@videojs/native-hls-video@10.1.0':
+    resolution: {integrity: sha512-0Kfngb1iczF/vEPH0nOpcYveb4J6SyPBbWQNXgWBbBDS1ZGFZKpJ8YPo8zvyyHmnZQIatheEeUGCJaRPfVOYwQ==}
 
-  '@videojs/spf@10.0.1':
-    resolution: {integrity: sha512-1HUTI1W++EKZuO3MaklFdEU/cEUhkJlKKuQx0Xi3VwjeHgVToAz7b1ySDH903KluPQy6cAGqXpro5Wt00y4DYA==}
+  '@videojs/spf@10.1.0':
+    resolution: {integrity: sha512-RLfhkIJ81mAKO8d0/yNfEUVIxASl/WxEih0Kix9S5MKI5GCiJTjVtIGsqN+C8T2a3OZ1+GT5wTTPewnDshGDbw==}
 
-  '@videojs/store@10.0.1':
-    resolution: {integrity: sha512-BTkkTRHAU0XaZi+n3yWhtQJbe0BNjQLBd414u/s/nMZDz5bc1fp6b/voNbNriuSMd0Ro+ZmyzfPaMskiCa6GUQ==}
+  '@videojs/store@10.1.0':
+    resolution: {integrity: sha512-73oWIql+pECjlr4mBPUfgZyvAXJ4wNT1Me4ZgCIzeUUMUqns5OqJSIaRj1jcoWemwROLvKQUVhOVY5JgQ1nDww==}
     peerDependencies:
-      '@videojs/element': 10.0.1
+      '@videojs/element': 10.1.0
       react: ^18.0.0 || ^19.0.0
     peerDependenciesMeta:
       '@videojs/element':
@@ -1046,11 +1049,11 @@ packages:
       react:
         optional: true
 
-  '@videojs/utils@10.0.1':
-    resolution: {integrity: sha512-S7WO9lPfyCz5YQYWtpE42JZTtJKUaiWaAZGAa+VLoBiFMfpoogCloSP4pjChTYcQ6sGcLlQJNxVKhM1RvI/Dig==}
+  '@videojs/utils@10.1.0':
+    resolution: {integrity: sha512-2Nd5Wzf27ioxEGIJ8u/9jzFSuqNiB1XfCH6fny2XicbCNhsAWnwQrwtyPM6kRvkJbtIHLdQvRwnWpxke20ia0w==}
 
-  '@videojs/youtube-video@10.0.1':
-    resolution: {integrity: sha512-SBn0O391jUeQAM7imXP1C/rCIbwbozl3otRLmqjdd5VK4/szdDINVrl0286/j/j5UxAwbcarYqIp3e57nB3LMw==}
+  '@videojs/youtube-video@10.1.0':
+    resolution: {integrity: sha512-r6TVhGahrq5xsNzxyRvs8vPftVa5h12BnaYxoDOAh7XasgMIhOoAth3CFwogwo8djrSZMBHuyeNJ3R6WEor2jQ==}
 
   abbrev@3.0.1:
     resolution: {integrity: sha512-AO2ac6pjRB3SJmGJo+v5/aK6Omggp6fsLrs6wN9bd35ulu4cCwaAU9+7ZhXjeqHVkaHThLuzH0nZr0YpCDhygg==}
@@ -2834,62 +2837,63 @@ snapshots:
       - rollup
       - supports-color
 
-  '@videojs/core@10.0.1(@videojs/element@10.0.1)(react@19.3.0)':
+  '@videojs/core@10.1.0(@videojs/element@10.1.0)(react@19.3.0)':
     dependencies:
-      '@videojs/media': 10.0.1
-      '@videojs/store': 10.0.1(@videojs/element@10.0.1)(react@19.3.0)
-      '@videojs/utils': 10.0.1
+      '@videojs/media': 10.1.0
+      '@videojs/store': 10.1.0(@videojs/element@10.1.0)(react@19.3.0)
+      '@videojs/utils': 10.1.0
     transitivePeerDependencies:
       - '@videojs/element'
       - react
 
-  '@videojs/element@10.0.1':
+  '@videojs/element@10.1.0':
     dependencies:
       '@lit/context': 1.1.6
 
-  '@videojs/html@10.0.1(@videojs/youtube-video@10.0.1)(react@19.3.0)':
+  '@videojs/html@10.1.0(@videojs/youtube-video@10.1.0)(react@19.3.0)':
     dependencies:
-      '@videojs/core': 10.0.1(@videojs/element@10.0.1)(react@19.3.0)
-      '@videojs/element': 10.0.1
-      '@videojs/media': 10.0.1
-      '@videojs/native-hls-video': 10.0.1
-      '@videojs/spf': 10.0.1
-      '@videojs/store': 10.0.1(@videojs/element@10.0.1)(react@19.3.0)
-      '@videojs/utils': 10.0.1
+      '@videojs/core': 10.1.0(@videojs/element@10.1.0)(react@19.3.0)
+      '@videojs/element': 10.1.0
+      '@videojs/media': 10.1.0
+      '@videojs/native-hls-video': 10.1.0
+      '@videojs/spf': 10.1.0
+      '@videojs/store': 10.1.0(@videojs/element@10.1.0)(react@19.3.0)
+      '@videojs/utils': 10.1.0
     optionalDependencies:
-      '@videojs/youtube-video': 10.0.1
+      '@videojs/youtube-video': 10.1.0
     transitivePeerDependencies:
       - react
 
-  '@videojs/media@10.0.1':
+  '@videojs/media@10.1.0':
     dependencies:
-      '@videojs/utils': 10.0.1
+      '@videojs/utils': 10.1.0
 
-  '@videojs/native-hls-video@10.0.1':
+  '@videojs/native-hls-video@10.1.0':
     dependencies:
-      '@videojs/media': 10.0.1
-      '@videojs/utils': 10.0.1
+      '@videojs/media': 10.1.0
+      '@videojs/spf': 10.1.0
+      '@videojs/utils': 10.1.0
 
-  '@videojs/spf@10.0.1':
+  '@videojs/spf@10.1.0':
     dependencies:
-      '@videojs/media': 10.0.1
-      '@videojs/utils': 10.0.1
+      '@videojs/media': 10.1.0
+      '@videojs/utils': 10.1.0
       signal-polyfill: 0.2.2
 
-  '@videojs/store@10.0.1(@videojs/element@10.0.1)(react@19.3.0)':
+  '@videojs/store@10.1.0(@videojs/element@10.1.0)(react@19.3.0)':
     dependencies:
-      '@videojs/utils': 10.0.1
+      '@videojs/utils': 10.1.0
       react-compiler-runtime: 1.0.0(react@19.3.0)
     optionalDependencies:
-      '@videojs/element': 10.0.1
+      '@videojs/element': 10.1.0
       react: 19.3.0
 
-  '@videojs/utils@10.0.1': {}
+  '@videojs/utils@10.1.0': {}
 
-  '@videojs/youtube-video@10.0.1':
+  '@videojs/youtube-video@10.1.0':
     dependencies:
-      '@videojs/media': 10.0.1
-      '@videojs/utils': 10.0.1
+      '@videojs/media': 10.1.0
+      '@videojs/utils': 10.1.0
 
   abbrev@3.0.1: {}
 

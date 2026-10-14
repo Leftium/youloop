@@ -28,7 +28,7 @@ the provider first unless browser output is already suppressed.
 | Command                      | Selection                                                                                |
 | ---------------------------- | ---------------------------------------------------------------------------------------- |
 | `pnpm test:browser`          | All Chromium cases and the configured WebKit subset, including extended cases.           |
-| `pnpm test:browser:routine`  | Everything except cases tagged `@extended`; still uses real YouTube.                     |
+| `pnpm test:browser:routine`  | Everything except `@extended`; includes live and mocked YouTube cases.                   |
 | `pnpm test:browser:extended` | Additional preset journeys tagged `@extended`.                                           |
 | `pnpm test:browser:provider` | Cases that can mount a YouTube provider, excluding `@provider-free`.                     |
 | `pnpm test:browser:ui`       | Picker and invalid/empty-route cases tagged `@provider-free`; no YouTube player startup. |
@@ -37,8 +37,8 @@ Routine and extended partition the full suite. Provider reliance is a separate
 classification: a provider case may verify mounting/navigation without waiting
 for playback, or require real duration, frames, seeking and playback. Provider-free
 cases can still request metadata and thumbnails; they are not an offline suite.
-These commands select coverage explicitly and do not change the default suite or
-hosting CI gates. Existing Chromium CDP touch cases remain skipped on WebKit.
+These commands select coverage explicitly. Hosting CI also runs the offline
+YouTube API proof described below. Existing Chromium CDP touch cases remain skipped on WebKit.
 
 Only the Native portrait, Portrait crop and Advanced timing picker presets are
 extended. Their additional source journeys overlap the framing fixtures and
@@ -58,6 +58,63 @@ provider behavior. Use extended coverage only for additional fixture journeys
 whose primary contracts already have routine coverage. See
 [PR #53](https://github.com/Leftium/youloop/pull/53) for pruning measurements and
 the retained coverage inventory.
+
+### Offline YouTube API proof
+
+`pnpm test:browser:mock` selects the existing cases tagged `@youtube-mock`:
+the workspace playback/identity journey in Chromium and WebKit, plus the watch
+Loop and Once boundary journeys in Chromium. No cases were added or removed.
+The complete suite retains 175 configured executions and representative live
+YouTube coverage, including scope switching, crop, framing and source navigation.
+
+The fixture installs `window.YT.Player` before app startup. The ordinary
+`Player.svelte`, `<youtube-video>` element and installed Video.js 10.1.0 adapter
+still own media events, polling and application state. The fake implements the
+public API methods those cases need, with asynchronous readiness, a fixed-step
+playback clock, and cued/post-playback durations of 60/60.25 seconds. Assertions
+verify muted bootstrap playback, confirmed pause, settled duration, seeks and
+adapter cleanup. Existing interactions verify provider identity and Loop/Once
+behavior at clip and source boundaries. Unsupported API behavior remains outside
+this fixture's contract; it is not a general YouTube simulator.
+
+Browser routing fulfills the YouTube iframe with empty HTML and aborts other
+external requests. Request/response counts must match interception/fulfillment
+counts. The dedicated server on port 5174 loads `offline-server.mjs`, which rejects
+external server fetches before network access; social metadata uses its existing
+fallback. This also covers SSR oEmbed requests that browser routing cannot block.
+The default full suite mocks these selected browser cases but still uses the
+ordinary server; use the dedicated command for an entirely offline provider
+proof. Neither mock is imported by production code.
+
+For a live comparison of the same assertions, run:
+
+```bash
+YOULOOP_LIVE_PROOF=1 pnpm exec playwright test --grep @youtube-mock
+```
+
+To record blocked server URLs, set `YOULOOP_OFFLINE_METRICS` to a writable NDJSON
+path when running `pnpm test:browser:mock`. Each selected execution attaches
+`youtube-api-metrics` to the Playwright report. `embedRequests` includes locally
+fulfilled iframe requests; it does not count decoded frames or actual play starts.
+
+Local measurements on 2026-10-14, with one worker: before browser migration,
+the four live 10.1.0 executions passed in 33.8s; an instrumented live run passed
+in 31.3s and observed four iframe loads and 170 external browser responses.
+The initial mocked run passed in 26.0s. The stronger offline proof passed 8/8
+executions across two repetitions in 53.4s, with no retries. Each execution
+intercepted three external browser requests (one fulfilled iframe, two aborted
+requests), and cleanup destroyed one API player. The offline server blocked one
+oEmbed lookup across the repeated run. No external browser or server fetch was
+forwarded. Live API play-start counts were not measured; iframe loads are the
+provider-start proxy. These small local samples do not establish long-term
+reliability, and the first comparisons already used 10.1.0, so they isolate mock
+migration rather than dependency-upgrade performance.
+
+The mock proves event and UI contracts, not a decoded first frame, YouTube chrome,
+iframe crop pixels, real buffering or provider reliability. Retain live coverage
+for those. Future test-count reduction can consolidate overlapping scope-switch
+routes and repeated workspace resize/layout identity checks after reviewing their
+unique contracts. Moving cases to this mock alone does not reduce the count.
 
 With `pnpm dev` running, open the app and run
 the browser regressions in its developer console. Wait for the YouTube iframe
@@ -856,7 +913,7 @@ remain separate operational checks.
 
 ## Player migration
 
-The player uses `@videojs/html` and `@videojs/youtube-video` 10.0.1 with explicit
+The player uses `@videojs/html` and `@videojs/youtube-video` 10.1.0 with explicit
 `youtube-nocookie.com` sources and YouLoop's existing controls. The iframe width
 follows the selected Fit/Fill framing, with YouTube controls disabled. A centered fixed-height
 overscan (`height: 16000px`) clips the excess height equally at each edge through

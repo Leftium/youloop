@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import { test as mockedTest, expectMockBootstrap } from './youtube-api.fixture';
 import { parsePlayerUrl, serializeEditorUrl } from '../../src/lib/share-url';
 
 const id = 'dt-SqNL4z3w';
@@ -267,79 +268,84 @@ test('pointer and keyboard splitter bounds, capture cleanup, axes and reset', as
 	await identity(page);
 });
 
-test('playing YouTube provider and clip survive resize, layout, scroll and responsive reflow', async ({
-	page
-}) => {
-	await page.setViewportSize({ width: 1280, height: 800 });
-	await openEditor(page);
-	const originalUrl = page.url();
-	await page.getByRole('button', { name: 'Play', exact: true }).click();
-	await page.waitForFunction(
-		() =>
-			(
-				document.querySelector('youtube-video') as HTMLElement & {
+mockedTest(
+	'playing YouTube provider and clip survive resize, layout, scroll and responsive reflow',
+	{ tag: '@youtube-mock' },
+	async ({ page }) => {
+		await page.setViewportSize({ width: 1280, height: 800 });
+		await openEditor(page);
+		await expectMockBootstrap(page);
+		const originalUrl = page.url();
+		await page.getByRole('button', { name: 'Play', exact: true }).click();
+		await page.waitForFunction(
+			() =>
+				(
+					document.querySelector('youtube-video') as HTMLElement & {
+						engine: { getPlayerState(): number };
+					}
+				).engine.getPlayerState() === 1
+		);
+		const snapshot = () =>
+			page.locator('youtube-video').evaluate((el) => {
+				const media = el as HTMLElement & {
+					currentTime: number;
+					paused: boolean;
+					playbackRate: number;
 					engine: { getPlayerState(): number };
-				}
-			).engine.getPlayerState() === 1
-	);
-	const snapshot = () =>
-		page.locator('youtube-video').evaluate((el) => {
-			const media = el as HTMLElement & {
-				currentTime: number;
-				paused: boolean;
-				playbackRate: number;
-				engine: { getPlayerState(): number };
-			};
-			return {
-				time: media.currentTime,
-				paused: media.paused,
-				speed: media.playbackRate,
-				state: media.engine.getPlayerState()
-			};
+				};
+				return {
+					time: media.currentTime,
+					paused: media.paused,
+					speed: media.playbackRate,
+					state: media.engine.getPlayerState()
+				};
+			});
+		let previousTime = (await snapshot()).time;
+		for (const action of [
+			async () => dragBy(page, -60),
+			async () => chooseLayout(page, 'rows'),
+			async () => dragBy(page, -30),
+			async () => page.setViewportSize({ width: 390, height: 844 }),
+			async () => page.setViewportSize({ width: 844, height: 390 }),
+			async () => page.setViewportSize({ width: 1280, height: 800 }),
+			async () => chooseLayout(page, 'columns'),
+			async () => page.getByRole('button', { name: 'Restore default layout' }).click()
+		]) {
+			await action();
+			await identity(page);
+			await geometry(page);
+			const state = await snapshot();
+			expect(state.paused).toBe(false);
+			expect(state.state).toBe(1);
+			expect(state.speed).toBe(1.5);
+			expect(state.time).toBeGreaterThanOrEqual(previousTime - 0.25);
+			previousTime = state.time;
+			expect(page.url()).toBe(originalUrl);
+		}
+		await page.locator('.settings-scroll').evaluate((el) => {
+			const content = document.createElement('div');
+			content.style.height = '1600px';
+			el.append(content);
+			el.scrollTop = 1000;
 		});
-	let previousTime = (await snapshot()).time;
-	for (const action of [
-		async () => dragBy(page, -60),
-		async () => chooseLayout(page, 'rows'),
-		async () => dragBy(page, -30),
-		async () => page.setViewportSize({ width: 390, height: 844 }),
-		async () => page.setViewportSize({ width: 844, height: 390 }),
-		async () => page.setViewportSize({ width: 1280, height: 800 }),
-		async () => chooseLayout(page, 'columns'),
-		async () => page.getByRole('button', { name: 'Restore default layout' }).click()
-	]) {
-		await action();
-		await identity(page);
 		await geometry(page);
-		const state = await snapshot();
-		expect(state.paused).toBe(false);
-		expect(state.state).toBe(1);
-		expect(state.speed).toBe(1.5);
-		expect(state.time).toBeGreaterThanOrEqual(previousTime - 0.25);
-		previousTime = state.time;
-		expect(page.url()).toBe(originalUrl);
+		await identity(page);
+		expect(await page.locator('.settings-scroll').evaluate((el) => el.scrollTop)).toBeGreaterThan(
+			0
+		);
+		const afterScroll = await snapshot();
+		expect(afterScroll.paused).toBe(false);
+		expect(afterScroll.state).toBe(1);
+		expect(afterScroll.time).toBeGreaterThanOrEqual(previousTime - 0.25);
+		await page.getByRole('button', { name: 'Pause', exact: true }).click();
+		const pausedTime = (await snapshot()).time;
+		await chooseLayout(page, 'rows');
+		await dragBy(page, 30);
+		await identity(page);
+		expect((await snapshot()).paused).toBe(true);
+		expect(Math.abs((await snapshot()).time - pausedTime)).toBeLessThan(0.5);
 	}
-	await page.locator('.settings-scroll').evaluate((el) => {
-		const content = document.createElement('div');
-		content.style.height = '1600px';
-		el.append(content);
-		el.scrollTop = 1000;
-	});
-	await geometry(page);
-	await identity(page);
-	expect(await page.locator('.settings-scroll').evaluate((el) => el.scrollTop)).toBeGreaterThan(0);
-	const afterScroll = await snapshot();
-	expect(afterScroll.paused).toBe(false);
-	expect(afterScroll.state).toBe(1);
-	expect(afterScroll.time).toBeGreaterThanOrEqual(previousTime - 0.25);
-	await page.getByRole('button', { name: 'Pause', exact: true }).click();
-	const pausedTime = (await snapshot()).time;
-	await chooseLayout(page, 'rows');
-	await dragBy(page, 30);
-	await identity(page);
-	expect((await snapshot()).paused).toBe(true);
-	expect(Math.abs((await snapshot()).time - pausedTime)).toBeLessThan(0.5);
-});
+);
 
 for (const viewport of [
 	{ width: 320, height: 568 },

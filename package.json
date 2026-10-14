@@ -17,6 +17,7 @@
 		"test:metadata": "node --test tests/video-metadata.test.js tests/youtube-thumbnail.test.js",
 		"test:social": "node --test tests/social-smoke.test.js",
 		"test:browser": "playwright test",
+		"test:browser:mock": "YOULOOP_OFFLINE_PROOF=1 playwright test --grep @youtube-mock",
 		"test:browser:routine": "playwright test --grep-invert @extended",
 		"test:browser:extended": "playwright test --grep @extended",
 		"test:browser:provider": "playwright test --grep-invert @provider-free",
@@ -62,8 +63,8 @@
 		"#lib/*": "./src/lib/*"
 	},
 	"dependencies": {
-		"@videojs/core": "10.0.1",
-		"@videojs/html": "10.0.1",
-		"@videojs/youtube-video": "10.0.1"
+		"@videojs/core": "10.1.0",
+		"@videojs/html": "10.1.0",
+		"@videojs/youtube-video": "10.1.0"
 	}
 }

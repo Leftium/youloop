@@ -4,3 +4,12 @@ allowBuilds:
   esbuild: true
 minimumReleaseAgeExclude:
   - '@leftium/nimble.css@0.24.0'
+  - '@videojs/core@10.1.0'
+  - '@videojs/element@10.1.0'
+  - '@videojs/html@10.1.0'
+  - '@videojs/media@10.1.0'
+  - '@videojs/native-hls-video@10.1.0'
+  - '@videojs/spf@10.1.0'
+  - '@videojs/store@10.1.0'
+  - '@videojs/utils@10.1.0'
+  - '@videojs/youtube-video@10.1.0'
