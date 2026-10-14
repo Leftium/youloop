@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onDestroy, untrack } from 'svelte';
 	import RangeSlider from '../components/RangeSlider.svelte';
+	import { rangeMarkerColors } from '../components/range-marker-colors';
 	import { timelineRange } from './watch-timeline';
 	import {
 		rangeValueAtPosition,
@@ -130,7 +131,11 @@
 				<div class="overlap" style:width={`${range.clipProgress * 100}%`}></div>
 			</div>
 		</div>
-		<div class="endpoints">
+		<div
+			class="endpoints"
+			style:--range-slider-thumb={rangeMarkerColors.start}
+			style:--range-slider-end-thumb={rangeMarkerColors.end}
+		>
 			<RangeSlider
 				min={0}
 				max={duration}
@@ -142,6 +147,7 @@
 				keyboardStepMode="relative"
 				thumbInteraction="swap"
 				thumbShape="triangles"
+				minimumSpan={1 / 30}
 				label="Timeline clip range"
 				startLabel="Repeat start"
 				endLabel="Repeat end"
@@ -197,8 +203,6 @@
 		--range-slider-thumb-size: 20px;
 		--range-slider-track: transparent;
 		--range-slider-selection: transparent;
-		--range-slider-thumb: white;
-		--range-slider-color: #b58900;
-		--range-slider-end-thumb: #c65a00;
+		--range-slider-color: #268bd2;
 	}
 </style>

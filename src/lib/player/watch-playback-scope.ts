@@ -1,7 +1,7 @@
 import { clampClipBounds } from './clip-bounds.ts';
 import type { TimelineMode } from './watch-timeline.ts';
 
-/** The editor always passes clip; watch uses its local scope selection. */
+/** Both presentations use their local VIDEO/A:B scope selection. */
 export function playbackBounds(
 	duration: number | undefined,
 	a: number,

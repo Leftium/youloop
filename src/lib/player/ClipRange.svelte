@@ -1,4 +1,5 @@
 <script lang="ts">
+	import RangeMarker from '../components/RangeMarker.svelte';
 	import './editor-dialog.css';
 	import { onMount, tick, type Snippet } from 'svelte';
 	import EditorFieldset from './EditorFieldset.svelte';
@@ -55,11 +56,11 @@
 	<div class="range-summary">
 		<dl>
 			<div>
-				<dt><span class="marker">A</span> Start</dt>
+				<dt><RangeMarker endpoint="start" /> Start</dt>
 				<dd>{duration === undefined ? '?:??' : editorTime(start, false)}</dd>
 			</div>
 			<div>
-				<dt><span class="marker end">B</span> End</dt>
+				<dt><RangeMarker endpoint="end" /> End</dt>
 				<dd>{duration === undefined ? '?:??' : editorTime(end, false)}</dd>
 			</div>
 		</dl>
@@ -129,18 +130,6 @@
 	dd {
 		margin: 0;
 		font-variant-numeric: tabular-nums;
-	}
-	.marker {
-		border: 1px solid currentColor;
-		border-radius: 50%;
-		width: 24px;
-		height: 24px;
-		display: inline-grid;
-		place-items: center;
-		color: #79c0ff;
-	}
-	.marker.end {
-		color: #b0a3e8;
 	}
 	dialog {
 		container: clip-settings / inline-size;

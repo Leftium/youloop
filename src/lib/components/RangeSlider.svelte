@@ -3,6 +3,7 @@
 	import { rangeTriangles } from './range-triangles';
 	import {
 		applyThumbInteraction,
+		ensureRangeSpan,
 		normalizeRange,
 		rangeValueAtPosition,
 		rangeValuePercent,
@@ -22,6 +23,7 @@
 		keyboardIncrement?: number;
 		thumbInteraction?: ThumbInteraction;
 		thumbShape?: 'circle' | 'triangles';
+		minimumSpan?: number;
 		keyboardThumbInteraction?: ThumbInteraction;
 		pointerStepRounding?: StepRounding;
 		keyboardStepMode?: 'grid' | 'relative';
@@ -44,6 +46,7 @@
 		keyboardIncrement,
 		thumbInteraction = 'clamp',
 		thumbShape = 'circle',
+		minimumSpan = 0,
 		keyboardThumbInteraction,
 		pointerStepRounding = 'nearest',
 		keyboardStepMode = 'grid',
@@ -128,6 +131,7 @@
 			original,
 			rounding
 		);
+		next.range = ensureRangeSpan(next.range, next.edge, lower, upper, minimumSpan);
 		if (next.edge !== edge)
 			thumbEdges = thumbEdges.map((value) => (value === 'start' ? 'end' : 'start'));
 		updateRange(next.range);
@@ -144,8 +148,19 @@
 
 	function beginDrag(event: PointerEvent, edge: RangeEdge) {
 		if (inactive || drag || event.button !== 0 || !event.isPrimary) return;
-		const node = event.currentTarget as HTMLElement;
+		let node = event.currentTarget as HTMLElement;
 		const box = track.getBoundingClientRect();
+		if (thumbShape === 'triangles') {
+			// Enlarged targets can overlap. Acquire the nearest exact tip, with A
+			// winning ties, rather than whichever target happens to be on top.
+			const position = event.clientX - box.left;
+			edge =
+				Math.abs(position - (startPercent * box.width) / 100) <=
+				Math.abs(position - (endPercent * box.width) / 100)
+					? 'start'
+					: 'end';
+			node = track.querySelector<HTMLElement>(`.thumb.${edge}`)!;
+		}
 		if (!box.width) return;
 		event.preventDefault();
 		node.focus();
@@ -366,27 +381,25 @@
 				onblur={blurThumb}
 			>
 				{#if thumbShape === 'triangles'}
+					<div
+						class="triangle-grab"
+						style:left={`${Math.max(0, Math.min(trackWidth - Math.min(44, trackWidth), triangles[edge].left + triangles[edge].tip - 22)) - triangles[edge].left}px`}
+						style:width={`${Math.min(44, trackWidth)}px`}
+						aria-hidden="true"
+					></div>
 					{@const marker = triangles[edge]}
-					{@const points =
-						edge === 'start'
-							? `${marker.tip},0 ${marker.baseRight},20 ${marker.baseLeft},20`
-							: `${marker.baseLeft},0 ${marker.baseRight},0 ${marker.tip},20`}
-					<svg class="triangle-marker" viewBox={`0 0 ${marker.width} 20`} aria-hidden="true">
+					{@const points = `${marker.tip},0 ${marker.baseRight},20 ${marker.baseLeft},20`}
+					<svg
+						class="triangle-marker"
+						viewBox={`0 0 ${marker.width || 1} 20`}
+						preserveAspectRatio="none"
+						style:visibility={marker.width === 0 ? 'hidden' : undefined}
+						aria-hidden="true"
+					>
 						<polygon class="triangle-body" {points} />
-						<polygon
-							class="triangle-hit"
-							{points}
-							style:clip-path={triangles.sharedEdge
-								? edge === 'start'
-									? 'inset(50% 0 0 0)'
-									: 'inset(0 0 50% 0)'
-								: undefined}
-						/>
-						<text
-							x={marker.label}
-							y={edge === 'start' ? 14 : 6}
-							text-anchor="middle"
-							dominant-baseline="middle">{edge === 'start' ? 'A' : 'B'}</text
+						<polygon class="triangle-hit" {points} />
+						<text x={marker.label} y={14} text-anchor="middle" dominant-baseline="middle"
+							>{edge === 'start' ? 'A' : 'B'}</text
 						>
 					</svg>
 				{:else}
@@ -506,13 +519,16 @@
 		pointer-events: none;
 	}
 	.triangle-marker .triangle-body {
-		fill: white;
-		stroke: var(--range-slider-color, #268bd2);
-		stroke-width: 1.5px;
-		stroke-linejoin: round;
+		fill: var(--range-slider-thumb, currentColor);
 	}
 	.thumb.end .triangle-marker .triangle-body {
-		stroke: var(--range-slider-end-thumb, #6366f1);
+		fill: var(--range-slider-end-thumb, #6366f1);
+	}
+	.triangle-grab {
+		position: absolute;
+		top: -12px;
+		height: 44px;
+		pointer-events: auto;
 	}
 	.triangle-hit {
 		fill: transparent;
@@ -520,7 +536,7 @@
 		pointer-events: auto;
 	}
 	.triangle-marker text {
-		fill: #1f2937;
+		fill: white;
 		font-size: 8px;
 		font-weight: bold;
 	}

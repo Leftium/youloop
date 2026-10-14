@@ -4,6 +4,7 @@ import { editorTime, parseEditorTime } from '../src/lib/player/editor-time.ts';
 import { parseEditorSource } from '../src/lib/player/editor-source.ts';
 import {
 	applyThumbInteraction,
+	ensureRangeSpan,
 	rangeValueAtPosition,
 	rangeValuePercent,
 	stepRangeValue
@@ -90,4 +91,24 @@ test('source parser supports plain sources and imports YouLoop range/options wit
 		`/${videoId}/30~5`
 	])
 		assert.equal(parseEditorSource(text), undefined);
+});
+
+test('minimum timeline span remains inside source bounds while preserving the stationary endpoint', () => {
+	const gap = 1 / 30;
+	for (const edge of ['start', 'end']) {
+		for (const time of [0, 10, 60.25]) {
+			const range = ensureRangeSpan({ start: time, end: time }, edge, 0, 60.25, gap);
+			assert.ok(range.start >= 0 && range.end <= 60.25);
+			assert.ok(Math.abs(range.end - range.start - gap) < 1e-10);
+			if (time === 10) assert.equal(range[edge === 'start' ? 'end' : 'start'], time);
+		}
+	}
+	assert.deepEqual(ensureRangeSpan({ start: 0, end: 0 }, 'end', 0, 0.01, gap), {
+		start: 0,
+		end: 0.01
+	});
+	assert.deepEqual(ensureRangeSpan({ start: 10, end: 11 }, 'start', 0, 60.25, gap), {
+		start: 10,
+		end: 11
+	});
 });

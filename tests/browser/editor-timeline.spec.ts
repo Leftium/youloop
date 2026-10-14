@@ -108,42 +108,54 @@ test.describe('editor timeline', { tag: '@timeline-proof' }, () => {
 		});
 		await page.mouse.up();
 		await expect(slider(page, 'Current time')).toHaveAttribute('aria-valuenow', '15');
-		// At a coincident source edge, the upper/lower handles outrank splitter padding.
-		await slider(page, 'Repeat start').press('Home');
-		await slider(page, 'Repeat end').press('Home');
+		// Endpoint edits retain a positive interval at both source edges without
+		// inserting an error or shifting layout. The wider handle outranks splitter padding.
 		const edgeAxis = (await page.locator('.editor-axis').boundingBox())!;
 		const separator = page.getByRole('separator', { name: 'Resize video preview' });
 		const splitPosition = await separator.getAttribute('aria-valuenow');
-		for (const [name, y] of [
-			['Repeat start', edgeAxis.y + 15],
-			['Repeat end', edgeAxis.y + 5]
+		for (const [name, key, direction] of [
+			['Repeat end', 'Home', 1],
+			['Repeat start', 'End', -1]
 		] as const) {
-			if (name === 'Repeat end') await slider(page, 'Repeat end').press('Home');
+			await slider(page, direction === 1 ? 'Repeat start' : 'Repeat end').press(key);
+			await slider(page, direction === 1 ? 'Repeat end' : 'Repeat start').press(key);
+			const hidden = slider(page, name === 'Repeat end' ? 'Repeat start' : 'Repeat end');
+			expect((await hidden.boundingBox())!.width).toBeLessThan(1);
+			const a = Number(await slider(page, 'Repeat start').getAttribute('aria-valuenow'));
+			const b = Number(await slider(page, 'Repeat end').getAttribute('aria-valuenow'));
+			expect(b - a).toBeCloseTo(1 / 30, 8);
+			await expect(page.getByRole('alert')).toHaveCount(0);
 			const handle = slider(page, name);
 			const captured = await handle.elementHandle();
-			await handle.evaluate((el) =>
-				el.addEventListener(
+			await page.evaluate(() =>
+				document.addEventListener(
 					'pointerdown',
-					(event) =>
-						el.setAttribute('data-captured-pointer', String((event as PointerEvent).pointerId)),
-					{ once: true }
+					(event) => {
+						for (const el of document.querySelectorAll('.endpoints .thumb'))
+							el.setAttribute('data-captured-pointer', String(event.pointerId));
+					},
+					{ once: true, capture: true }
 				)
 			);
-			await page.mouse.move(edgeAxis.x + 4, y);
+
+			const edgeX = edgeAxis.x + (direction === 1 ? 0 : edgeAxis.width);
+			await page.mouse.move(edgeX + direction * 4, edgeAxis.y - 8);
 			await page.mouse.down();
 			expect(
 				await captured!.evaluate((el) =>
 					el.hasPointerCapture(Number(el.getAttribute('data-captured-pointer')))
 				)
 			).toBe(true);
-			await page.mouse.move(edgeAxis.x + 18, y);
+			await page.mouse.move(edgeX + direction * 18, edgeAxis.y - 8);
 			await page.mouse.up();
-			await expect(slider(page, 'Repeat start')).toHaveAttribute('aria-valuenow', '0');
-			await expect
-				.poll(() => slider(page, 'Repeat end').getAttribute('aria-valuenow').then(Number))
-				.toBeGreaterThan(0);
 			await expect(separator).toHaveAttribute('aria-valuenow', splitPosition!);
+			const after = (await page.locator('.editor-axis').boundingBox())!;
+			expect(after).toEqual(edgeAxis);
+			expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
+				page.viewportSize()!.width
+			);
 		}
+
 		await expect(slider(page, 'Current time')).toHaveAttribute('aria-valuenow', '15');
 		await slider(page, 'Repeat end').evaluate((el) => (el as HTMLElement).blur());
 		await screenshotControls(page, testInfo.outputPath('close-handles.png'));
@@ -186,8 +198,10 @@ test.describe('editor timeline', { tag: '@timeline-proof' }, () => {
 		await slider(page, 'Repeat end').press('Home');
 		await slider(page, 'Repeat end').press('Home');
 		await expect(slider(page, 'Repeat start')).toHaveAttribute('aria-valuenow', '0');
-		await expect(slider(page, 'Repeat end')).toHaveAttribute('aria-valuenow', '0');
-		await expect(page.getByRole('alert')).toContainText('Invalid clip');
+		await expect
+			.poll(() => slider(page, 'Repeat end').getAttribute('aria-valuenow').then(Number))
+			.toBeCloseTo(1 / 30, 8);
+		await expect(page.getByRole('alert')).toHaveCount(0);
 		await slider(page, 'Repeat start').press('ArrowRight');
 		await expect(slider(page, 'Repeat end')).toHaveAttribute('aria-valuenow', '0.1');
 		await expect(page.getByRole('alert')).toHaveCount(0);
@@ -283,6 +297,13 @@ test.describe('editor timeline', { tag: '@timeline-proof' }, () => {
 							.backgroundColor.match(/\d+/g)!
 							.slice(0, 3)
 							.map(Number),
+						markerTop: box('.endpoints .triangle-marker').top - axis.top,
+						markerColors: [...document.querySelectorAll('.endpoints .triangle-body')].map(
+							(el) => getComputedStyle(el).fill
+						),
+						summaryColors: [...document.querySelectorAll('.range-summary polygon')].map(
+							(el) => getComputedStyle(el).fill
+						),
 						lineShadow: getComputedStyle(document.querySelector('.editor-playhead-line')!)
 							.boxShadow,
 						insets: [
@@ -305,7 +326,10 @@ test.describe('editor timeline', { tag: '@timeline-proof' }, () => {
 				expect(combined.lineEnd).toBeLessThan(1);
 				expect(combined.belowGap).toBeGreaterThanOrEqual(12);
 				expect(combined.lineColor).toEqual([255, 153, 0]);
-				expect(combined.lineShadow).not.toContain('255, 255, 255');
+				expect(combined.lineShadow).toBe('none');
+				expect(combined.markerTop).toBe(0);
+				expect(combined.markerColors).toEqual(['rgb(38, 139, 210)', 'rgb(99, 102, 241)']);
+				expect(combined.summaryColors).toEqual(combined.markerColors);
 				expect(combined.insets.every((inset) => inset < 1)).toBe(true);
 				expect(combined.heights).toEqual([20, 20, 20]);
 				expect(combined.colors).toEqual([
@@ -315,6 +339,21 @@ test.describe('editor timeline', { tag: '@timeline-proof' }, () => {
 					'rgb(255, 153, 0)'
 				]);
 				expect(combined.overlap).toBeCloseTo(5 / 10.125, 2);
+				// VIDEO permits playback outside A:B; switching to A:B enters the
+				// selected loop without changing endpoints or the provider.
+				await setSliderValue(page, 'Current time', 30);
+				await page.getByRole('button', { name: 'Play', exact: true }).click();
+				await expect(page.getByRole('button', { name: 'Pause', exact: true })).toBeVisible();
+				await expect.poll(() => time(page)).toBeGreaterThanOrEqual(30);
+				await page
+					.getByRole('button', { name: 'VIDEO playback, switch to A:B playback', exact: true })
+					.click();
+				await expect.poll(() => time(page)).toBeLessThan(20.125);
+				await page
+					.getByRole('button', { name: 'A:B playback, switch to VIDEO playback', exact: true })
+					.click();
+				await page.getByRole('button', { name: 'Pause', exact: true }).click();
+				await setSliderValue(page, 'Current time', 15);
 				await slider(page, 'Current time').evaluate((el) => (el as HTMLElement).blur());
 				await screenshotControls(page, testInfo.outputPath('combined-timeline.png'));
 			} else await expect(page.locator('.editor-playhead-line')).toHaveCount(0);

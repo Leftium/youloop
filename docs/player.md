@@ -22,23 +22,27 @@ verification procedures.
 The editor's source-wide timeline combines navigation and A/B handles on one
 20px track, flush with the video above and retaining the gap before the buttons
 below. The track spans the full preview width; triangle tips mark exact times
-and all three vertices stay within the track. A points up and B points down.
+and all three vertices stay within the track. Both A and B point up.
 Their bases shift inward at source edges and away from each other when endpoints
-approach, while crossing retains endpoint swapping. Coincident source-edge
-handles divide their hit regions vertically so both remain grabbable. Overlapping handles take priority over splitter hit padding.
+approach, while crossing retains endpoint swapping. Timeline edits retain at least 1/30 second between endpoints. At source edges,
+the outer handle may become very narrow; the wider handle can reopen the range.
+Both endpoints remain keyboard editable. Overlapping handles take priority over splitter hit padding.
 
 Colors match watch mode: red marks
 played time outside A:B, orange marks played time inside A:B, yellow marks the
 unplayed selection, and gray marks remaining source time. Click empty track
-space or drag along the track to seek without changing the selected clip or its share URL. Seeking outside A:B pauses for inspection; Play returns
-to A when the transport is outside the clip. Frame stepping also uses the full
+space or drag along the track to seek without changing the selected clip or its share URL. Edit mode starts in VIDEO scope so Play can run outside A:B. The scope toggle
+beside Play switches to A:B for loop preview, entering A when the playhead is
+outside the selection. In A:B scope, seeking outside the selection pauses for
+inspection; Play returns to A. Frame stepping also uses the full
 source. Watch playback retains its own VIDEO/A:B scope and progress bar.
 
 A/B handles use the generic range slider's swap policy. Crossing another handle
 changes the moving handle's role while retaining its physical focus and pointer
 capture. Arrow keys edit by a relative 0.1 seconds, preserving non-grid offsets;
-Page keys move ten increments, and Home/End select source bounds. Collapsed
-ranges remain editable, although they cannot be played or shared until B is after A.
+Page keys move ten increments, and Home/End select source bounds. Timeline edits clamp equality to a positive interval without an error or layout
+shift. Invalid imported ranges remain repairable, although they cannot be played
+or shared until B is after A.
 
 `transportTime` follows the displayed/requested `currentTime` during navigation
 and video scrubbing, so progress previews the destination that release will commit.
@@ -49,10 +53,12 @@ replacement clears the old preview before the new provider bootstraps. Pending
 seeks protect requested time from stale provider observations for up to two seconds.
 YouTube can display a delayed or approximate frame; inspection is not frame-exact.
 
-White A/B triangles use dark labels and gold/brown outlines to stand apart from
-the colored track. The noninteractive playhead line spans the preview and ends
+Solid blue A and purple B triangles use white labels, with matching markers in
+the Clip range summary and dialog. Their invisible 44px grab targets stay within
+the track width and take priority over splitter padding. Overlapping targets
+choose the nearest tip, with A winning ties. The noninteractive playhead line spans the preview and ends
 at the top of the timeline, against the same source-wide axis. It is orange
-inside A:B and red outside, with subtle dark edges for contrast over video.
+inside A:B and red outside, without a shadow.
 There is no transport arrow. Resizing and changing layout or framing reposition
 the chrome without adding a provider. The Clip range dialog remains available
 for precise signed or absolute entry and explicit Set at playhead actions.
@@ -74,7 +80,7 @@ Scrubbing pauses playback and updates `currentTime` and `transportTime` together
 The scrub session privately retains its original position for cancellation. Provider seeks are coalesced to one per animation frame.
 Release commits the target and restores playback when the scope permits;
 cancellation restores the saved position and playback. Source replacement drops
-the old session and queued seek. Editor inspection outside A:B stays paused;
+the old session and queued seek. Editor inspection outside A:B stays paused in A:B scope;
 watch targets clamp to the selected scope. Neither gesture changes A/B or the
 share URL. YouTube may render the requested frame late.
 

@@ -168,7 +168,7 @@
 	const scopeChoice = createTimelineMode();
 	let playbackScope = $state<TimelineMode>('video');
 	let range = $derived(timelineRange(duration, repeatA, repeatB, currentTime));
-	let activeScope = $derived(minimal && range.valid ? playbackScope : 'clip');
+	let activeScope = $derived(range.valid ? playbackScope : 'clip');
 	let activeBounds = $derived(playbackBounds(duration, repeatA, repeatB, activeScope));
 	let clipTimeline = $derived(range.restricted && activeScope === 'clip');
 	let timelineTime = $derived(clipTimeline ? range.elapsed : range.absolute);
@@ -176,6 +176,7 @@
 	function toggleTimeline() {
 		cancelVideoGesture?.();
 		if (!range.restricted || !player) return;
+		endEndpointPreview();
 		playbackScope = scopeChoice.toggle();
 		const target = scopeSwitchTarget(player.currentTime, activeBounds);
 		if (target !== player.currentTime) seek(target, requestedPaused);
@@ -547,8 +548,8 @@
 		return () => clearInterval(timer);
 	});
 
-	// Clip enforcement and watch seeking retain their existing bounds. Editor navigation
-	// and endpoint inspection use the full source without rewriting those bounds.
+	// Playback follows the selected VIDEO/A:B scope. Editor navigation and
+	// endpoint inspection retain the full source axis.
 	function seek(time: number, stayPaused = minimal ? requestedPaused : player.paused) {
 		setMediaTime(Math.max(activeBounds.start, Math.min(activeBounds.end, time)), stayPaused);
 	}
@@ -565,8 +566,8 @@
 	function navigateSource(time: number) {
 		cancelVideoGesture?.();
 		endEndpointPreview();
-		// Navigation outside A:B is paused inspection. Play re-enters the clip,
-		// while navigation within it preserves the existing playing/paused state.
+		// In A:B scope, navigation outside the selection pauses for inspection.
+		// VIDEO navigation preserves playback anywhere within the source.
 		if (time < activeBounds.start || time >= activeBounds.end) pause();
 		setMediaTime(time, requestedPaused);
 	}
@@ -1268,6 +1269,13 @@
 							>
 						</button>
 						<button
+							class="transport-scope"
+							aria-label={`${activeScope === 'clip' ? 'A:B' : 'VIDEO'} playback, switch to ${activeScope === 'clip' ? 'VIDEO' : 'A:B'} playback`}
+							aria-pressed={activeScope === 'clip'}
+							disabled={!range.restricted}
+							onclick={toggleTimeline}>{activeScope === 'clip' ? 'A:B' : 'VIDEO'}</button
+						>
+						<button
 							class="transport-frame"
 							aria-label="Prev Frame"
 							data-tooltip="Prev Frame"
@@ -1839,9 +1847,6 @@
 		width: 2px;
 		transform: translateX(-50%);
 		background: #f33;
-		box-shadow:
-			-1px 0 0 rgb(0 0 0 / 45%),
-			1px 0 0 rgb(0 0 0 / 45%);
 		pointer-events: none;
 		z-index: 5;
 	}
@@ -1891,6 +1896,11 @@
 		padding: 0;
 		opacity: 1;
 		cursor: default;
+	}
+	.preview-playback .transport-scope {
+		width: auto;
+		min-width: 5ch;
+		padding-inline: 8px;
 	}
 	.preview-playback .transport-rate {
 		display: none;
