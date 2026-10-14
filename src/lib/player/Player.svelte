@@ -1851,11 +1851,9 @@
 	}
 	.preview-corners {
 		position: absolute;
-		inset: max(8px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) auto
-			calc(
-				max(8px, env(safe-area-inset-left)) + var(--youloop-control-size) +
-					var(--youloop-control-gap)
-			);
+		inset: max(8px, env(safe-area-inset-top))
+			calc(max(8px, env(safe-area-inset-right)) + var(--youloop-control-size) + var(--youloop-control-gap))
+			auto max(8px, env(safe-area-inset-left));
 		z-index: 1;
 		display: flex;
 		align-items: flex-start;
@@ -1866,7 +1864,7 @@
 	.mode-toggle {
 		position: absolute;
 		top: max(8px, env(safe-area-inset-top));
-		left: max(8px, env(safe-area-inset-left));
+		right: max(8px, env(safe-area-inset-right));
 		z-index: 2;
 		display: grid;
 		place-items: center;
@@ -1906,7 +1904,7 @@
 	.mode-toggle::after {
 		content: attr(data-tooltip);
 		position: absolute;
-		left: 0;
+		right: 0;
 		top: calc(100% + 4px);
 		width: max-content;
 		max-width: min(260px, calc(100vw - 32px));

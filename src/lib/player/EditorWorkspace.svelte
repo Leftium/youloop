@@ -173,8 +173,8 @@
 		else if (keys.includes(event.key)) {
 			resize(
 				size +
-					(event.key === keys[0] ? (layout === 'columns' ? 1 : -1) : layout === 'columns' ? -1 : 1) *
-					(layout === 'columns' ? 16 : available * 0.02)
+					(event.key === keys[0] ? -1 : 1) *
+					(layout === 'columns' ? -16 : available * 0.02)
 			);
 		} else return;
 		event.preventDefault();
@@ -279,7 +279,8 @@
 	<span
 		class="settings-edge"
 		aria-hidden="true"
-		style:left={'0px'}
+		style:left="0px"
+		style:right={layout === 'columns' ? `${size + dividerSize}px` : '0px'}
 	></span>
 	<div
 		class="video-scroll-runway"

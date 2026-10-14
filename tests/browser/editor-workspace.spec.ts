@@ -119,7 +119,12 @@ test('side-by-side puts settings left of video; stacking retains video on top', 
 	await openEditor(page);
 	const order = () =>
 		page.evaluate(() => {
-			const rect = (selector: string) => document.querySelector(selector)!.getBoundingClientRect();
+			const rect = (selector: string) => {
+				const { left, right, top, bottom, width, height } = document
+					.querySelector(selector)!
+					.getBoundingClientRect();
+				return { left, right, top, bottom, width, height };
+			};
 			const preview = rect('#editor-preview');
 			const settings = rect('#editor-settings');
 			const splitter = rect('.splitter');
@@ -130,6 +135,7 @@ test('side-by-side puts settings left of video; stacking retains video on top', 
 	expect(boxes.settings.right).toBeLessThanOrEqual(boxes.splitter.left + 1);
 	expect(boxes.splitter.right).toBeLessThanOrEqual(boxes.preview.left + 1);
 	expect(boxes.mode.left).toBeGreaterThanOrEqual(boxes.preview.left);
+	expect(Math.abs(boxes.mode.right - boxes.preview.right)).toBeLessThanOrEqual(16);
 	const firstPreview = boxes.preview.width;
 	await dragBy(page, -40);
 	boxes = await order();
