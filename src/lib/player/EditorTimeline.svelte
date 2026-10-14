@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onDestroy, untrack } from 'svelte';
 	import RangeSlider from '../components/RangeSlider.svelte';
+	import { timelineRange } from './watch-timeline';
 	import {
 		rangeValueAtPosition,
 		rangeValuePercent,
@@ -34,7 +35,8 @@
 	} = $props();
 	let axis = $state<HTMLDivElement>(undefined!);
 	let drag: { pointerId: number; node: HTMLElement; offset: number } | undefined;
-	let progress = $derived(rangeValuePercent(transportTime, 0, duration));
+	let range = $derived(timelineRange(duration, start, end, transportTime));
+	let progress = $derived(range.videoProgress * 100);
 	let displayed = $derived(rangeValuePercent(currentTime, 0, duration));
 	function move(event: PointerEvent) {
 		if (!drag || event.pointerId !== drag.pointerId) return;
@@ -104,7 +106,14 @@
 </script>
 
 <svelte:window onblur={() => finish()} />
-<div class="editor-timeline" data-transport-time={transportTime} data-current-time={currentTime}>
+<div
+	class="editor-timeline"
+	data-transport-time={transportTime}
+	data-current-time={currentTime}
+	style:--playhead-color={currentTime >= range.start && currentTime <= range.end
+		? '#a855f7'
+		: '#f33'}
+>
 	<div class="editor-axis" bind:this={axis}>
 		<div
 			class="navigation"
@@ -126,6 +135,13 @@
 			onblur={() => finish()}
 		>
 			<div class="progress" style:width={`${progress}%`}></div>
+			<div
+				class="selection"
+				style:left={`${range.selectionStart * 100}%`}
+				style:width={`${range.selectionWidth * 100}%`}
+			>
+				<div class="overlap" style:width={`${range.clipProgress * 100}%`}></div>
+			</div>
 			<div class="playhead" style:left={`${displayed}%`} aria-hidden="true"></div>
 		</div>
 		<div class="endpoints">
@@ -154,40 +170,44 @@
 
 <style>
 	.editor-timeline {
-		padding-inline: var(--editor-axis-inset, 22px);
+		padding-left: var(--editor-axis-inset-left, 8px);
+		padding-right: var(--editor-axis-inset-right, 8px);
+		padding-bottom: 16px;
 	}
 	.editor-axis {
 		position: relative;
-		height: 72px;
+		height: 20px;
 	}
 	.navigation {
 		position: absolute;
 		inset: 0;
+		background: #aaa;
 		cursor: crosshair;
 		touch-action: none;
 		outline-offset: 2px;
 	}
-	.navigation::before {
-		content: '';
+	.progress,
+	.selection,
+	.overlap {
 		position: absolute;
-		top: 18px;
-		height: 6px;
-		width: 100%;
-		background: #e2e8f0;
+		top: 0;
+		height: 100%;
 		pointer-events: none;
 	}
 	.progress {
-		position: absolute;
-		top: 18px;
-		height: 6px;
-		background: #64748b;
-		pointer-events: none;
+		background: #f33;
+	}
+	.selection {
+		background: #39f;
+	}
+	.overlap {
+		background: #a855f7;
 	}
 	.playhead {
 		position: absolute;
-		top: 0;
+		top: -10px;
 		width: 24px;
-		height: 25px;
+		height: 30px;
 		transform: translateX(-50%);
 		cursor: grab;
 	}
@@ -195,17 +215,20 @@
 		content: '';
 		position: absolute;
 		left: 7px;
-		top: 6px;
+		top: 0;
 		border-inline: 5px solid transparent;
-		border-top: 10px solid #ef4444;
+		border-top: 10px solid var(--playhead-color);
 	}
 	.endpoints {
 		position: absolute;
-		inset: 24px 0 0;
+		inset: 0;
 		pointer-events: none;
 		--range-slider-inset: 0;
-		--range-slider-track: #e2e8f0;
-		--range-slider-selection: rgb(38 139 210 / 45%);
+		--range-slider-height: 20px;
+		--range-slider-thumb-size: 20px;
+		--range-slider-track: transparent;
+		--range-slider-selection: transparent;
+		--range-slider-thumb: #39f;
 		--range-slider-end-thumb: #6366f1;
 	}
 </style>

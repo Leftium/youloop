@@ -19,8 +19,13 @@ verification procedures.
 
 ### Editor timeline
 
-The editor's source-wide timeline separates navigation from A/B editing. Click
-empty track space or drag the red playhead to seek without changing the selected
+The editor's source-wide timeline combines navigation and A/B handles on one
+20px track, flush with the video above and retaining the gap before the buttons
+below. Its horizontal padding matches the time displays above and transport
+buttons below. Colors match watch mode: red marks
+played time outside A:B, purple marks played time inside A:B, blue marks the
+unplayed selection, and gray marks remaining source time. Click empty track
+space or drag the playhead to seek without changing the selected
 clip or its share URL. Seeking outside A:B pauses for inspection; Play returns
 to A when the transport is outside the clip. Frame stepping also uses the full
 source. Watch playback retains its own VIDEO/A:B scope and progress bar.
@@ -39,8 +44,10 @@ replacement clears the old preview before the new provider bootstraps. Pending
 seeks protect requested time from stale provider observations for up to two seconds.
 YouTube can display a delayed or approximate frame; inspection is not frame-exact.
 
-The noninteractive translucent red line spans the preview and timeline against
-the same source-wide axis. Resizing and changing layout or framing reposition
+The noninteractive translucent playhead line spans the preview and ends at the top
+of the timeline, against the same source-wide axis. A small downward arrow points
+to the track without adding another row. The line and arrow are purple inside
+A:B and red outside it. Resizing and changing layout or framing reposition
 the chrome without adding a provider. The Clip range dialog remains available
 for precise signed or absolute entry and explicit Set at playhead actions.
 

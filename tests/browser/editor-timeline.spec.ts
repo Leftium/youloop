@@ -148,7 +148,7 @@ test.describe('editor timeline', { tag: '@timeline-proof' }, () => {
 	for (const watch of [false, true]) {
 		test(`video scrub ${watch ? 'watch' : 'editor'} previews, cancels, commits and preserves controls`, async ({
 			page
-		}) => {
+		}, testInfo) => {
 			await page.goto(
 				watch
 					? '/dt-SqNL4z3w/10~20.125?mute&fill=0'
@@ -215,6 +215,68 @@ test.describe('editor timeline', { tag: '@timeline-proof' }, () => {
 				);
 				const line = await page.locator('.editor-playhead-line').boundingBox();
 				expect(Math.abs(line!.x - dragX)).toBeLessThan(1);
+				await expect(page.locator('.editor-playhead-line')).not.toHaveClass(/inside-clip/);
+				expect(
+					await page
+						.locator('.playhead')
+						.evaluate((el) => getComputedStyle(el, '::after').borderTopColor)
+				).toBe('rgb(255, 51, 51)');
+				await setSliderValue(page, 'Current time', 15);
+				const combined = await page.evaluate(() => {
+					const box = (selector: string) =>
+						document.querySelector(selector)!.getBoundingClientRect();
+					const color = (selector: string) =>
+						getComputedStyle(document.querySelector(selector)!).backgroundColor;
+					const axis = box('.editor-axis');
+					const stamps = box('.timestamps');
+					const buttons = box('.preview-playback');
+					const line = box('.editor-playhead-line');
+					return {
+						flush: Math.abs(axis.top - box('.player').bottom),
+						lineEnd: Math.abs(line.bottom - axis.top),
+						belowGap: buttons.top - axis.bottom,
+						lineColor: getComputedStyle(document.querySelector('.editor-playhead-line')!)
+							.backgroundColor.match(/\d+/g)!
+							.slice(0, 3)
+							.map(Number),
+						arrowColor: getComputedStyle(document.querySelector('.playhead')!, '::after')
+							.borderTopColor,
+						insets: [
+							Math.abs(axis.left - stamps.left),
+							Math.abs(axis.right - stamps.right),
+							Math.abs(axis.left - buttons.left),
+							Math.abs(axis.right - buttons.right)
+						],
+						heights: [
+							axis.height,
+							box('.endpoints .track').height,
+							Number.parseFloat(
+								getComputedStyle(document.querySelector('.endpoints .thumb')!, '::after').height
+							)
+						],
+						colors: ['.navigation', '.progress', '.selection', '.overlap'].map((selector) =>
+							color('.editor-timeline ' + selector)
+						),
+						overlap:
+							box('.editor-timeline .overlap').width / box('.editor-timeline .selection').width
+					};
+				});
+				expect(combined.flush).toBeLessThan(1);
+				expect(combined.lineEnd).toBeLessThan(1);
+				expect(combined.belowGap).toBeGreaterThanOrEqual(12);
+				expect(combined.lineColor).toEqual([168, 85, 247]);
+				expect(combined.arrowColor).toBe('rgb(168, 85, 247)');
+				expect(combined.insets.every((inset) => inset < 1)).toBe(true);
+				expect(combined.heights).toEqual([20, 20, 20]);
+				expect(combined.colors).toEqual([
+					'rgb(170, 170, 170)',
+					'rgb(255, 51, 51)',
+					'rgb(51, 153, 255)',
+					'rgb(168, 85, 247)'
+				]);
+				expect(combined.overlap).toBeCloseTo(5 / 10.125, 2);
+				await slider(page, 'Current time').evaluate((el) => (el as HTMLElement).blur());
+				await page.screenshot({ path: testInfo.outputPath('combined-timeline.png') });
 			} else await expect(page.locator('.editor-playhead-line')).toHaveCount(0);
 			// Native vertical intent and synthetic clicks cannot toggle playback.
 			await page.mouse.move(x, y);

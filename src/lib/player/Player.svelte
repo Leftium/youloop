@@ -653,7 +653,7 @@
 		const root = previewRoot;
 		const timeline = timelineBox;
 		const measure = () => {
-			playheadHeight = timeline.getBoundingClientRect().bottom - root.getBoundingClientRect().top;
+			playheadHeight = timeline.getBoundingClientRect().top - root.getBoundingClientRect().top;
 		};
 		const observer = new ResizeObserver(measure);
 		observer.observe(root);
@@ -1211,8 +1211,9 @@
 		{#if duration}
 			<div
 				class="editor-playhead-line"
+				class:inside-clip={currentTime >= repeatA && currentTime <= repeatB}
 				aria-hidden="true"
-				style:left={`calc(var(--editor-axis-inset) + (100% - 2 * var(--editor-axis-inset)) * ${Math.max(0, Math.min(1, currentTime / duration))})`}
+				style:left={`calc(var(--editor-axis-inset-left) + (100% - var(--editor-axis-inset-left) - var(--editor-axis-inset-right)) * ${Math.max(0, Math.min(1, currentTime / duration))})`}
 				style:height={`${playheadHeight}px`}
 			></div>
 		{/if}
@@ -1820,7 +1821,8 @@
 	}
 
 	.editor-preview-content {
-		--editor-axis-inset: 22px;
+		--editor-axis-inset-left: max(8px, env(safe-area-inset-left));
+		--editor-axis-inset-right: max(8px, env(safe-area-inset-right));
 		position: relative;
 		display: grid;
 		grid-template-rows: minmax(0, 1fr) auto;
@@ -1832,16 +1834,19 @@
 		position: absolute;
 		top: 0;
 		width: 1px;
-		background: rgb(239 68 68 / 55%);
+		background: rgb(255 51 51 / 55%);
 		pointer-events: none;
 		z-index: 5;
+	}
+	.editor-playhead-line.inside-clip {
+		background: rgb(168 85 247 / 55%);
 	}
 	.editor-transport {
 		padding: 0 0 max(1rem, env(safe-area-inset-bottom));
 		container: transport / inline-size;
 	}
 	.preview-actions {
-		padding-inline: max(8px, env(safe-area-inset-left));
+		padding-inline: var(--editor-axis-inset-left) var(--editor-axis-inset-right);
 		display: flex;
 		align-items: center;
 	}
@@ -2197,8 +2202,8 @@
 	}
 	.timestamps {
 		position: absolute;
-		inset: auto max(8px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom))
-			max(8px, env(safe-area-inset-left));
+		inset: auto var(--editor-axis-inset-right) max(8px, env(safe-area-inset-bottom))
+			var(--editor-axis-inset-left);
 		z-index: 1;
 		display: flex;
 		flex-wrap: wrap;
