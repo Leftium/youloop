@@ -152,7 +152,9 @@
 	function moveDrag(event: PointerEvent) {
 		if (drag?.id !== event.pointerId) return;
 		const position = layout === 'columns' ? event.clientX : event.clientY;
-		resize(drag.size + (layout === 'columns' ? drag.origin - position : position - drag.origin));
+		resize(
+			drag.size + (layout === 'columns' ? drag.origin - position : position - drag.origin)
+		);
 		event.preventDefault();
 	}
 
@@ -172,9 +174,7 @@
 		else if (event.key === 'End') resize(maximum);
 		else if (keys.includes(event.key)) {
 			resize(
-				size +
-					(event.key === keys[0] ? -1 : 1) *
-					(layout === 'columns' ? -16 : available * 0.02)
+				size + (event.key === keys[0] ? -1 : 1) * (layout === 'columns' ? -16 : available * 0.02)
 			);
 		} else return;
 		event.preventDefault();

@@ -120,9 +120,7 @@ test('side-by-side puts settings left of video; stacking retains video on top', 
 	const order = () =>
 		page.evaluate(() => {
 			const rect = (selector: string) => {
-				const { left, right, top, bottom, width, height } = document
-					.querySelector(selector)!
-					.getBoundingClientRect();
+				const { left, right, top, bottom, width, height } = document.querySelector(selector)!.getBoundingClientRect();
 				return { left, right, top, bottom, width, height };
 			};
 			const preview = rect('#editor-preview');
@@ -615,7 +613,9 @@ test.describe('mobile pane scrolling', () => {
 					}
 					await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
 					await expect(page.locator('.workspace-grid')).not.toHaveClass(/dragging/);
-					expect(Math.abs((await value(page)) - before - (columns ? -delta : delta))).toBeLessThanOrEqual(1);
+					expect(
+						Math.abs((await value(page)) - before - (columns ? -delta : delta))
+					).toBeLessThanOrEqual(1);
 					expect(await rootOffset(page)).toBe(offset);
 					await geometry(page);
 					await identity(page);
@@ -882,7 +882,9 @@ test.describe('automatic mobile document scrolling', () => {
 						columns ? delta : 0,
 						columns ? 0 : delta
 					);
-					expect(Math.abs((await value(page)) - before - (columns ? -delta : delta))).toBeLessThanOrEqual(1);
+					expect(
+						Math.abs((await value(page)) - before - (columns ? -delta : delta))
+					).toBeLessThanOrEqual(1);
 					expect(await offset()).toBe(root);
 					await expect(page.locator('.workspace-grid')).not.toHaveClass(/dragging/);
 					await pinned();

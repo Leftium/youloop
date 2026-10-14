@@ -1852,7 +1852,10 @@
 	.preview-corners {
 		position: absolute;
 		inset: max(8px, env(safe-area-inset-top))
-			calc(max(8px, env(safe-area-inset-right)) + var(--youloop-control-size) + var(--youloop-control-gap))
+			calc(
+				max(8px, env(safe-area-inset-right)) + var(--youloop-control-size) +
+					var(--youloop-control-gap)
+			)
 			auto max(8px, env(safe-area-inset-left));
 		z-index: 1;
 		display: flex;
