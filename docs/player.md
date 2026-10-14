@@ -19,19 +19,23 @@ verification procedures.
 
 ## Clip links and navigation
 
-`/` is the existing editor, including its demo player. Both `/?v=ID&a=...&b=...`
-and `/?v=ID&t=A-B` open that editor. `/<videoId>?t=A-B` opens the immersive watch
-view; `/s?v=...` still works and remains a watch route during migration.
-Open video and Copy Link in the editor use current clip state. The watch view
-provides an icon-only Edit link within the existing Mute/Theater/Fullscreen
-action group; it has no Copy Link control. Edit preserves current clip state. Copy Link emits canonical
-video paths. Local edits replace the current history entry through SvelteKit;
-view navigation adds entries for Back/Forward. Loading bare `/` leaves its URL
-and generic social metadata intact.
+`/` is the existing editor, including its demo player. Both `/?v=ID&a=A&b=B`
+and `/?v=ID&t=A~B` open the editor. Legacy editor `t=A-B` input is also accepted.
+`/<videoId>/A~B` is the canonical watch route; `/s?v=...` remains a supported
+legacy watch route.
+
+The editor's Open video action and Share URL link reflect the current clip state.
+The watch view provides an icon-only Edit link within the existing
+Mute/Theater/Fullscreen action group; it has no Share URL link. Edit preserves
+the clip state. The editor's Share URL link targets canonical watch paths.
+Local edits replace the current history entry through SvelteKit; view navigation
+adds entries for Back/Forward. Loading bare `/` leaves its URL and generic
+social metadata intact.
 
 The shared URL codec rejects duplicate recognized parameters and malformed
-selected values. Path IDs and `t`, `vertical`, and `fill` win over their legacy
-aliases. Boolean flags accept bare, `=1`, and `=0`; explicit false mute/framing
+selected values. Watch-route bounds must appear in the path; `t`, `a`, and `b`
+queries are invalid on those routes. In the editor, `t` takes precedence over
+legacy `a`/`b` values; `vertical` and `fill` override `orientation` and `fit`. Boolean flags accept bare, `=1`, and `=0`; explicit false mute/framing
 values survive copying. Legacy `b=0` and `b=99999` mean video end, while canonical
 `t` endpoints are literal seconds. Open ends remain open after duration settles.
 Out-of-duration bounds clamp to a nonempty range using the actual provider

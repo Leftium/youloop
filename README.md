@@ -2,15 +2,15 @@
 
 YouLoop repeats a selected segment of a YouTube video in your browser.
 Open [youloop.leftium.com](https://youloop.leftium.com), choose a video and its
-A/B bounds, then use Copy Link to share the clip. Clips repeat by default;
+A/B bounds, then use the editor's Share URL link to share the clip. Clips repeat by default;
 `once` plays the selection once and pauses at B.
 
 ## Clip links
 
-- [Watch a clip](https://youloop.leftium.com/dt-SqNL4z3w?t=31-38):
-  `/<videoId>?t=A-B` opens the watch view.
-- [Edit the same clip](https://youloop.leftium.com/?v=dt-SqNL4z3w&t=31-38):
-  `/?v=ID&t=A-B` opens the editor. The watch view's Edit action preserves the clip.
+- [Watch a clip](https://youloop.leftium.com/dt-SqNL4z3w/31~38):
+  `/<videoId>/A~B` opens the watch view.
+- [Edit the same clip](https://youloop.leftium.com/?v=dt-SqNL4z3w&t=31~38):
+  `/?v=ID&t=A~B` opens the editor. The watch view's Edit action preserves the clip.
 - Legacy `/s?v=ID&a=A&b=B` watch links and `/?v=ID&a=A&b=B` editor links still work.
 
 See [Player and clip contracts](docs/player.md) for URL validation, playback flags,

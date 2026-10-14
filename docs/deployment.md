@@ -58,7 +58,7 @@ Direct requests and reloads of `/?v=VIDEO_ID&a=31&b=38` and
 HTML. A shared server layout calls `src/lib/server/video-metadata.ts` once and
 passes plain data to `SocialHead.svelte`; Svelte escapes it during rendering.
 The Video.js custom element and watch controls still load inside browser mount.
-Canonical `/<videoId>?t=A-B` links are supported; see the
+Canonical `/<videoId>/A~B` watch links are supported; see the
 [player URL contract](player.md#clip-links-and-navigation).
 
 YouTube's fixed HTTPS oEmbed endpoint supplies the title and fallback thumbnail

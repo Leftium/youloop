@@ -67,7 +67,7 @@ not actual Safari toolbar collapse, momentum handoff, or native resize animation
    external-keyboard focus, and all settings' reachability. Reset restores layout defaults while native mobile scrolling
    remains active; reload preserves the chosen mobile behavior without adding URL
    or session parameters. Compare editor/watch Back/Forward and the
-   unchanged video-first `/dt-SqNL4z3w?t=5-50&mute`.
+   unchanged video-first `/dt-SqNL4z3w/5~50?mute`.
 
 The remaining portrait gap above the floating toolbar is accepted to preserve
 independent controls scrolling. Diagnostics measured grid/pane bottom at 704px
