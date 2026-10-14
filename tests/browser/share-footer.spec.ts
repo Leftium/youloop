@@ -1,9 +1,10 @@
-import { test, expect, type Page } from '@playwright/test';
+import { expect, type Page } from '@playwright/test';
+import { test, browserOrigin } from './youtube-api.fixture';
 
 const id = 'dt-SqNL4z3w';
 const range = '-30.512345~-5.251234';
 const query = 'once&mute&speed=1.5&vertical=0&fill=0&mirror';
-const destination = `http://localhost:5173/${id}/${range}?${query}`;
+const destination = `${browserOrigin}/${id}/${range}?${query}`;
 const share = (page: Page) => page.getByRole('link', { name: 'Share URL', exact: true });
 
 async function open(page: Page) {
@@ -63,7 +64,7 @@ async function geometry(page: Page) {
 	});
 }
 
-test('footer stays pinned through scroll, narrow widths, layouts and splitter changes', async ({
+test('footer stays pinned through scroll, narrow widths, layouts and splitter changes @routine', async ({
 	page,
 	browserName
 }, testInfo) => {
@@ -127,7 +128,7 @@ test('native link supports focus, context menu, new tab and keyboard navigation'
 	await expect(share(page)).toBeFocused();
 	expect(await share(page).evaluate((el) => getComputedStyle(el).outlineStyle)).toBe('solid');
 	await share(page).click({ button: 'right' });
-	await expect(page).toHaveURL(new RegExp('^http://localhost:5173/\\?v='));
+	await expect(page).toHaveURL(new RegExp(`^${browserOrigin}/\\?v=`));
 	await page.keyboard.press('Escape');
 	const opened = context.waitForEvent('page');
 	await share(page).click({ modifiers: ['ControlOrMeta'] });

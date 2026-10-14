@@ -38,7 +38,7 @@ jobs:
           done
           HOSTING_URL=http://127.0.0.1:4173 pnpm test:hosting
           HOSTING_URL=http://127.0.0.1:4173 pnpm test:social
-      - name: Install browsers for offline YouTube API proof
+      - name: Install browsers for routine verification
         run: pnpm exec playwright install --with-deps chromium webkit
-      - name: Exercise real Video.js adapter without external YouTube requests
-        run: pnpm test:browser:mock
+      - name: Verify routine UI and Video.js adapter without external requests
+        run: pnpm test:browser

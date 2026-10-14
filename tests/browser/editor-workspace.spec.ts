@@ -1,4 +1,5 @@
-import { test, expect, type Page } from '@playwright/test';
+import { expect, type Page } from '@playwright/test';
+import { test } from './youtube-api.fixture';
 import { test as mockedTest, expectMockBootstrap } from './youtube-api.fixture';
 import { parsePlayerUrl, serializeEditorUrl } from '../../src/lib/share-url';
 
@@ -153,7 +154,7 @@ test('form leads in columns; video leads in rows', async ({ page }) => {
 	await identity(page);
 });
 
-test('viewport resize commits the new axis before animation frames without interrupting playback', async ({
+test('viewport resize commits the new axis before animation frames without interrupting playback @routine @webkit-smoke', async ({
 	page
 }) => {
 	await page.setViewportSize({ width: 1280, height: 800 });
@@ -213,7 +214,9 @@ test('viewport resize commits the new axis before animation frames without inter
 	}
 });
 
-test('pointer and keyboard splitter bounds, capture cleanup, axes and reset', async ({ page }) => {
+test('pointer and keyboard splitter bounds, capture cleanup, axes and reset @routine', async ({
+	page
+}) => {
 	await page.setViewportSize({ width: 1440, height: 900 });
 	await openEditor(page);
 	const handle = divider(page);
@@ -347,7 +350,7 @@ mockedTest(
 	}
 );
 
-test('responsive preview, independent scrolling and Fit/Fill across mobile viewports', async ({
+test('responsive preview, independent scrolling and Fit/Fill across mobile viewports @routine @webkit-smoke', async ({
 	page
 }) => {
 	// Share one live provider across viewport checks; retain each size and assertion.
