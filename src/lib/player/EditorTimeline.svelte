@@ -218,6 +218,7 @@
 		top: 0;
 		border-inline: 5px solid transparent;
 		border-top: 10px solid var(--playhead-color);
+		filter: drop-shadow(0 0 1px white);
 	}
 	.endpoints {
 		position: absolute;
@@ -228,7 +229,16 @@
 		--range-slider-thumb-size: 20px;
 		--range-slider-track: transparent;
 		--range-slider-selection: transparent;
-		--range-slider-thumb: #39f;
-		--range-slider-end-thumb: #6366f1;
+		--range-slider-thumb: white;
+		--range-slider-end-thumb: white;
+	}
+	.endpoints :global(.thumb::after) {
+		box-shadow: inset 0 0 0 2px #268bd2;
+	}
+	.endpoints :global(.thumb.end::after) {
+		box-shadow: inset 0 0 0 2px #6366f1;
+	}
+	.endpoints :global(.thumb span) {
+		color: #1f2937;
 	}
 </style>

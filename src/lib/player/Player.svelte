@@ -556,7 +556,7 @@
 	function setMediaTime(time: number, stayPaused: boolean, preview = false) {
 		pauseAfterSeek = stayPaused;
 		currentTime = Math.max(0, Math.min(duration ?? player.duration, time));
-		if (!preview) transportTime = currentTime;
+		if (!preview || navigationScrub) transportTime = currentTime;
 		pendingSeek = { time: currentTime, requestedAt: Date.now() };
 		if (retrySeekTime !== undefined && !preview) retrySeekTime = recoverySeekTarget(currentTime);
 		player.currentTime = currentTime;
@@ -589,6 +589,7 @@
 					Math.min(bounds.end, bounds.start + position * (bounds.end - bounds.start))
 				);
 				currentTime = saved.target;
+				transportTime = saved.target;
 				// Responsive display; at most one provider seek per animation frame.
 				if (!scrubFrame)
 					scrubFrame = requestAnimationFrame(() => {
@@ -1833,13 +1834,17 @@
 	.editor-playhead-line {
 		position: absolute;
 		top: 0;
-		width: 1px;
-		background: rgb(255 51 51 / 55%);
+		width: 2px;
+		transform: translateX(-50%);
+		background: #f33;
+		box-shadow:
+			-1px 0 0 rgb(255 255 255 / 85%),
+			1px 0 0 rgb(0 0 0 / 70%);
 		pointer-events: none;
 		z-index: 5;
 	}
 	.editor-playhead-line.inside-clip {
-		background: rgb(168 85 247 / 55%);
+		background: #a855f7;
 	}
 	.editor-transport {
 		padding: 0 0 max(1rem, env(safe-area-inset-bottom));

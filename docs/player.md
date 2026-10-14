@@ -36,18 +36,21 @@ capture. Arrow keys edit by a relative 0.1 seconds, preserving non-grid offsets;
 Page keys move ten increments, and Home/End select source bounds. Collapsed
 ranges remain editable, although they cannot be played or shared until B is after A.
 
-`transportTime` is the logical playback position; `currentTime` is the displayed
-or requested media position. Endpoint inspection saves the transport and playback
-state, pauses, and requests the endpoint frame. Release, keyup, cancellation,
+`transportTime` follows the displayed/requested `currentTime` during navigation
+and video scrubbing, so progress previews the destination that release will commit.
+Endpoint inspection saves the transport and playback
+state, pauses, and requests the endpoint frame while keeping transport fixed. Release, keyup, cancellation,
 Escape, blur, and teardown restore the saved transport and state. A source
 replacement clears the old preview before the new provider bootstraps. Pending
 seeks protect requested time from stale provider observations for up to two seconds.
 YouTube can display a delayed or approximate frame; inspection is not frame-exact.
 
-The noninteractive translucent playhead line spans the preview and ends at the top
+White A/B handles use dark labels and blue/purple outlines to stand apart from
+the colored track. The noninteractive playhead line spans the preview and ends at the top
 of the timeline, against the same source-wide axis. A small downward arrow points
 to the track without adding another row. The line and arrow are purple inside
-A:B and red outside it. Resizing and changing layout or framing reposition
+A:B and red outside it. The opaque line has light/dark edges for contrast over
+video, and the arrow has a light edge. Resizing and changing layout or framing reposition
 the chrome without adding a provider. The Clip range dialog remains available
 for precise signed or absolute entry and explicit Set at playhead actions.
 
@@ -65,8 +68,8 @@ The surface uses static `touch-action: pan-y pinch-zoom`, with pointer capture
 only after horizontal intent. A stationary tap toggles playback once; controls
 and keyboard playback retain separate activation.
 
-Scrubbing pauses playback and updates `currentTime` while `transportTime` stays
-at the saved position. Provider seeks are coalesced to one per animation frame.
+Scrubbing pauses playback and updates `currentTime` and `transportTime` together.
+The scrub session privately retains its original position for cancellation. Provider seeks are coalesced to one per animation frame.
 Release commits the target and restores playback when the scope permits;
 cancellation restores the saved position and playback. Source replacement drops
 the old session and queued seek. Editor inspection outside A:B stays paused;

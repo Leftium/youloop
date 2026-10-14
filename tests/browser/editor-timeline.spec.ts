@@ -186,7 +186,7 @@ test.describe('editor timeline', { tag: '@timeline-proof' }, () => {
 			await expect
 				.poll(() => display.getAttribute('aria-valuenow').then(Number))
 				.toBeCloseTo(targetTime, 1);
-			if (!watch) expect(await time(page)).toBe(original);
+			if (!watch) await expect.poll(() => time(page)).toBeCloseTo(targetTime, 1);
 			await page
 				.locator('youtube-video')
 				.evaluate((el) => el.dispatchEvent(new Event('timeupdate')));
@@ -198,6 +198,7 @@ test.describe('editor timeline', { tag: '@timeline-proof' }, () => {
 			});
 			await page.mouse.up();
 			await expect(display).toHaveAttribute('aria-valuenow', String(original));
+			if (!watch) expect(await time(page)).toBe(original);
 			await page.mouse.move(x, y);
 			await page.mouse.down();
 			await page.mouse.move(dragX, y);
@@ -214,7 +215,7 @@ test.describe('editor timeline', { tag: '@timeline-proof' }, () => {
 					/-50.25~-40.125/
 				);
 				const line = await page.locator('.editor-playhead-line').boundingBox();
-				expect(Math.abs(line!.x - dragX)).toBeLessThan(1);
+				expect(Math.abs(line!.x + line!.width / 2 - dragX)).toBeLessThan(1);
 				await expect(page.locator('.editor-playhead-line')).not.toHaveClass(/inside-clip/);
 				expect(
 					await page
@@ -347,7 +348,13 @@ test.describe('editor timeline', { tag: '@timeline-proof' }, () => {
 						await page.mouse.move(cursor, video.y + video.height / 2);
 						await page.mouse.up();
 						await expect
-							.poll(async () => (await page.locator('.editor-playhead-line').boundingBox())!.x)
+							.poll(
+								async () =>
+									await page.locator('.editor-playhead-line').evaluate((el) => {
+										const box = el.getBoundingClientRect();
+										return box.left + box.width / 2;
+									})
+							)
 							.toBeCloseTo(cursor, 0);
 					}
 				}
