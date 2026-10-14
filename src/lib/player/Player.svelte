@@ -1902,6 +1902,7 @@
 		cursor: default;
 	}
 	.scope-icon {
+		position: relative;
 		width: var(--youloop-control-icon-size);
 		display: inline-flex;
 		justify-content: center;
@@ -1909,6 +1910,18 @@
 		font-weight: bold;
 		letter-spacing: -0.04em;
 		white-space: nowrap;
+	}
+
+	.transport-scope[aria-pressed='false'] .scope-icon::after {
+		content: '';
+		position: absolute;
+		left: 50%;
+		top: 50%;
+		width: calc(100% + 4px);
+		height: 2px;
+		border-radius: 1px;
+		background: currentColor;
+		transform: translate(-50%, -50%) rotate(45deg);
 	}
 
 	.preview-playback .transport-rate {
