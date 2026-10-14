@@ -116,10 +116,26 @@ export function placeWatchTitle(
 	];
 	for (const candidate of candidates) {
 		if (candidate.width < Math.min(180, width)) continue;
-		const height =
+		const anchorTop = candidate.top;
+		let height =
 			typeof measureHeight === 'number' ? measureHeight : measureHeight(candidate.width);
-		if (candidate.mode === 'above') candidate.top -= height;
-		candidate.top = clearTop(candidate.left, candidate.top, candidate.width, height);
+		let top = candidate.mode === 'above' ? anchorTop - height : anchorTop;
+		if (
+			reserved &&
+			candidate.left < reserved.left - gap &&
+			candidate.left + candidate.width > reserved.left - gap &&
+			top < reserved.bottom + gap &&
+			top + height > reserved.top - gap
+		) {
+			const availableLeft = reserved.left - gap - candidate.left;
+			if (availableLeft >= Math.min(180, width)) {
+				candidate.width = availableLeft;
+				height =
+					typeof measureHeight === 'number' ? measureHeight : measureHeight(candidate.width);
+				top = candidate.mode === 'above' ? anchorTop - height : anchorTop;
+			}
+		}
+		candidate.top = clearTop(candidate.left, top, candidate.width, height);
 		const right = candidate.left + candidate.width;
 		const bottom = candidate.top + height;
 		const outsidePicture =

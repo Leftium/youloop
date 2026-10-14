@@ -29,6 +29,20 @@ test('upper controls can still avoid a top-left action', () => {
 	expect(controls.left).toBeGreaterThanOrEqual(leftButton.right + 8);
 });
 
+test('wide title fits the upper gutter before the right-side action', () => {
+	const title = placeWatchTitle(
+		safe,
+		tallVideo,
+		{ left: 8, top: 1240, width: 666, height: 32 },
+		(width) => (width <= 420 ? 80 : 32),
+		rightButton
+	);
+	expect(title.mode).toBe('above');
+	expect(title.top).toBeGreaterThanOrEqual(safe.top);
+	expect(title.top + 32).toBeLessThanOrEqual(tallVideo.top - 8);
+	expect(title.left + title.width).toBeLessThanOrEqual(rightButton.left - 8);
+});
+
 test('paused title starts at the top beside an upper-right action', () => {
 	const title = placeWatchTitle(
 		safe,
