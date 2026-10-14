@@ -141,7 +141,34 @@
 	// Ported from Vee Next's assessment splitter. Only grid tracks change: the
 	// media snippet stays mounted in the same DOM parent through every reflow.
 	function startDrag(event: PointerEvent) {
-		if (event.button !== 0 || drag) return;
+		if (event.button !== 0 || !event.isPrimary || drag) return;
+		// Splitter hit padding can cover an endpoint at the pane edge. Forward
+		// acquisition to that handle so it owns the real pointer capture.
+		for (const handle of grid.querySelectorAll<HTMLElement>('.editor-timeline .thumb')) {
+			const box = handle.getBoundingClientRect();
+			if (
+				event.clientX < box.left ||
+				event.clientX > box.right ||
+				event.clientY < box.top ||
+				event.clientY > box.bottom
+			)
+				continue;
+			const forwarded = new PointerEvent('pointerdown', {
+				pointerId: event.pointerId,
+				pointerType: event.pointerType,
+				isPrimary: event.isPrimary,
+				button: event.button,
+				buttons: event.buttons,
+				clientX: event.clientX,
+				clientY: event.clientY,
+				cancelable: true,
+				bubbles: true
+			});
+			if (!handle.dispatchEvent(forwarded)) {
+				event.preventDefault();
+				return;
+			}
+		}
 		const target = event.currentTarget as HTMLElement;
 		// Focus must not move the document or couple split position to browser chrome.
 		target.focus({ preventScroll: true });
@@ -550,7 +577,7 @@
 		inset: 0;
 		background: var(--nc-border, #ababab);
 	}
-	/* The thin track has a 27px hit area; pane padding keeps controls clear. */
+	/* Keep the wide resize hit area; startDrag gives overlapping handles priority. */
 	.splitter::after {
 		inset: 0 -12px;
 	}

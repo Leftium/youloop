@@ -20,6 +20,7 @@
 		step?: number | 'any';
 		keyboardIncrement?: number;
 		thumbInteraction?: ThumbInteraction;
+		thumbShape?: 'circle' | 'triangles';
 		keyboardThumbInteraction?: ThumbInteraction;
 		pointerStepRounding?: StepRounding;
 		keyboardStepMode?: 'grid' | 'relative';
@@ -41,6 +42,7 @@
 		step = 'any',
 		keyboardIncrement,
 		thumbInteraction = 'clamp',
+		thumbShape = 'circle',
 		keyboardThumbInteraction,
 		pointerStepRounding = 'nearest',
 		keyboardStepMode = 'grid',
@@ -59,6 +61,7 @@
 	// A plain guard remains writable while Svelte is destroying reactive state.
 	let pointerActive = false;
 	let track = $state<HTMLDivElement>(undefined!);
+	let trackWidth = $state(0);
 	// Physical slots retain focus and pointer capture when semantic roles swap.
 	let thumbEdges = $state<RangeEdge[]>(['start', 'end']);
 	let focusedSlot = $state<number | null>(null);
@@ -91,6 +94,24 @@
 		collapsed &&
 			(thumbInteraction === 'push-pull' || (thumbInteraction === 'clamp' && range.start === lower))
 	);
+
+	$effect(() => {
+		if (thumbShape !== 'triangles' || !track) return;
+		const measure = () => {
+			trackWidth = track.getBoundingClientRect().width;
+		};
+		const observer = new ResizeObserver(measure);
+		observer.observe(track);
+		measure();
+		return () => observer.disconnect();
+	});
+
+	function triangleLeft(percent: number) {
+		return Math.max(0, Math.min(trackWidth - 20, (percent * trackWidth) / 100 - 10));
+	}
+	function triangleTip(percent: number) {
+		return (percent * trackWidth) / 100 - triangleLeft(percent);
+	}
 
 	function interact(
 		edge: RangeEdge,
@@ -297,7 +318,13 @@
 
 <svelte:window onblur={finishInteraction} />
 
-<div class="range-slider" role="group" aria-label={label} class:disabled={inactive}>
+<div
+	class="range-slider"
+	role="group"
+	aria-label={label}
+	class:disabled={inactive}
+	class:triangles={thumbShape === 'triangles'}
+>
 	<div class="track" bind:this={track}>
 		<div class="axis"></div>
 		<div
@@ -328,7 +355,9 @@
 					: upper}
 				aria-valuenow={range[edge]}
 				aria-valuetext={formatValue(range[edge])}
-				style:left="{edge === 'start' ? startPercent : endPercent}%"
+				style:left={thumbShape === 'triangles'
+					? `${triangleLeft(edge === 'start' ? startPercent : endPercent)}px`
+					: `${edge === 'start' ? startPercent : endPercent}%`}
 				onpointerdown={(event) => beginDrag(event, edge)}
 				onpointermove={moveDrag}
 				onpointerup={endDrag}
@@ -339,7 +368,20 @@
 				onfocus={() => focusThumb(slot)}
 				onblur={blurThumb}
 			>
-				<span aria-hidden="true">{edge === 'start' ? 'A' : 'B'}</span>
+				{#if thumbShape === 'triangles'}
+					{@const tip = triangleTip(edge === 'start' ? startPercent : endPercent)}
+					<svg class="triangle-marker" viewBox="0 0 20 20" aria-hidden="true">
+						<polygon points={edge === 'start' ? `${tip},0 20,20 0,20` : `0,0 20,0 ${tip},20`} />
+						<text
+							x={(20 + tip) / 3}
+							y={edge === 'start' ? 14 : 6}
+							text-anchor="middle"
+							dominant-baseline="middle">{edge === 'start' ? 'A' : 'B'}</text
+						>
+					</svg>
+				{:else}
+					<span aria-hidden="true">{edge === 'start' ? 'A' : 'B'}</span>
+				{/if}
 			</div>
 		{/each}
 	</div>
@@ -435,5 +477,41 @@
 	}
 	.disabled .thumb {
 		cursor: default;
+	}
+	.triangles .thumb {
+		top: -10px;
+		width: 20px;
+		height: 20px;
+		transform: none;
+	}
+	.triangles .thumb.end {
+		top: 10px;
+	}
+	.triangles .thumb::after {
+		display: none;
+	}
+	.triangle-marker {
+		display: block;
+		width: 20px;
+		height: 20px;
+		overflow: visible;
+	}
+	.triangle-marker polygon {
+		fill: white;
+		stroke: var(--range-slider-color, #268bd2);
+		stroke-width: 1.5px;
+		stroke-linejoin: round;
+	}
+	.thumb.end .triangle-marker polygon {
+		stroke: var(--range-slider-end-thumb, #6366f1);
+	}
+	.triangle-marker text {
+		fill: #1f2937;
+		font-size: 8px;
+		font-weight: bold;
+	}
+	.triangles .thumb.keyboard-focus {
+		outline: 2px solid currentColor;
+		outline-offset: 2px;
 	}
 </style>

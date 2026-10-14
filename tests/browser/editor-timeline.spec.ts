@@ -9,6 +9,17 @@ test.describe('editor timeline', { tag: '@timeline-proof' }, () => {
 	const slider = (page: Page, name: string) => page.getByRole('slider', { name, exact: true });
 	const time = (page: Page) =>
 		page.locator('.editor-timeline').getAttribute('data-transport-time').then(Number);
+	async function screenshotControls(page: Page, path: string) {
+		const preview = (await page.locator('.editor-preview-content').boundingBox())!;
+		const axis = (await page.locator('.editor-axis').boundingBox())!;
+		const actions = (await page.locator('.preview-actions').boundingBox())!;
+		const top = Math.max(0, axis.y - 64);
+		const bottom = Math.min(page.viewportSize()!.height, actions.y + actions.height + 8);
+		await page.screenshot({
+			path,
+			clip: { x: preview.x, y: top, width: preview.width, height: bottom - top }
+		});
+	}
 	async function open(page: Page, range = '10.345~20.125') {
 		await page.goto(`/?v=dt-SqNL4z3w&t=${range}&mute&fill=0`);
 		await expect(slider(page, 'Current time')).toHaveAttribute('aria-valuemax', '60.25');
@@ -42,7 +53,7 @@ test.describe('editor timeline', { tag: '@timeline-proof' }, () => {
 
 	test('pointer crossing keeps capture and physical focus; release and cancellation restore transport', async ({
 		page
-	}) => {
+	}, testInfo) => {
 		await open(page);
 		await setSliderValue(page, 'Current time', 15);
 		const start = slider(page, 'Repeat start');
@@ -97,6 +108,46 @@ test.describe('editor timeline', { tag: '@timeline-proof' }, () => {
 		});
 		await page.mouse.up();
 		await expect(slider(page, 'Current time')).toHaveAttribute('aria-valuenow', '15');
+		// At a coincident source edge, the upper/lower handles outrank splitter padding.
+		await slider(page, 'Repeat start').press('Home');
+		await slider(page, 'Repeat end').press('Home');
+		const edgeAxis = (await page.locator('.editor-axis').boundingBox())!;
+		const separator = page.getByRole('separator', { name: 'Resize video preview' });
+		const splitPosition = await separator.getAttribute('aria-valuenow');
+		for (const [name, y] of [
+			['Repeat start', edgeAxis.y + 3],
+			['Repeat end', edgeAxis.y + 20]
+		] as const) {
+			if (name === 'Repeat end') await slider(page, 'Repeat end').press('Home');
+			const handle = slider(page, name);
+			const captured = await handle.elementHandle();
+			await handle.evaluate((el) =>
+				el.addEventListener(
+					'pointerdown',
+					(event) =>
+						el.setAttribute('data-captured-pointer', String((event as PointerEvent).pointerId)),
+					{ once: true }
+				)
+			);
+			await page.mouse.move(edgeAxis.x + 4, y);
+			await page.mouse.down();
+			expect(
+				await captured!.evaluate((el) =>
+					el.hasPointerCapture(Number(el.getAttribute('data-captured-pointer')))
+				)
+			).toBe(true);
+			await page.mouse.move(edgeAxis.x + 18, y);
+			await page.mouse.up();
+			await expect(slider(page, 'Repeat start')).toHaveAttribute('aria-valuenow', '0');
+			await expect
+				.poll(() => slider(page, 'Repeat end').getAttribute('aria-valuenow').then(Number))
+				.toBeGreaterThan(0);
+			await expect(separator).toHaveAttribute('aria-valuenow', splitPosition!);
+		}
+		await expect(slider(page, 'Current time')).toHaveAttribute('aria-valuenow', '15');
+		await slider(page, 'Repeat end').evaluate((el) => (el as HTMLElement).blur());
+		await screenshotControls(page, testInfo.outputPath('close-handles.png'));
+
 		await identity(page);
 	});
 
@@ -115,9 +166,7 @@ test.describe('editor timeline', { tag: '@timeline-proof' }, () => {
 		await expect(slider(page, 'Current time')).toHaveAttribute('aria-valuenow', '10.445');
 		await page.keyboard.up('ArrowRight');
 		await expect(slider(page, 'Current time')).toHaveAttribute('aria-valuenow', '10.36');
-		// The 0.05-second selection leaves pointer hit targets overlapping.
-		// Separate them by keyboard before checking playback restoration.
-		await slider(page, 'Repeat end').press('End');
+		await setSliderValue(page, 'Repeat end', 30);
 		await expect(slider(page, 'Repeat start')).toHaveAttribute('aria-valuenow', '10.395');
 		await page.getByRole('button', { name: 'Play', exact: true }).click();
 		await expect(page.getByRole('button', { name: 'Pause', exact: true })).toBeVisible();
@@ -229,7 +278,6 @@ test.describe('editor timeline', { tag: '@timeline-proof' }, () => {
 					const color = (selector: string) =>
 						getComputedStyle(document.querySelector(selector)!).backgroundColor;
 					const axis = box('.editor-axis');
-					const stamps = box('.timestamps');
 					const buttons = box('.preview-playback');
 					const line = box('.editor-playhead-line');
 					return {
@@ -243,17 +291,13 @@ test.describe('editor timeline', { tag: '@timeline-proof' }, () => {
 						arrowColor: getComputedStyle(document.querySelector('.playhead')!, '::after')
 							.borderTopColor,
 						insets: [
-							Math.abs(axis.left - stamps.left),
-							Math.abs(axis.right - stamps.right),
-							Math.abs(axis.left - buttons.left),
-							Math.abs(axis.right - buttons.right)
+							Math.abs(axis.left - box('.player').left),
+							Math.abs(axis.right - box('.player').right)
 						],
 						heights: [
 							axis.height,
 							box('.endpoints .track').height,
-							Number.parseFloat(
-								getComputedStyle(document.querySelector('.endpoints .thumb')!, '::after').height
-							)
+							box('.endpoints .triangle-marker').height
 						],
 						colors: ['.navigation', '.progress', '.selection', '.overlap'].map((selector) =>
 							color('.editor-timeline ' + selector)
@@ -277,7 +321,7 @@ test.describe('editor timeline', { tag: '@timeline-proof' }, () => {
 				]);
 				expect(combined.overlap).toBeCloseTo(5 / 10.125, 2);
 				await slider(page, 'Current time').evaluate((el) => (el as HTMLElement).blur());
-				await page.screenshot({ path: testInfo.outputPath('combined-timeline.png') });
+				await screenshotControls(page, testInfo.outputPath('combined-timeline.png'));
 			} else await expect(page.locator('.editor-playhead-line')).toHaveCount(0);
 			// Native vertical intent and synthetic clicks cannot toggle playback.
 			await page.mouse.move(x, y);

@@ -1214,7 +1214,7 @@
 				class="editor-playhead-line"
 				class:inside-clip={currentTime >= repeatA && currentTime <= repeatB}
 				aria-hidden="true"
-				style:left={`calc(var(--editor-axis-inset-left) + (100% - var(--editor-axis-inset-left) - var(--editor-axis-inset-right)) * ${Math.max(0, Math.min(1, currentTime / duration))})`}
+				style:left={`${Math.max(0, Math.min(1, currentTime / duration)) * 100}%`}
 				style:height={`${playheadHeight}px`}
 			></div>
 		{/if}

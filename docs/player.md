@@ -21,12 +21,15 @@ verification procedures.
 
 The editor's source-wide timeline combines navigation and A/B handles on one
 20px track, flush with the video above and retaining the gap before the buttons
-below. Its horizontal padding matches the time displays above and transport
-buttons below. Colors match watch mode: red marks
+below. The track spans the full preview width; triangle tips mark exact times
+and their bodies stay inside the edges. A points up in the upper lane; B points
+down in the lower lane, keeping close or coincident endpoints independently
+grabbable. Overlapping handles take priority over splitter hit padding.
+
+Colors match watch mode: red marks
 played time outside A:B, purple marks played time inside A:B, blue marks the
 unplayed selection, and gray marks remaining source time. Click empty track
-space or drag the playhead to seek without changing the selected
-clip or its share URL. Seeking outside A:B pauses for inspection; Play returns
+space or drag the playhead to seek without changing the selected clip or its share URL. Seeking outside A:B pauses for inspection; Play returns
 to A when the transport is outside the clip. Frame stepping also uses the full
 source. Watch playback retains its own VIDEO/A:B scope and progress bar.
 
@@ -38,19 +41,19 @@ ranges remain editable, although they cannot be played or shared until B is afte
 
 `transportTime` follows the displayed/requested `currentTime` during navigation
 and video scrubbing, so progress previews the destination that release will commit.
-Endpoint inspection saves the transport and playback
-state, pauses, and requests the endpoint frame while keeping transport fixed. Release, keyup, cancellation,
+Endpoint inspection saves the transport and playback state, pauses, and requests
+the endpoint frame while keeping transport fixed. Release, keyup, cancellation,
 Escape, blur, and teardown restore the saved transport and state. A source
 replacement clears the old preview before the new provider bootstraps. Pending
 seeks protect requested time from stale provider observations for up to two seconds.
 YouTube can display a delayed or approximate frame; inspection is not frame-exact.
 
-White A/B handles use dark labels and blue/purple outlines to stand apart from
+White A/B triangles use dark labels and blue/purple outlines to stand apart from
 the colored track. The noninteractive playhead line spans the preview and ends at the top
 of the timeline, against the same source-wide axis. A small downward arrow points
 to the track without adding another row. The line and arrow are purple inside
-A:B and red outside it. The opaque line has light/dark edges for contrast over
-video, and the arrow has a light edge. Resizing and changing layout or framing reposition
+A:B and red outside it. The solid line and arrow use subtle dark shadows for
+contrast over video. Resizing and changing layout or framing reposition
 the chrome without adding a provider. The Clip range dialog remains available
 for precise signed or absolute entry and explicit Set at playhead actions.
 
