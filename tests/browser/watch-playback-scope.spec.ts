@@ -48,81 +48,108 @@ async function play(page: Page) {
 	await expect.poll(async () => (await state(page)).providerState).toBe(1);
 }
 
-for (const route of [`/${id}/5~15`, `/s?v=${id}&a=5&b=15`]) {
-	test(`scope switches preserve playback, URL and provider: ${route}`, async ({ page }) => {
-		await open(page, `${route}${route.includes('?') ? '&' : '?'}mute&speed=1.5`);
-		await expect(timeline(page)).toHaveAttribute('data-mode', 'clip');
-		await expect(timeline(page)).toHaveAttribute('aria-valuemax', '10');
-		const originalUrl = page.url();
-		const editorHref = await page
-			.getByRole('link', { name: 'Switch to edit-first mode', exact: true })
-			.getAttribute('href');
-		await page.evaluate(() => {
-			const media = document.querySelector('youtube-video') as HTMLElement & { engine: unknown };
-			Object.assign(window, {
-				scopeMedia: media,
-				scopeFrame: media.shadowRoot!.querySelector('iframe'),
-				scopeEngine: media.engine
-			});
+async function saveIdentity(page: Page) {
+	await page.evaluate(() => {
+		const media = document.querySelector('youtube-video') as HTMLElement & { engine: unknown };
+		Object.assign(window, {
+			scopeMedia: media,
+			scopeFrame: media.shadowRoot!.querySelector('iframe'),
+			scopeEngine: media.engine
 		});
-		await seek(page, 8);
-		await switchScope(page, 'video');
-		expect(Math.abs((await state(page)).time - 8)).toBeLessThan(0.5);
-		expect((await state(page)).paused).toBe(true);
-		await switchScope(page, 'clip');
-		expect(Math.abs((await state(page)).time - 8)).toBeLessThan(0.5);
-		await switchScope(page, 'video');
-		await seek(page, 22);
-		await switchScope(page, 'clip');
-		await expect.poll(async () => Math.abs((await state(page)).time - 5)).toBeLessThan(0.5);
-		await expect.poll(async () => (await state(page)).paused).toBe(true);
-		await play(page);
-		await switchScope(page, 'video');
-		await seek(page, 20);
-		await expect.poll(async () => (await state(page)).time).toBeGreaterThan(21);
-		await switchScope(page, 'clip');
-		await expect.poll(async () => (await state(page)).time).toBeLessThan(10);
-		await expect.poll(async () => (await state(page)).providerState).toBe(1);
-		await switchScope(page, 'video');
-		const before = (await state(page)).time;
-		await expect.poll(async () => (await state(page)).time).toBeGreaterThan(before + 0.5);
-		expect((await state(page)).muted).toBe(true);
-		expect((await state(page)).speed).toBe(1.5);
-		expect(page.url()).toBe(originalUrl);
-		expect(
-			await page
-				.getByRole('link', { name: 'Switch to edit-first mode', exact: true })
-				.getAttribute('href')
-		).toBe(editorHref);
-		expect(
-			await page.evaluate(() => {
-				const saved = window as unknown as {
-					scopeMedia: Element;
-					scopeFrame: Element;
-					scopeEngine: unknown;
-				};
-				const media = document.querySelector('youtube-video') as HTMLElement & { engine: unknown };
-				return (
-					media === saved.scopeMedia &&
-					media.engine === saved.scopeEngine &&
-					media.shadowRoot!.querySelector('iframe') === saved.scopeFrame
-				);
-			})
-		).toBe(true);
-		await page.reload();
-		await expect(scopeButton(page)).not.toContainText('?:??');
-		await expect(timeline(page)).toHaveAttribute('data-mode', 'clip');
 	});
 }
 
+async function identity(page: Page) {
+	expect(
+		await page.evaluate(() => {
+			const saved = window as unknown as {
+				scopeMedia: Element;
+				scopeFrame: Element;
+				scopeEngine: unknown;
+			};
+			const media = document.querySelector('youtube-video') as HTMLElement & { engine: unknown };
+			return (
+				media === saved.scopeMedia &&
+				media.engine === saved.scopeEngine &&
+				media.shadowRoot!.querySelector('iframe') === saved.scopeFrame
+			);
+		})
+	).toBe(true);
+}
+
+test('canonical scope switches preserve playback, URL and provider', async ({ page }) => {
+	await open(page, `/${id}/5~15?mute&speed=1.5`);
+	await expect(timeline(page)).toHaveAttribute('data-mode', 'clip');
+	await expect(timeline(page)).toHaveAttribute('aria-valuemax', '10');
+	const originalUrl = page.url();
+	const editorHref = await page
+		.getByRole('link', { name: 'Switch to edit-first mode', exact: true })
+		.getAttribute('href');
+	await saveIdentity(page);
+	await seek(page, 8);
+	await switchScope(page, 'video');
+	expect(Math.abs((await state(page)).time - 8)).toBeLessThan(0.5);
+	expect((await state(page)).paused).toBe(true);
+	await switchScope(page, 'clip');
+	expect(Math.abs((await state(page)).time - 8)).toBeLessThan(0.5);
+	await switchScope(page, 'video');
+	await seek(page, 22);
+	await switchScope(page, 'clip');
+	await expect.poll(async () => Math.abs((await state(page)).time - 5)).toBeLessThan(0.5);
+	await expect.poll(async () => (await state(page)).paused).toBe(true);
+	await play(page);
+	await switchScope(page, 'video');
+	await seek(page, 20);
+	await expect.poll(async () => (await state(page)).time).toBeGreaterThan(21);
+	await switchScope(page, 'clip');
+	await expect.poll(async () => (await state(page)).time).toBeLessThan(10);
+	await expect.poll(async () => (await state(page)).providerState).toBe(1);
+	await switchScope(page, 'video');
+	const before = (await state(page)).time;
+	await expect.poll(async () => (await state(page)).time).toBeGreaterThan(before + 0.5);
+	expect((await state(page)).muted).toBe(true);
+	expect((await state(page)).speed).toBe(1.5);
+	expect(page.url()).toBe(originalUrl);
+	expect(
+		await page
+			.getByRole('link', { name: 'Switch to edit-first mode', exact: true })
+			.getAttribute('href')
+	).toBe(editorHref);
+	await identity(page);
+	await page.reload();
+	await expect(scopeButton(page)).not.toContainText('?:??');
+	await expect(timeline(page)).toHaveAttribute('data-mode', 'clip');
+});
+
 for (const once of [false, true]) {
 	mockedTest(
-		`selected scope obeys ${once ? 'Once' : 'Loop'} at clip and video end`,
+		`selected scope obeys ${once ? 'Once' : 'Loop with legacy routing'} at clip and video end`,
 		{ tag: '@youtube-mock' },
 		async ({ page }) => {
 			test.setTimeout(90_000);
-			await open(page, `/${id}/5~8?mute${once ? '&once' : ''}`);
+			// Exercise legacy routing in the existing Loop journey, avoiding a second live journey.
+			await open(page, once ? `/${id}/5~8?mute&once` : `/s?v=${id}&a=5&b=8&mute`);
 			await expectMockBootstrap(page);
+			if (!once) {
+				const originalUrl = page.url();
+				const historyLength = await page.evaluate(() => history.length);
+				const editor = page.getByRole('link', { name: 'Switch to edit-first mode', exact: true });
+				await expect(editor).toHaveAttribute('href', `/?v=${id}&t=5~8&mute`);
+				await expect(timeline(page)).toHaveAttribute('aria-valuemax', '3');
+				await saveIdentity(page);
+				await switchScope(page, 'video');
+				await switchScope(page, 'clip');
+				await identity(page);
+				expect(page.url()).toBe(originalUrl);
+				expect(await page.evaluate(() => history.length)).toBe(historyLength);
+				await expect(editor).toHaveAttribute('href', `/?v=${id}&t=5~8&mute`);
+				await page.reload();
+				await expect(scopeButton(page)).not.toContainText('?:??');
+				await expect(timeline(page)).toHaveAttribute('data-mode', 'clip');
+				await expect(timeline(page)).toHaveAttribute('aria-valuemax', '3');
+				expect(page.url()).toBe(originalUrl);
+				await expectMockBootstrap(page);
+			}
 			await play(page);
 			await seek(page, 7);
 			if (once) {
