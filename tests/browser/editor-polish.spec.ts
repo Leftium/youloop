@@ -76,17 +76,20 @@ async function clipboard(page: Page, text = '') {
 }
 
 test.describe('editor polish', () => {
-	test('original YouTube source link starts at A and tracks edits without changing its label', async ({
+	test('original YouTube source link keeps its displayed time and destination in sync', async ({
 		page
 	}) => {
 		await open(page, '24.7~50');
-		const source = page.getByRole('link', { name: `youtu.be/${id}`, exact: true });
+		const source = page.locator('.source-link a');
 		await expect(source).toHaveAttribute('href', `https://youtu.be/${id}?t=24`);
+		await expect(source).toHaveText(`youtu.be/${id}?t=24`);
 		await expect(source).toHaveAttribute('target', '_blank');
 		await page.getByRole('slider', { name: 'Repeat start', exact: true }).fill('31');
 		await expect(source).toHaveAttribute('href', `https://youtu.be/${id}?t=31`);
+		await expect(source).toHaveText(`youtu.be/${id}?t=31`);
 		await page.getByRole('slider', { name: 'Repeat start', exact: true }).fill('0');
 		await expect(source).toHaveAttribute('href', `https://youtu.be/${id}`);
+		await expect(source).toHaveText(`youtu.be/${id}`);
 		await identity(page);
 	});
 
@@ -96,10 +99,12 @@ test.describe('editor polish', () => {
 			await page.getByRole('slider', { name: 'Repeat start', exact: true }).inputValue()
 		);
 		expect(resolvedA).toBeGreaterThan(0);
-		await expect(page.getByRole('link', { name: `youtu.be/${id}`, exact: true })).toHaveAttribute(
+		const source = page.locator('.source-link a');
+		await expect(source).toHaveAttribute(
 			'href',
 			`https://youtu.be/${id}?t=${Math.floor(resolvedA)}`
 		);
+		await expect(source).toHaveText(`youtu.be/${id}?t=${Math.floor(resolvedA)}`);
 		await identity(page);
 	});
 

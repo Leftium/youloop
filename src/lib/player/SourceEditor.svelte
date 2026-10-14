@@ -42,7 +42,7 @@
 	</p>
 	<div class="source-link">
 		<a href={sourceUrl} target="_blank" rel="noreferrer" aria-describedby="source-new-tab"
-			>youtu.be/{videoId}<IcRoundOpenInNew aria-hidden="true" /></a
+			>{sourceUrl.slice('https://'.length)}<IcRoundOpenInNew aria-hidden="true" /></a
 		>
 		<span id="source-new-tab" class="visually-hidden">Opens in a new tab</span>
 	</div>
