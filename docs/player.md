@@ -46,9 +46,11 @@ for precise signed or absolute entry and explicit Set at playhead actions.
 
 ### Video gestures
 
-In editor and watch modes, a horizontal drag on the video seeks relative to the
-playback time at pointer-down. One surface width covers the full source in the
-editor or the selected VIDEO/A:B span in watch. Direction locks after 8 CSS
+In editor and watch modes, a horizontal drag on the video jumps to the time at the
+cursor position, like the timeline. The left and right edges map to the full
+source bounds in the editor or the selected VIDEO/A:B bounds in watch. Editor
+dragging uses the timeline axis, including its inset margins, so the red playhead
+lines up with the cursor. Direction locks after 8 CSS
 pixels: horizontal travel scrubs; vertical travel retains native document scrolling.
 The surface uses static `touch-action: pan-y pinch-zoom`, with pointer capture
 only after horizontal intent. A stationary tap toggles playback once; controls

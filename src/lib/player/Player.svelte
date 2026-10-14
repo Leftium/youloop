@@ -347,7 +347,16 @@
 
 	$effect(() => {
 		if (!videoSurface) return;
-		const attachment = attachVideoGesture(videoSurface, prepareNavigationScrub, togglePaused);
+		const attachment = attachVideoGesture(
+			videoSurface,
+			prepareNavigationScrub,
+			togglePaused,
+			() => {
+				// Use the same inset axis as the editor playhead, including responsive margins.
+				const axis = !minimal && timelineBox?.querySelector('.editor-axis');
+				return (axis || videoSurface).getBoundingClientRect();
+			}
+		);
 		cancelVideoGesture = attachment.cancel;
 		return () => {
 			attachment.destroy();
@@ -571,11 +580,11 @@
 				transportTime = saved.time;
 				pause();
 			},
-			move(delta) {
+			move(position) {
 				if (navigationScrub !== saved) return;
 				saved.target = Math.max(
 					bounds.start,
-					Math.min(bounds.end, saved.time + delta * (bounds.end - bounds.start))
+					Math.min(bounds.end, bounds.start + position * (bounds.end - bounds.start))
 				);
 				currentTime = saved.target;
 				// Responsive display; at most one provider seek per animation frame.

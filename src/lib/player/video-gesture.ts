@@ -1,6 +1,7 @@
 export interface VideoScrub {
 	begin(): void;
-	move(delta: number): void;
+	// Axis position: 0 at the left edge, 1 at the right; caller clamps overshoot.
+	move(position: number): void;
 	end(commit: boolean): void;
 }
 
@@ -9,13 +10,22 @@ export interface VideoScrub {
 export function attachVideoGesture(
 	surface: HTMLElement,
 	prepare: () => VideoScrub | undefined,
-	tap: () => void
+	tap: () => void,
+	axisBounds: () => { left: number; width: number } = () => surface.getBoundingClientRect()
 ) {
 	const controller = new AbortController();
 	const options = { signal: controller.signal };
 	const pointers = new Set<number>();
 	let gesture:
-		| { id: number; x: number; y: number; width: number; horizontal: boolean; scrub: VideoScrub }
+		| {
+				id: number;
+				x: number;
+				y: number;
+				left: number;
+				width: number;
+				horizontal: boolean;
+				scrub: VideoScrub;
+		  }
 		| undefined;
 	function finish(commit = false, allowTap = false) {
 		const saved = gesture;
@@ -39,11 +49,13 @@ export function attachVideoGesture(
 			if (!event.isPrimary || event.button !== 0 || pointers.size > 0) return;
 			const scrub = prepare();
 			if (!scrub) return;
+			const bounds = axisBounds();
 			gesture = {
 				id: event.pointerId,
 				x: event.clientX,
 				y: event.clientY,
-				width: Math.max(1, surface.getBoundingClientRect().width),
+				left: bounds.left,
+				width: Math.max(1, bounds.width),
 				horizontal: false,
 				scrub
 			};
@@ -68,7 +80,7 @@ export function attachVideoGesture(
 				surface.setPointerCapture(event.pointerId);
 			}
 			event.preventDefault();
-			saved.scrub.move(dx / saved.width);
+			saved.scrub.move((event.clientX - saved.left) / saved.width);
 		},
 		{ ...options, passive: false }
 	);
@@ -78,7 +90,7 @@ export function attachVideoGesture(
 			if (gesture?.id === event.pointerId) {
 				// A release can carry travel without an intervening move event.
 				const stationary = Math.hypot(event.clientX - gesture.x, event.clientY - gesture.y) <= 8;
-				if (gesture.horizontal) gesture.scrub.move((event.clientX - gesture.x) / gesture.width);
+				if (gesture.horizontal) gesture.scrub.move((event.clientX - gesture.left) / gesture.width);
 				finish(true, stationary && pointers.size === 1);
 			}
 			pointers.delete(event.pointerId);

@@ -2,11 +2,11 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { attachVideoGesture } from '../src/lib/player/video-gesture.ts';
 
-function setup() {
+function setup(left = 0) {
 	globalThis.window = new EventTarget();
 	const surface = new EventTarget();
 	let captured;
-	surface.getBoundingClientRect = () => ({ width: 200 });
+	surface.getBoundingClientRect = () => ({ left, width: 200 });
 	surface.setPointerCapture = (id) => {
 		captured = id;
 	};
@@ -19,7 +19,7 @@ function setup() {
 		surface,
 		() => ({
 			begin: () => calls.push('begin'),
-			move: (delta) => calls.push(delta),
+			move: (position) => calls.push(position),
 			end: (commit) => calls.push(commit ? 'commit' : 'cancel')
 		}),
 		() => calls.push('tap')
@@ -45,13 +45,13 @@ test('tap has no down seek and synthetic click cannot toggle twice', () => {
 	attachment.destroy();
 });
 
-test('horizontal direction stays locked and commits relative travel without a tap', () => {
-	const { emit, calls, attachment } = setup();
+test('horizontal direction stays locked and commits absolute surface position without a tap', () => {
+	const { emit, calls, attachment } = setup(20);
 	emit('pointerdown', 50);
 	assert.equal(emit('pointermove', 70, 2).defaultPrevented, true);
 	emit('pointermove', 90, 100);
 	emit('pointerup', 90, 100);
-	assert.deepEqual(calls, ['begin', 0.1, 0.2, 0.2, 'commit']);
+	assert.deepEqual(calls, ['begin', 0.25, 0.35, 0.35, 'commit']);
 	attachment.destroy();
 });
 

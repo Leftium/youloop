@@ -115,7 +115,10 @@ test.describe('editor timeline', { tag: '@timeline-proof' }, () => {
 		await expect(slider(page, 'Current time')).toHaveAttribute('aria-valuenow', '10.445');
 		await page.keyboard.up('ArrowRight');
 		await expect(slider(page, 'Current time')).toHaveAttribute('aria-valuenow', '10.36');
-		await setSliderValue(page, 'Repeat end', 30);
+		// The 0.05-second selection leaves pointer hit targets overlapping.
+		// Separate them by keyboard before checking playback restoration.
+		await slider(page, 'Repeat end').press('End');
+		await expect(slider(page, 'Repeat start')).toHaveAttribute('aria-valuenow', '10.395');
 		await page.getByRole('button', { name: 'Play', exact: true }).click();
 		await expect(page.getByRole('button', { name: 'Pause', exact: true })).toBeVisible();
 		await slider(page, 'Repeat end').focus();
@@ -168,6 +171,9 @@ test.describe('editor timeline', { tag: '@timeline-proof' }, () => {
 			const box = (await surface.boundingBox())!;
 			const x = box.x + box.width * 0.25,
 				y = box.y + box.height * 0.5;
+			const dragX = Math.round(x + box.width * 0.1);
+			const axisBox = watch ? box : (await page.locator('.editor-axis').boundingBox())!;
+			const targetTime = ((dragX - axisBox.x) / axisBox.width) * 60.25;
 			await surface.evaluate((el) =>
 				el.addEventListener('pointerdown', (event) =>
 					el.setAttribute('data-pointer', String((event as PointerEvent).pointerId))
@@ -176,17 +182,17 @@ test.describe('editor timeline', { tag: '@timeline-proof' }, () => {
 			await page.mouse.move(x, y);
 			await page.mouse.down();
 			await expect(display).toHaveAttribute('aria-valuenow', String(original));
-			await page.mouse.move(x + box.width * 0.1, y + 2);
+			await page.mouse.move(dragX, y + 2);
 			await expect
 				.poll(() => display.getAttribute('aria-valuenow').then(Number))
-				.toBeCloseTo(original + 6.025, 1);
+				.toBeCloseTo(targetTime, 1);
 			if (!watch) expect(await time(page)).toBe(original);
 			await page
 				.locator('youtube-video')
 				.evaluate((el) => el.dispatchEvent(new Event('timeupdate')));
 			await expect
 				.poll(() => display.getAttribute('aria-valuenow').then(Number))
-				.toBeCloseTo(original + 6.025, 1);
+				.toBeCloseTo(targetTime, 1);
 			await surface.dispatchEvent('pointercancel', {
 				pointerId: Number(await surface.getAttribute('data-pointer'))
 			});
@@ -194,13 +200,13 @@ test.describe('editor timeline', { tag: '@timeline-proof' }, () => {
 			await expect(display).toHaveAttribute('aria-valuenow', String(original));
 			await page.mouse.move(x, y);
 			await page.mouse.down();
-			await page.mouse.move(x + box.width * 0.1, y);
+			await page.mouse.move(dragX, y);
 			await page.mouse.up();
 			await expect
 				.poll(() => display.getAttribute('aria-valuenow').then(Number))
-				.toBeCloseTo(original + 6.025, 1);
+				.toBeCloseTo(targetTime, 1);
 			if (!watch) {
-				await expect.poll(() => time(page)).toBeCloseTo(original + 6.025, 1);
+				await expect.poll(() => time(page)).toBeCloseTo(targetTime, 1);
 				await expect(slider(page, 'Repeat start')).toHaveAttribute('aria-valuenow', '10');
 				await expect(slider(page, 'Repeat end')).toHaveAttribute('aria-valuenow', '20.125');
 				await expect(page.getByRole('link', { name: 'Share URL', exact: true })).toHaveAttribute(
@@ -208,10 +214,7 @@ test.describe('editor timeline', { tag: '@timeline-proof' }, () => {
 					/-50.25~-40.125/
 				);
 				const line = await page.locator('.editor-playhead-line').boundingBox();
-				const axis = (await page.locator('.editor-axis').boundingBox())!;
-				expect(Math.abs(line!.x - axis.x - (axis.width * (original + 6.025)) / 60.25)).toBeLessThan(
-					2
-				);
+				expect(Math.abs(line!.x - dragX)).toBeLessThan(1);
 			} else await expect(page.locator('.editor-playhead-line')).toHaveCount(0);
 			// Native vertical intent and synthetic clicks cannot toggle playback.
 			await page.mouse.move(x, y);
@@ -269,6 +272,24 @@ test.describe('editor timeline', { tag: '@timeline-proof' }, () => {
 			await page.mouse.move(x + box.width * 0.95, y);
 			await page.mouse.up();
 			await expect(display).toHaveAttribute('aria-valuenow', watch ? '10.125' : '60.25');
+			if (!watch) {
+				// Alignment must hold near both ends, including narrow layouts.
+				for (const width of [1280, 390]) {
+					await page.setViewportSize({ width, height: 844 });
+					const axis = (await page.locator('.editor-axis').boundingBox())!;
+					const video = (await surface.boundingBox())!;
+					for (const fraction of [0.1, 0.9]) {
+						const cursor = Math.round(axis.x + axis.width * fraction);
+						await page.mouse.move(cursor - 12, video.y + video.height / 2);
+						await page.mouse.down();
+						await page.mouse.move(cursor, video.y + video.height / 2);
+						await page.mouse.up();
+						await expect
+							.poll(async () => (await page.locator('.editor-playhead-line').boundingBox())!.x)
+							.toBeCloseTo(cursor, 0);
+					}
+				}
+			}
 			expect(page.url()).toBe(url);
 			expect(await media!.evaluate((el) => el === document.querySelector('youtube-video'))).toBe(
 				true
