@@ -78,7 +78,6 @@ for (const example of videoExamples) {
 		await expect(originalLink).toContainText(`youtu.be/${source.videoId}`);
 		await page.reload();
 		await expect(page.locator('youtube-video')).toHaveCount(1);
-		const originalLink = page.locator('.source-link a');
 		await expect(originalLink).toBeVisible();
 		await expect(originalLink).toContainText(`youtu.be/${source.videoId}`);
 	});
