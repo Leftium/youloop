@@ -76,6 +76,33 @@ async function clipboard(page: Page, text = '') {
 }
 
 test.describe('editor polish', () => {
+	test('original YouTube source link starts at A and tracks edits without changing its label', async ({
+		page
+	}) => {
+		await open(page, '24.7~50');
+		const source = page.getByRole('link', { name: `youtu.be/${id}`, exact: true });
+		await expect(source).toHaveAttribute('href', `https://youtu.be/${id}?t=24`);
+		await expect(source).toHaveAttribute('target', '_blank');
+		await page.getByRole('slider', { name: 'Repeat start', exact: true }).fill('31');
+		await expect(source).toHaveAttribute('href', `https://youtu.be/${id}?t=31`);
+		await page.getByRole('slider', { name: 'Repeat start', exact: true }).fill('0');
+		await expect(source).toHaveAttribute('href', `https://youtu.be/${id}`);
+		await identity(page);
+	});
+
+	test('duration-relative A links to the resolved absolute YouTube time', async ({ page }) => {
+		await open(page);
+		const resolvedA = Number(
+			await page.getByRole('slider', { name: 'Repeat start', exact: true }).inputValue()
+		);
+		expect(resolvedA).toBeGreaterThan(0);
+		await expect(page.getByRole('link', { name: `youtu.be/${id}`, exact: true })).toHaveAttribute(
+			'href',
+			`https://youtu.be/${id}?t=${Math.floor(resolvedA)}`
+		);
+		await identity(page);
+	});
+
 	test('imported high precision and signed intent survive viewing, reload and generated edits', async ({
 		page
 	}) => {

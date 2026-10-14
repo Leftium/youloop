@@ -6,15 +6,23 @@
 	import type { EditorSource } from './editor-source';
 	let {
 		videoId,
+		startSeconds,
 		title,
 		unavailable,
 		onapply
 	}: {
 		videoId: string;
+		startSeconds: number;
 		title: string;
 		unavailable: boolean;
 		onapply: (source: EditorSource) => void;
 	} = $props();
+	// YouTube accepts absolute seconds; don't include a timestamp at the beginning.
+	let sourceUrl = $derived(
+		`https://youtu.be/${videoId}${
+			Number.isFinite(startSeconds) && startSeconds >= 1 ? `?t=${Math.floor(startSeconds)}` : ''
+		}`
+	);
 	let picker: VideoPicker;
 	let ready = $state(false);
 	onMount(() => {
@@ -34,7 +42,7 @@
 	</p>
 	<div class="source-link">
 		<a
-			href={`https://youtu.be/${videoId}`}
+			href={sourceUrl}
 			target="_blank"
 			rel="noreferrer"
 			aria-describedby="source-new-tab">youtu.be/{videoId}<IcRoundOpenInNew aria-hidden="true" /></a
