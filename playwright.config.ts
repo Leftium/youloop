@@ -7,7 +7,14 @@ export default defineConfig({
 	testDir: './tests/browser',
 	workers: 1,
 	projects: [
-		{ name: 'chromium', use: { browserName: 'chromium', channel: 'chromium' } },
+		{
+			name: 'chromium',
+			use: {
+				browserName: 'chromium',
+				channel: 'chromium',
+				launchOptions: { args: ['--mute-audio'] }
+			}
+		},
 		{
 			name: 'webkit',
 			testMatch: [
@@ -23,7 +30,6 @@ export default defineConfig({
 	timeout: 60_000,
 	use: {
 		baseURL: `http://localhost:${port}`,
-		launchOptions: { args: ['--mute-audio'] },
 		trace: 'retain-on-failure'
 	},
 	webServer: {
