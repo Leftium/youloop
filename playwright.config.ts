@@ -1,5 +1,8 @@
 import { defineConfig } from '@playwright/test';
 
+const offlineProof = process.env.YOULOOP_OFFLINE_PROOF === '1';
+const port = offlineProof ? 5174 : 5173;
+
 export default defineConfig({
 	testDir: './tests/browser',
 	workers: 1,
@@ -19,13 +22,15 @@ export default defineConfig({
 	],
 	timeout: 60_000,
 	use: {
-		baseURL: 'http://localhost:5173',
+		baseURL: `http://localhost:${port}`,
 		launchOptions: { args: ['--mute-audio'] },
 		trace: 'retain-on-failure'
 	},
 	webServer: {
-		command: 'pnpm dev --host 127.0.0.1',
-		url: 'http://localhost:5173',
-		reuseExistingServer: !process.env.CI
+		command: offlineProof
+			? 'node --import ./tests/browser/offline-server.mjs ./node_modules/vite/bin/vite.js dev --host 127.0.0.1 --port 5174'
+			: 'pnpm dev --host 127.0.0.1',
+		url: `http://localhost:${port}`,
+		reuseExistingServer: !process.env.CI && !offlineProof
 	}
 });

@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import { test as mockedTest, expectMockBootstrap } from './youtube-api.fixture';
 
 const id = 'dt-SqNL4z3w';
 const timeline = (page: Page) => page.locator('.watch-timeline');
@@ -115,37 +116,42 @@ for (const route of [`/${id}/5~15`, `/s?v=${id}&a=5&b=15`]) {
 }
 
 for (const once of [false, true]) {
-	test(`selected scope obeys ${once ? 'Once' : 'Loop'} at clip and video end`, async ({ page }) => {
-		test.setTimeout(90_000);
-		await open(page, `/${id}/5~8?mute${once ? '&once' : ''}`);
-		await play(page);
-		await seek(page, 7);
-		if (once) {
-			await expect.poll(async () => (await state(page)).paused).toBe(true);
-			expect(Math.abs((await state(page)).time - 8)).toBeLessThan(0.5);
+	mockedTest(
+		`selected scope obeys ${once ? 'Once' : 'Loop'} at clip and video end`,
+		{ tag: '@youtube-mock' },
+		async ({ page }) => {
+			test.setTimeout(90_000);
+			await open(page, `/${id}/5~8?mute${once ? '&once' : ''}`);
+			await expectMockBootstrap(page);
 			await play(page);
-			await expect.poll(async () => (await state(page)).time).toBeLessThan(7);
-		} else {
-			await expect.poll(async () => (await state(page)).time).toBeLessThan(6.5);
+			await seek(page, 7);
+			if (once) {
+				await expect.poll(async () => (await state(page)).paused).toBe(true);
+				expect(Math.abs((await state(page)).time - 8)).toBeLessThan(0.5);
+				await play(page);
+				await expect.poll(async () => (await state(page)).time).toBeLessThan(7);
+			} else {
+				await expect.poll(async () => (await state(page)).time).toBeLessThan(6.5);
+				await expect.poll(async () => (await state(page)).providerState).toBe(1);
+			}
+			await switchScope(page, 'video');
+			await seek(page, 7);
+			await expect.poll(async () => (await state(page)).time).toBeGreaterThan(9);
+			await expect.poll(async () => (await state(page)).providerState).toBe(1);
+			const duration = (await state(page)).duration;
+			await expect(timeline(page)).toHaveAttribute('aria-valuemax', String(duration));
+			await page.getByRole('button', { name: 'Pause video', exact: true }).press('Enter');
+			await expect.poll(async () => (await state(page)).paused).toBe(true);
+			await seek(page, duration - 4);
+			await play(page);
+			if (once) {
+				await expect.poll(async () => (await state(page)).paused).toBe(true);
+				await play(page);
+			}
+			await expect.poll(async () => (await state(page)).time).toBeLessThan(3);
 			await expect.poll(async () => (await state(page)).providerState).toBe(1);
 		}
-		await switchScope(page, 'video');
-		await seek(page, 7);
-		await expect.poll(async () => (await state(page)).time).toBeGreaterThan(9);
-		await expect.poll(async () => (await state(page)).providerState).toBe(1);
-		const duration = (await state(page)).duration;
-		await expect(timeline(page)).toHaveAttribute('aria-valuemax', String(duration));
-		await page.getByRole('button', { name: 'Pause video', exact: true }).press('Enter');
-		await expect.poll(async () => (await state(page)).paused).toBe(true);
-		await seek(page, duration - 4);
-		await play(page);
-		if (once) {
-			await expect.poll(async () => (await state(page)).paused).toBe(true);
-			await play(page);
-		}
-		await expect.poll(async () => (await state(page)).time).toBeLessThan(3);
-		await expect.poll(async () => (await state(page)).providerState).toBe(1);
-	});
+	);
 }
 
 test('long, open-ended and complete clips select the right default, including source navigation', async ({
