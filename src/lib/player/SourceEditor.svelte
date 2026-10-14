@@ -18,11 +18,11 @@
 		onapply: (source: EditorSource) => void;
 	} = $props();
 	// YouTube accepts absolute seconds; don't include a timestamp at the beginning.
-	let sourceUrl = $derived(
-		`https://youtu.be/${videoId}${
-			Number.isFinite(startSeconds) && startSeconds >= 1 ? `?t=${Math.floor(startSeconds)}` : ''
-		}`
-	);
+	let sourceUrl = $derived.by(() => {
+		const start = Number.isFinite(startSeconds) ? Math.floor(startSeconds) : 0;
+		const url = `https://youtu.be/${videoId}`;
+		return start > 0 ? `${url}?t=${start}` : url;
+	});
 	let picker: VideoPicker;
 	let ready = $state(false);
 	onMount(() => {
