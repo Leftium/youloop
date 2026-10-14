@@ -377,10 +377,20 @@
 	.workspace-layout button::after {
 		content: attr(data-tooltip);
 		position: absolute;
-		left: 0;
+		right: 0;
 		top: calc(100% + 4px);
 		width: max-content;
-		max-width: min(260px, calc(100vw - 32px));
+		/* Leave room for the upper-right mode button and both safe-area insets. */
+		max-width: min(
+			260px,
+			calc(
+				100cqw - max(8px, env(safe-area-inset-left)) -
+					max(8px, env(safe-area-inset-right)) - var(--youloop-control-size) -
+					var(--youloop-control-gap) - 16px
+			)
+		);
+		box-sizing: border-box;
+		overflow-wrap: anywhere;
 		padding: 6px 8px;
 		border-radius: var(--youloop-control-radius);
 		background: #222;

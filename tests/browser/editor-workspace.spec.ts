@@ -1151,6 +1151,54 @@ test('named bound actions respect precision, retain Once, and share direct speed
 	}
 });
 
+test('upper-right tooltips fit inside the preview at narrow and wide sizes', async ({
+	page
+}) => {
+	await page.setViewportSize({ width: 1280, height: 800 });
+	await openEditor(page);
+	const measure = () =>
+		page.evaluate(() => {
+			const preview = document.querySelector('#editor-preview')!.getBoundingClientRect();
+			const tooltips = ['.workspace-layout button', '.mode-toggle'].map((selector) => {
+				const action = document.querySelector<HTMLElement>(selector)!;
+				const style = getComputedStyle(action, '::after');
+				// The layout tooltip is positioned within its relative parent;
+				// the mode tooltip is positioned within the player.
+				const anchor = action.matches('.mode-toggle')
+					? action.getBoundingClientRect()
+					: action.closest('.workspace-layout')!.getBoundingClientRect();
+				const width =
+					parseFloat(style.width) +
+					(style.boxSizing === 'border-box'
+						? 0
+						: parseFloat(style.paddingLeft) + parseFloat(style.paddingRight));
+				const right = anchor.right - parseFloat(style.right);
+				return { selector, left: right - width, right, width };
+			});
+			return { preview: { left: preview.left, right: preview.right }, tooltips };
+		});
+	for (const viewport of [
+		{ width: 240, height: 568 },
+		{ width: 320, height: 568 },
+		{ width: 390, height: 844 },
+		{ width: 844, height: 390 },
+		{ width: 1280, height: 800 }
+	]) {
+		await page.setViewportSize(viewport);
+		const bounds = await measure();
+		for (const tooltip of bounds.tooltips) {
+			expect(tooltip.width, tooltip.selector).toBeGreaterThan(0);
+			expect(tooltip.left, tooltip.selector).toBeGreaterThanOrEqual(bounds.preview.left - 1);
+			expect(tooltip.right, tooltip.selector).toBeLessThanOrEqual(bounds.preview.right + 1);
+		}
+	}
+	await page.getByRole('separator', { name: 'Resize video preview' }).press('End');
+	const narrow = await measure();
+	for (const tooltip of narrow.tooltips)
+		expect(tooltip.left, tooltip.selector).toBeGreaterThanOrEqual(narrow.preview.left - 1);
+	await identity(page);
+});
+
 test('destination layout icon, tooltip and name follow keyboard switches and responsive constraints', async ({
 	page
 }) => {
