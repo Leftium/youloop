@@ -1,11 +1,14 @@
 import { test as base, expect, type Page } from '@playwright/test';
 
+export const browserOrigin =
+	process.env.YOULOOP_OFFLINE_PROOF === '1' ? 'http://localhost:5174' : 'http://localhost:5173';
+
 // Inspired by upstream MockPlayer's public API surface, implemented independently
 // against @videojs/youtube-video 10.1.0's installed adapter and iframe-api modules.
 function installYouTubeApi() {
 	if (window !== window.top) return;
 	type Listener = (event: { data: number }) => void;
-	const metrics = { starts: 0, mutedStarts: 0, pauses: 0, seeks: 0, destroyed: 0 };
+	const metrics = { created: 0, starts: 0, mutedStarts: 0, pauses: 0, seeks: 0, destroyed: 0 };
 	Object.assign(window, { youtubeMockMetrics: metrics });
 	class Player {
 		private listeners = new Map<string, Set<Listener>>();
@@ -22,6 +25,7 @@ function installYouTubeApi() {
 			private target: HTMLIFrameElement,
 			options: { events: { onReady: () => void } }
 		) {
+			metrics.created++;
 			this.videoId = new URL(target.src).pathname.split('/').pop()!;
 			// Fixed increments give the adapter's real 50ms poll a predictable clock.
 			this.timer = setInterval(() => {
@@ -130,7 +134,7 @@ function installYouTubeApi() {
 }
 
 export async function expectMockBootstrap(page: Page) {
-	if (process.env.YOULOOP_LIVE_PROOF === '1') return;
+	if (process.env.YOULOOP_OFFLINE_PROOF !== '1' && process.env.YOULOOP_LIVE_PROOF === '1') return;
 	const snapshot = await page.locator('youtube-video').evaluate((element) => {
 		const media = element as HTMLMediaElement;
 		const metrics = (window as unknown as { youtubeMockMetrics: Record<string, number> })
@@ -148,8 +152,10 @@ export async function expectMockBootstrap(page: Page) {
 export const test = base.extend<{ youtubeApi: void }>({
 	youtubeApi: [
 		async ({ context, page }, use, testInfo) => {
-			if (!testInfo.tags.includes('@youtube-mock')) return use();
-			const live = process.env.YOULOOP_LIVE_PROOF === '1';
+			const proof = testInfo.tags.includes('@youtube-mock');
+			if (process.env.YOULOOP_OFFLINE_PROOF !== '1' && !proof) return use();
+			const live =
+				process.env.YOULOOP_OFFLINE_PROOF !== '1' && process.env.YOULOOP_LIVE_PROOF === '1';
 			let intercepted = 0;
 			let externalResponses = 0;
 			let fulfilled = 0;
@@ -186,16 +192,18 @@ export const test = base.extend<{ youtubeApi: void }>({
 			}
 			await use();
 			if (!live) {
-				await page.locator('youtube-video').evaluate((element) => element.remove());
+				await page.locator('youtube-video').evaluateAll((elements) => {
+					elements.forEach((element) => element.remove());
+				});
 				await expect
 					.poll(() =>
-						page.evaluate(
-							() =>
-								(window as unknown as { youtubeMockMetrics: Record<string, number> })
-									.youtubeMockMetrics.destroyed
-						)
+						page.evaluate(() => {
+							const metrics = (window as unknown as { youtubeMockMetrics: Record<string, number> })
+								.youtubeMockMetrics;
+							return metrics.destroyed - metrics.created;
+						})
 					)
-					.toBe(1);
+					.toBe(0);
 			}
 			const metrics = live
 				? null
@@ -217,13 +225,15 @@ export const test = base.extend<{ youtubeApi: void }>({
 				contentType: 'application/json'
 			});
 			if (!live) {
-				expect(intercepted).toBeGreaterThan(0);
+				if (proof) expect(intercepted).toBeGreaterThan(0);
 				expect(externalRequests).toBe(intercepted);
 				expect(externalResponses).toBe(fulfilled);
 				// Fulfilled iframe responses are local; no external route may continue.
-				expect(metrics!.mutedStarts).toBeGreaterThan(0);
-				expect(metrics!.pauses).toBeGreaterThan(0);
-				expect(metrics!.seeks).toBeGreaterThan(0);
+				if (proof) {
+					expect(metrics!.mutedStarts).toBeGreaterThan(0);
+					expect(metrics!.pauses).toBeGreaterThan(0);
+					expect(metrics!.seeks).toBeGreaterThan(0);
+				}
 			}
 		},
 		{ auto: true }

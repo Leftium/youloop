@@ -1,4 +1,5 @@
-import { test, expect, type Page } from '@playwright/test';
+import { expect, type Page } from '@playwright/test';
+import { test, browserOrigin } from './youtube-api.fixture';
 
 const id = 'dt-SqNL4z3w';
 const state = (page: Page) =>
@@ -16,7 +17,7 @@ async function settled(page: Page) {
 	await expect.poll(async () => (await state(page)).paused).toBe(true);
 }
 
-test('signed fractions survive watch/editor/copy/reload/history and explicit bound edits', async ({
+test('signed fractions survive watch/editor/copy/reload/history and explicit bound edits @routine', async ({
 	page
 }) => {
 	const watch = `/${id}/-30.5~-5.25?once&mute&speed=1.5&vertical=0&fill=0`;
@@ -41,7 +42,7 @@ test('signed fractions survive watch/editor/copy/reload/history and explicit bou
 	});
 	await page.locator('.watch-time').click();
 	await expect(page.locator('.watch-timeline')).toHaveAttribute('data-mode', 'video');
-	await expect(page).toHaveURL('http://localhost:5173' + watch);
+	await expect(page).toHaveURL(browserOrigin + watch);
 	expect(
 		await page.evaluate(() => {
 			const saved = window as unknown as {
@@ -73,22 +74,22 @@ test('signed fractions survive watch/editor/copy/reload/history and explicit bou
 	await settled(page);
 	await expect(page.getByRole('link', { name: 'Share URL', exact: true })).toHaveAttribute(
 		'href',
-		new URL(watch, 'http://localhost:5173').href
+		new URL(watch, browserOrigin).href
 	);
 	await page.goBack();
 	await settled(page);
-	await expect(page).toHaveURL('http://localhost:5173' + watch);
+	await expect(page).toHaveURL(browserOrigin + watch);
 	await page.goForward();
 	await settled(page);
 	await page.getByRole('slider', { name: 'Repeat start', exact: true }).fill('20');
 	await expect(page.getByRole('link', { name: 'Share URL', exact: true })).toHaveAttribute(
 		'href',
-		new URL(`/${id}/20~-5.25?once&mute&speed=1.5&vertical=0&fill=0`, 'http://localhost:5173').href
+		new URL(`/${id}/20~-5.25?once&mute&speed=1.5&vertical=0&fill=0`, browserOrigin).href
 	);
 });
 
 for (const once of [false, true]) {
-	test(`signed range obeys ${once ? 'Once' : 'Loop'} at resolved B`, async ({ page }) => {
+	test(`signed range obeys ${once ? 'Once' : 'Loop'} at resolved B @routine`, async ({ page }) => {
 		await page.goto(`/${id}/-8~-5?mute${once ? '&once' : ''}`);
 		await settled(page);
 		const end = (await state(page)).duration - 5;
@@ -119,7 +120,7 @@ test('invalid resolved and collapsed clips pause without rewriting their identit
 		await expect(page.getByRole('alert')).toContainText('Invalid clip');
 		await expect.poll(async () => (await state(page)).paused).toBe(true);
 		await expect(page.getByRole('button', { name: 'Play video', exact: true })).toBeDisabled();
-		await expect(page).toHaveURL(`http://localhost:5173/${id}/${range}?mute`);
+		await expect(page).toHaveURL(`${browserOrigin}/${id}/${range}?mute`);
 	}
 	for (const path of [`/${id}?t=31-38`, `/${id}/~`, `/${id}/bad`, `/${id}/`, `/${id}/31~38/`]) {
 		await page.goto(path);
@@ -129,19 +130,21 @@ test('invalid resolved and collapsed clips pause without rewriting their identit
 });
 
 for (const flags of ['mute', 'once&mute&speed=1.5&vertical=0&fill=0']) {
-	test(`invalid watch clips retain Edit and can be repaired: ${flags}`, async ({ page }) => {
+	test(`invalid watch clips retain Edit and can be repaired: ${flags} @routine`, async ({
+		page
+	}) => {
 		const watch = `/${id}/60~-30?${flags}`;
 		const editor = `/?v=${id}&t=60~-30&${flags}`;
 		await page.goto(watch);
 		await expect(page.getByRole('alert')).toContainText('Invalid clip');
 		await expect.poll(async () => (await state(page)).paused).toBe(true);
 		await expect(page.getByRole('button', { name: 'Play video', exact: true })).toBeDisabled();
-		await expect(page).toHaveURL('http://localhost:5173' + watch);
+		await expect(page).toHaveURL(browserOrigin + watch);
 		const edit = page.getByRole('link', { name: 'Switch to edit-first mode', exact: true });
 		await expect(edit).toBeVisible();
 		await expect(edit).toHaveAttribute('href', editor);
 		await edit.click();
-		await expect(page).toHaveURL('http://localhost:5173' + editor);
+		await expect(page).toHaveURL(browserOrigin + editor);
 		await expect(page.getByRole('alert')).toContainText('Invalid clip');
 		await expect(
 			page.getByRole('link', { name: 'Share URL', exact: true, includeHidden: true })
@@ -151,11 +154,11 @@ for (const flags of ['mute', 'once&mute&speed=1.5&vertical=0&fill=0']) {
 		await expect(page.getByRole('alert')).toHaveCount(0);
 		await expect(page.getByRole('link', { name: 'Share URL', exact: true })).toHaveAttribute(
 			'href',
-			new URL(repaired, 'http://localhost:5173').href
+			new URL(repaired, browserOrigin).href
 		);
 		await page.getByRole('link', { name: 'Share URL', exact: true }).click();
 		await settled(page);
-		await expect(page).toHaveURL('http://localhost:5173' + repaired);
+		await expect(page).toHaveURL(browserOrigin + repaired);
 		await expect(page.getByRole('button', { name: 'Play video', exact: true })).toBeEnabled();
 		await expect(page.getByRole('alert')).toHaveCount(0);
 	});
@@ -209,13 +212,13 @@ for (const scope of ['clip', 'video'] as const) {
 		await page
 			.getByRole('link', { name: 'Change range' })
 			.evaluate((link) => (link as HTMLAnchorElement).click());
-		await expect(page).toHaveURL('http://localhost:5173' + next);
+		await expect(page).toHaveURL(browserOrigin + next);
 		await settled(page);
 		await expect(timeline).toHaveAttribute('data-mode', scope);
 		if (scope === 'clip') await expect(timeline).toHaveAttribute('aria-valuemax', '10');
 		await assertProvider();
 		await page.goBack();
-		await expect(page).toHaveURL('http://localhost:5173' + watch);
+		await expect(page).toHaveURL(browserOrigin + watch);
 		await settled(page);
 		expect(await page.evaluate(() => scrollY)).toBe(0);
 		await expect(page.locator('.share-prototype')).toHaveAttribute('data-mode', 'default');

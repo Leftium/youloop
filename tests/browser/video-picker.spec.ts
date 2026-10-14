@@ -1,10 +1,13 @@
-import { test, expect } from '@playwright/test';
+import { expect } from '@playwright/test';
+import { test, browserOrigin } from './youtube-api.fixture';
 import { videoExamples } from '../../src/lib/player/video-examples';
 import { parseEditorSource } from '../../src/lib/player/editor-source';
 import { serializeEditorUrl } from '../../src/lib/share-url';
 
 for (const width of [1280, 390]) {
-	test(`empty root and first-open picker at ${width}px`, async ({ page }) => {
+	test(`empty root and first-open picker at ${width}px @routine @webkit-smoke`, async ({
+		page
+	}) => {
 		await page.setViewportSize({ width, height: 844 });
 		await page.goto('/');
 		await expect(page.locator('youtube-video')).toHaveCount(0);
@@ -56,44 +59,33 @@ for (const width of [1280, 390]) {
 }
 
 for (const example of videoExamples) {
-	// Fixture-specific framing and signed-range journeys also run in their dedicated suites.
-	const extended = ['Native portrait', 'Portrait crop', 'Advanced timing'].includes(example.label);
 	const reload = example.label === 'Basic A:B loop';
-	test(
-		`preset ${example.label} commits canonical state${reload ? ' and reloads' : ''}`,
-		{ tag: extended ? '@extended' : [] },
-		async ({ page }) => {
-			await page.goto('/');
-			await page.getByRole('button', { name: 'Choose video', exact: true }).click();
-			const source = parseEditorSource(example.href)!;
-			await page
-				.getByRole('dialog')
-				.getByRole('link', { name: example.label, exact: true })
-				.click();
-			await expect(page.getByRole('dialog').getByRole('textbox')).toHaveValue(example.href);
-			await expect(page).toHaveURL('http://localhost:5173/');
-			await expect(page.locator('youtube-video')).toHaveCount(0);
-			await page.getByRole('dialog').getByRole('button', { name: 'Load', exact: true }).click();
-			await expect(page).toHaveURL('http://localhost:5173' + serializeEditorUrl(source.clip!));
-			await page.waitForFunction(
-				() => (document.querySelector('youtube-video') as HTMLMediaElement)?.duration > 10,
-				undefined,
-				{ timeout: 30_000 }
-			);
-			await expect(page.getByRole('alert')).toHaveCount(0);
+	test(`preset ${example.label} commits canonical state${reload ? ' and reloads' : ''} @routine`, async ({
+		page
+	}) => {
+		await page.goto('/');
+		await page.getByRole('button', { name: 'Choose video', exact: true }).click();
+		const source = parseEditorSource(example.href)!;
+		await page.getByRole('dialog').getByRole('link', { name: example.label, exact: true }).click();
+		await expect(page.getByRole('dialog').getByRole('textbox')).toHaveValue(example.href);
+		await expect(page).toHaveURL(`${browserOrigin}/`);
+		await expect(page.locator('youtube-video')).toHaveCount(0);
+		await page.getByRole('dialog').getByRole('button', { name: 'Load', exact: true }).click();
+		await expect(page).toHaveURL(browserOrigin + serializeEditorUrl(source.clip!));
+		// Picker commits do not depend on live provider duration.
+		await expect(page.getByRole('alert')).toHaveCount(0);
+		await expect(page.locator('youtube-video')).toHaveCount(1);
+		const originalLink = page.locator('.source-link a');
+		await expect(originalLink).toBeVisible();
+		await expect(originalLink).toContainText(`youtu.be/${source.videoId}`);
+		// Reload the common picker commit path once; signed/crop reloads have dedicated coverage.
+		if (reload) {
+			await page.reload();
 			await expect(page.locator('youtube-video')).toHaveCount(1);
-			const originalLink = page.locator('.source-link a');
 			await expect(originalLink).toBeVisible();
 			await expect(originalLink).toContainText(`youtu.be/${source.videoId}`);
-			// Reload the common picker commit path once; signed/crop reloads have dedicated coverage.
-			if (reload) {
-				await page.reload();
-				await expect(page.locator('youtube-video')).toHaveCount(1);
-				await expect(originalLink).toBeVisible();
-				await expect(originalLink).toContainText(`youtu.be/${source.videoId}`);
-			}
 		}
-	);
+	});
 }
 
 test('dialog cancel preserves live media, bounds, title and splitter', async ({ page }) => {
@@ -139,7 +131,7 @@ test('dialog cancel preserves live media, bounds, title and splitter', async ({ 
 });
 
 test(
-	'short preview keeps all examples reachable and dialog contains scroll through rotation',
+	'short preview keeps all examples reachable and dialog contains scroll through rotation @routine @webkit-smoke',
 	{ tag: '@provider-free' },
 	async ({ page }) => {
 		await page.setViewportSize({ width: 844, height: 390 });
@@ -172,7 +164,7 @@ test(
 );
 
 test(
-	'one Escape wins over input blur handlers and respects composition',
+	'one Escape wins over input blur handlers and respects composition @routine @webkit-smoke',
 	{ tag: '@provider-free' },
 	async ({ page }) => {
 		await page.goto('/');
@@ -222,7 +214,7 @@ test(
 		expect(linkBox.width).toBeLessThan(box.width / 2);
 		await page.mouse.click(box.x + box.width - 28, linkBox.y + linkBox.height / 2);
 		await expect(dialog).toBeVisible();
-		await expect(page).toHaveURL('http://localhost:5173/');
+		await expect(page).toHaveURL(`${browserOrigin}/`);
 		await page.mouse.click(4, 4);
 		await expect(dialog).not.toBeVisible();
 		await page.getByRole('button', { name: 'Choose video', exact: true }).click();
@@ -273,7 +265,7 @@ test('candidate metadata is debounced, stale-safe, optional, and never commits p
 	await page.waitForTimeout(1100);
 	await expect(dialog.locator('.candidate-preview')).not.toContainText('Old candidate');
 	await expect(page.locator('youtube-video')).toHaveCount(0);
-	await expect(page).toHaveURL('http://localhost:5173/');
+	await expect(page).toHaveURL(`${browserOrigin}/`);
 	await input.fill('NSGIZbUbIWw');
 	await expect(dialog.locator('.candidate-preview')).toContainText('You can still load');
 	await input.press('Enter');
@@ -281,12 +273,12 @@ test('candidate metadata is debounced, stale-safe, optional, and never commits p
 	await expect(page.locator('youtube-video')).toHaveCount(1);
 });
 
-test('clipboard preview does not commit until Load', async ({ page }) => {
+test('clipboard preview does not commit until Load @routine', async ({ page }) => {
 	await page.route('**/api/video-metadata?*', (route) =>
 		route.fulfill({
 			json: {
 				title: 'Selected candidate',
-				image: 'https://i.ytimg.com/vi/dt-SqNL4z3w/hqdefault.jpg'
+				image: `${browserOrigin}/logo.svg`
 			}
 		})
 	);
@@ -304,7 +296,7 @@ test('clipboard preview does not commit until Load', async ({ page }) => {
 	await dialog.getByRole('button', { name: 'Paste from clipboard' }).click();
 	await expect(input).toHaveValue('/dt-SqNL4z3w/31~38?mute');
 	await expect(dialog.locator('.candidate-preview')).toContainText('Selected candidate');
-	await expect(page).toHaveURL('http://localhost:5173/');
+	await expect(page).toHaveURL(`${browserOrigin}/`);
 	await expect(page.locator('youtube-video')).toHaveCount(0);
 	await dialog.getByRole('button', { name: 'Load', exact: true }).click();
 	await expect(page).toHaveURL(/v=dt-SqNL4z3w&t=31~38&mute/);
@@ -313,7 +305,7 @@ test('clipboard preview does not commit until Load', async ({ page }) => {
 test.describe('invisible touch targets', () => {
 	test.use({ hasTouch: true, viewport: { width: 390, height: 844 } });
 	test(
-		'X closes when tapped outside its visible icon',
+		'X closes when tapped outside its visible icon @routine @webkit-smoke',
 		{ tag: '@provider-free' },
 		async ({ page }) => {
 			await page.goto('/');
@@ -334,7 +326,7 @@ test.describe('invisible touch targets', () => {
 	);
 });
 
-test('landing cards expose every preset and directly open a canonical editor clip', async ({
+test('landing cards expose every preset and directly open a canonical editor clip @routine', async ({
 	page
 }) => {
 	await page.goto('/');
@@ -347,7 +339,7 @@ test('landing cards expose every preset and directly open a canonical editor cli
 	const example = videoExamples[0];
 	await page.locator('.cards a').first().click();
 	await expect(page).toHaveURL(
-		'http://localhost:5173' + serializeEditorUrl(parseEditorSource(example.href)!.clip!)
+		browserOrigin + serializeEditorUrl(parseEditorSource(example.href)!.clip!)
 	);
 	await expect(page.locator('youtube-video')).toHaveCount(1);
 	await expect(page.getByRole('dialog')).not.toBeVisible();

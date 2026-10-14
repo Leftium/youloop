@@ -17,18 +17,16 @@
 		"test:metadata": "node --test tests/video-metadata.test.js tests/youtube-thumbnail.test.js",
 		"test:social": "node --test tests/social-smoke.test.js",
 		"test:browser": "playwright test",
-		"test:browser:mock": "YOULOOP_OFFLINE_PROOF=1 playwright test --grep @youtube-mock",
-		"test:browser:routine": "playwright test --grep-invert @extended",
-		"test:browser:extended": "playwright test --grep @extended",
-		"test:browser:provider": "playwright test --grep-invert @provider-free",
-		"test:browser:ui": "playwright test --grep @provider-free",
+		"test:browser:mock": "playwright test --grep @youtube-mock",
+		"test:browser:routine": "pnpm test:browser",
 		"test:clip": "node --test tests/clip-bounds.test.js tests/watch-playback-scope.test.js tests/editor-controls.test.js tests/youtube-orientation.test.js tests/watch-controls-placement.test.js",
 		"knip": "svelte-kit sync && knip",
 		"fallow": "node scripts/fallow.mjs",
 		"fallow:full": "fallow --dupes-baseline fallow-baselines/dupes.json --health-baseline fallow-baselines/health.json --baseline-mode identity",
 		"code-qc": "node scripts/code-qc.mjs",
 		"fallow:raw": "fallow --summary",
-		"knip:raw": "svelte-kit sync && knip"
+		"knip:raw": "svelte-kit sync && knip",
+		"test:browser:advisory": "YOULOOP_BROWSER_ADVISORY=1 playwright test"
 	},
 	"devDependencies": {
 		"@eslint/compat": "^2.1.1",

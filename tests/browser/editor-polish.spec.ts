@@ -1,4 +1,5 @@
-import { test, expect, type Page } from '@playwright/test';
+import { expect, type Page } from '@playwright/test';
+import { test, browserOrigin } from './youtube-api.fixture';
 import { editorTime, parseEditorTime } from '../../src/lib/player/editor-time';
 import {
 	formatShareBounds,
@@ -108,13 +109,13 @@ test.describe('editor polish', () => {
 		await identity(page);
 	});
 
-	test('imported high precision and signed intent survive viewing, reload and generated edits', async ({
+	test('imported high precision and signed intent survive viewing, reload and generated edits @routine', async ({
 		page
 	}) => {
 		const range = '-30.512345~-5.251234';
 		await open(page, range);
 		const editor = page.url();
-		const watch = `http://localhost:5173/${id}/${range}?once&mute&speed=1.5&fill=0`;
+		const watch = `${browserOrigin}/${id}/${range}?once&mute&speed=1.5&fill=0`;
 		await expect(preview(page)).toHaveText(watch);
 		await page.reload();
 		await expect(
@@ -135,16 +136,14 @@ test.describe('editor polish', () => {
 		).toHaveAttribute('href', /^http/);
 		await page.getByRole('slider', { name: 'Repeat start', exact: true }).fill('31.204');
 		await expect(preview(page)).toHaveText(
-			`http://localhost:5173/${id}/31.2~-5.251234?once&mute&speed=1.5&fill=0`
+			`${browserOrigin}/${id}/31.2~-5.251234?once&mute&speed=1.5&fill=0`
 		);
 		// A newly imported link resets generated provenance for both endpoints.
 		await page.goto(`/?v=${id}&t=31.234567~59.251234&once&mute`);
 		await expect(
 			page.getByRole('link', { name: 'Share URL', exact: true, includeHidden: true })
 		).toHaveAttribute('href', /^http/);
-		await expect(preview(page)).toHaveText(
-			`http://localhost:5173/${id}/31.234567~59.251234?once&mute`
-		);
+		await expect(preview(page)).toHaveText(`${browserOrigin}/${id}/31.234567~59.251234?once&mute`);
 		await page.getByRole('slider', { name: 'Current time', exact: true }).fill('32');
 		await page.waitForFunction(
 			() => !(document.querySelector('youtube-video') as HTMLMediaElement).seeking
@@ -218,13 +217,13 @@ test.describe('editor polish', () => {
 			expect(
 				serializeShareUrl(formatShareBounds(committed, 65.123456789, policy, { start: true })!)
 			).toBe(expected);
-			await expect(preview(page)).toHaveText(`http://localhost:5173${expected}`);
+			await expect(preview(page)).toHaveText(`${browserOrigin}${expected}`);
 			await expect(page.getByRole('link', { name: 'Share URL', exact: true })).toHaveAttribute(
 				'href',
-				new URL(expected, 'http://localhost:5173').href
+				new URL(expected, browserOrigin).href
 			);
 			await expect(page).toHaveURL(
-				`http://localhost:5173/?v=${id}&t=${range}&once&mute&speed=1.5&fill=0`
+				`${browserOrigin}/?v=${id}&t=${range}&once&mute&speed=1.5&fill=0`
 			);
 			await expect(page.getByRole('slider', { name: 'Repeat start', exact: true })).toHaveValue(
 				'13.267487'
@@ -249,9 +248,7 @@ test.describe('editor polish', () => {
 		await expect(page).toHaveURL(/t=13\.27~59\.25/);
 		const editor = page.url();
 		await page.getByRole('link', { name: 'Share URL', exact: true }).click();
-		await expect(page).toHaveURL(
-			`http://localhost:5173/${id}/13.27~59.25?once&mute&speed=1.5&fill=0`
-		);
+		await expect(page).toHaveURL(`${browserOrigin}/${id}/13.27~59.25?once&mute&speed=1.5&fill=0`);
 		const watch = page.url();
 		await expect(page.locator('.watch-time')).not.toContainText('?:??');
 		await page.reload();
@@ -359,7 +356,7 @@ test.describe('editor polish', () => {
 		await identity(page);
 	});
 
-	test('read-only range, modal focus and narrow layout preserve exact bounds and active playback', async ({
+	test('read-only range, modal focus and narrow layout preserve exact bounds and active playback @routine', async ({
 		page
 	}) => {
 		await open(page, '1.2345~59.25');
@@ -754,9 +751,9 @@ test.describe('editor polish', () => {
 			const expected = serializeShareUrl(formatShareBounds(committed, duration, policy)!);
 			await expect(page.getByRole('link', { name: 'Share URL', exact: true })).toHaveAttribute(
 				'href',
-				new URL(expected, 'http://localhost:5173').href
+				new URL(expected, browserOrigin).href
 			);
-			await expect(preview(page)).toHaveText(`http://localhost:5173${expected}`);
+			await expect(preview(page)).toHaveText(`${browserOrigin}${expected}`);
 			await expect(page.getByRole('slider', { name: 'Repeat start', exact: true })).toHaveValue(
 				'12.5'
 			);
@@ -771,7 +768,7 @@ test.describe('editor polish', () => {
 		await closeRange(page);
 		await expect(page.getByRole('link', { name: 'Share URL', exact: true })).toHaveAttribute(
 			'href',
-			new URL(`/${id}/12.5?once&mute&speed=1.5&fill=0`, 'http://localhost:5173').href
+			new URL(`/${id}/12.5?once&mute&speed=1.5&fill=0`, browserOrigin).href
 		);
 		await openRange(page);
 		await expect(page.getByRole('button', { name: 'Edit end from end', exact: true })).toHaveText(
@@ -781,7 +778,7 @@ test.describe('editor polish', () => {
 		await closeRange(page);
 		await expect(page.getByRole('link', { name: 'Share URL', exact: true })).toHaveAttribute(
 			'href',
-			new URL(`/${id}/12.5~${duration}?once&mute&speed=1.5&fill=0`, 'http://localhost:5173').href
+			new URL(`/${id}/12.5~${duration}?once&mute&speed=1.5&fill=0`, browserOrigin).href
 		);
 		await page.reload();
 		await expect(
@@ -795,7 +792,7 @@ test.describe('editor polish', () => {
 		await closeRange(page);
 		await expect(page.getByRole('link', { name: 'Share URL', exact: true })).toHaveAttribute(
 			'href',
-			new URL(`/${id}/12.5~${duration}?once&mute&speed=1.5&fill=0`, 'http://localhost:5173').href
+			new URL(`/${id}/12.5~${duration}?once&mute&speed=1.5&fill=0`, browserOrigin).href
 		);
 	});
 
@@ -827,7 +824,7 @@ test.describe('editor polish', () => {
 		await expect(page.getByRole('button', { name: 'Change video', exact: true })).toBeFocused();
 		await expect(page.getByRole('link', { name: 'Share URL', exact: true })).toHaveAttribute(
 			'href',
-			new URL(`/${id}/10.25~-3.5?mute&speed=0.5`, 'http://localhost:5173').href
+			new URL(`/${id}/10.25~-3.5?mute&speed=0.5`, browserOrigin).href
 		);
 		await identity(page); // Compatible same-source links only update state.
 		await clipboard(page, `https://www.youtube.com/shorts/${secondId}`);
@@ -841,7 +838,7 @@ test.describe('editor polish', () => {
 		await expect(title).toContainText('Me at the zoo', { timeout: 30_000 });
 		await expect(page.getByRole('link', { name: 'Share URL', exact: true })).toHaveAttribute(
 			'href',
-			new URL(`/${secondId}?mute`, 'http://localhost:5173').href
+			new URL(`/${secondId}?mute`, browserOrigin).href
 		);
 		await expect(page.getByRole('textbox')).toHaveCount(0);
 		await page.getByRole('button', { name: 'Change video', exact: true }).click();

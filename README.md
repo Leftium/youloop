@@ -16,162 +16,57 @@ Use `pnpm check` for Svelte and TypeScript validation. `pnpm build` creates the
 Vercel server artifact in `.vercel/output/`. Query-based social previews require
 a server; the static build and its CI check have been retired.
 
-Run the complete browser suite with `pnpm test:browser` after
-`pnpm exec playwright install chromium webkit`. Chromium launches with `--mute-audio`,
-so playback is silent even while tests verify unmuted state and `mute=0`.
-The runner uses `channel: 'chromium'` for full Chromium's headless mode, avoiding
-the separate headless-shell binary that produced macOS renderer crash reports.
-Production playback defaults are unchanged. Console watch regressions mute the
-media before playing and leave it muted afterward; their unmute assertions pause
-the provider first unless browser output is already suppressed.
+### Required verification
 
-| Command                      | Selection                                                                                |
-| ---------------------------- | ---------------------------------------------------------------------------------------- |
-| `pnpm test:browser`          | All Chromium cases and the configured WebKit subset, including extended cases.           |
-| `pnpm test:browser:routine`  | Everything except `@extended`; includes live and mocked YouTube cases.                   |
-| `pnpm test:browser:extended` | Additional preset journeys tagged `@extended`.                                           |
-| `pnpm test:browser:provider` | Cases that can mount a YouTube provider, excluding `@provider-free`.                     |
-| `pnpm test:browser:ui`       | Picker and invalid/empty-route cases tagged `@provider-free`; no YouTube player startup. |
+Run `pnpm check`, `pnpm lint`, `pnpm test:clip`, `pnpm test:share-url`,
+`pnpm test:metadata`, `pnpm build` and `pnpm test:browser`. Hosting CI also
+builds with `YOULOOP_RUNTIME_PROOF=1` and runs `test:hosting` and `test:social`
+against the production-mode server with `HOSTING_URL` set to its origin.
 
-Routine and extended partition the full suite. Provider reliance is a separate
-classification: a provider case may verify mounting/navigation without waiting
-for playback, or require real duration, frames, seeking and playback. Provider-free
-cases can still request metadata and thumbnails; they are not an offline suite.
-These commands select coverage explicitly. Hosting CI also runs the offline
-YouTube API proof described below. Existing Chromium CDP touch cases remain skipped on WebKit.
+Install browsers once with `pnpm exec playwright install chromium webkit`.
+The default browser command runs a deliberately small, deterministic selection:
+Chromium cases tagged `@routine` or `@youtube-mock`, and eight WebKit executions
+selected by `@webkit-smoke` or `@youtube-mock`. WebKit samples responsive layout,
+resize during playback, scroll containment, dialog focus/Escape and touch targets.
+The routine server uses port 5174 and never reuses a running development server.
+Chromium uses full headless Chromium with `--mute-audio`.
 
-Only the Native portrait, Portrait crop and Advanced timing picker presets are
-extended. Their additional source journeys overlap the framing fixtures and
-signed-range coverage; all five presets still check picker preview, canonical
-commit, real duration, a single provider and the original source link in the full
-suite. Basic A:B loop also checks reload. Landscape crop stays routine, including
-its duration wait: the previously reported YouTube timeout must remain visible.
-Landing cards check every destination and exercise their common navigation once.
-Signed/crop reload and history remain covered by the framing, signed-range and
-editor-polish suites. Workspace/scroll, provider identity, focus, playback and
-legacy `/s` regressions remain in the routine suite.
+| Command                      | Selection                                                                                         |
+| ---------------------------- | ------------------------------------------------------------------------------------------------- |
+| `pnpm test:browser`          | Required routine suite, with external requests blocked in browser and server.                     |
+| `pnpm test:browser:routine`  | Alias for the required routine suite.                                                             |
+| `pnpm test:browser:mock`     | Four focused Video.js API/identity and watch Loop/Once proofs, also included in routine.          |
+| `pnpm test:browser:advisory` | On-demand broader Chromium/WebKit coverage with live YouTube and metadata. Not a deployment gate. |
 
-Pure watch-control placement contracts run under Node with `pnpm test:clip`;
-rendered geometry remains covered in Playwright. When adding coverage, keep
-deterministic logic in Node and reserve browser cases for DOM, interaction or
-provider behavior. Use extended coverage only for additional fixture journeys
-whose primary contracts already have routine coverage. See
-[PR #53](https://github.com/Leftium/youloop/pull/53) for pruning measurements and
-the retained coverage inventory.
+For a focused live probe, append Playwright arguments, for example
+`pnpm test:browser:advisory --project=webkit --grep 'mirror preserves crop fixture'`.
+To compare the four API proofs with the live provider, use
+`YOULOOP_LIVE_PROOF=1 pnpm test:browser:advisory --grep @youtube-mock`.
+The old extended/provider/UI commands have been replaced by this explicit advisory
+command; use `--grep @provider-free` when useful.
 
-### Consolidated browser journeys
+Routine coverage retains clip bounds and Loop/Once, signed URL/share semantics,
+reload/history, picker commits, modal focus, splitter input and playback/provider
+identity during responsive reflow. The five picker presets assert their actual
+selection and canonical URL contract without waiting for live duration.
+Detailed cosmetic checks, provider orientation/crop detection, live seeking,
+source replacement and native CDP swipe matrices are advisory. Their regressions
+can reach production without failing the routine gate. Physical Safari toolbar,
+momentum and fullscreen behavior still need manual checks.
 
-The workspace viewport matrices share one live provider per test and name each
-viewport with `test.step`. They retain every size and assertion while avoiding
-repeated app, browser-page and YouTube startup. Range edits and temporary scroll
-content are reset between steps. The canonical watch route keeps the full live
-scope-switch journey. The existing mocked Loop journey checks legacy `/s`
-clip bounds, the canonical editor link, unchanged URL/history, media/iframe/engine
-identity and reload before exercising clip and full-video boundaries.
+The API fixture installs `window.YT.Player` before startup; the ordinary player,
+`<youtube-video>` and Video.js adapter still own media events and polling. The
+mock has a fixed-step clock and cued/post-playback durations of 60/60.25 seconds.
+It proves application/adapter contracts, not decoded frames, actual iframe pixels,
+buffering, real YouTube durations or provider compatibility. Neither test mock
+is imported by production code. Pure logic belongs in the existing Node suites.
 
-| Previous case                                                                   | Surviving coverage                                                                                                                                                                                                                                                                                                                                                                                      |
-| ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `responsive preview, independent scrolling and Fit/Fill at 320x568`             | `responsive preview, independent scrolling and Fit/Fill across mobile viewports`, step `320x568`: geometry, disabled columns, both orientations, Fit/Fill, scroll ownership and identity.                                                                                                                                                                                                               |
-| Same responsive case at `390x844`                                               | Same surviving test, step `390x844`, with every original assertion.                                                                                                                                                                                                                                                                                                                                     |
-| Same responsive case at `844x390`                                               | Same surviving test, step `844x390`, with every original assertion.                                                                                                                                                                                                                                                                                                                                     |
-| `preview transport, branding and grouped layout fill viewport at 1920x1080`     | `preview transport, branding and grouped layout fill desktop and mobile viewports`, step `1920x1080`: brand navigation, transport placement, labels/targets, playback, keyboard range edits, expanded splitter hit area and identity.                                                                                                                                                                   |
-| Same preview transport case at `320x568`                                        | Same surviving test, step `320x568`, including disabled columns/tooltip, brand visibility and every original assertion.                                                                                                                                                                                                                                                                                 |
-| Same preview transport case at `390x844`                                        | Same surviving test, step `390x844`, with every original assertion.                                                                                                                                                                                                                                                                                                                                     |
-| Same preview transport case at `844x390`                                        | Same surviving test, step `844x390`, with every original assertion.                                                                                                                                                                                                                                                                                                                                     |
-| `scope switches preserve playback, URL and provider: /s?v=dt-SqNL4z3w&a=5&b=15` | `canonical scope switches preserve playback, URL and provider` retains live paused/playing seeks, out-of-clip recovery, mute/speed, editor-link stability, identity and reload. `selected scope obeys Loop with legacy routing at clip and video end` retains targeted `/s` compatibility under the existing API mock. Live `/s` source geometry and open-ended clips remain in `share-routes.spec.ts`. |
-
-Local measurements on 2026-10-14, with one worker:
-
-| Selection                                  | Before                       | After                       |
-| ------------------------------------------ | ---------------------------- | --------------------------- |
-| Full configured suite                      | 175: Chromium 101, WebKit 74 | 164: Chromium 95, WebKit 69 |
-| Mock / provider-free / live-or-mount cases | 4 / 10 / 161                 | 4 / 10 / 150                |
-| Traced affected coverage                   | 17 passed in 64.4s           | 6 passed in 37.3s           |
-| Affected live iframe requests              | 18                           | 6                           |
-| Affected mocked iframe requests            | 1                            | 2                           |
-
-The trace comparison selects `scope switches preserve|selected scope obeys Loop|responsive preview|preview transport`
-with `--grep`, `--trace on` and separate `--output` directories. Counts come from
-YouTube `/embed/` requests in trace network records. They are provider-start
-proxies, not decoded frames or API play-start counts. The added mock request is
-legacy reload. These are single local samples; they do not establish long-term
-runtime or reliability. The untouched PR base has the same tree as `main` at
-`961f558`; its full run passed 165, skipped nine and failed the WebKit Landscape
-crop duration wait in 577.8s. See [PR #57](https://github.com/Leftium/youloop/pull/57)
-for the complete after-run and CI/deployment results.
-
-Both workspace matrices still run in Chromium and WebKit. Framing's three widths
-remain separate because they also exercise portrait-source detection and actual
-iframe crop geometry. Editor polish retains its precision, dialog/focus,
-container-width transport and 660px threshold assertions. Native CDP touch,
-scroll ownership, first-frame readiness, live seeking/recovery, source navigation
-and WebKit layout/focus coverage remain. No passing case became skipped or
-extended. The WebKit project selection and all browser commands are unchanged.
-
-A failed viewport step stops later steps in that journey; use its named trace
-step to locate the failing size. Fresh startup is no longer repeated at every
-matrix size. Other layout, breakpoint and native mobile tests retain independent
-startup coverage. The legacy mock cannot prove decoded YouTube pixels or live
-buffering; those contracts remain in the canonical journey and live `/s` tests.
-Physical Safari chrome and momentum handoff still require the checks below.
-
-### Offline YouTube API proof
-
-`pnpm test:browser:mock` selects the existing cases tagged `@youtube-mock`:
-the workspace playback/identity journey in Chromium and WebKit, plus the watch
-Loop and Once boundary journeys in Chromium. The Loop journey also checks legacy
-`/s` routing and reload. The offline selection remains four executions; the
-complete suite has 164 configured executions and representative live YouTube
-coverage, including scope switching, crop, framing and source navigation.
-
-The fixture installs `window.YT.Player` before app startup. The ordinary
-`Player.svelte`, `<youtube-video>` element and installed Video.js 10.1.0 adapter
-still own media events, polling and application state. The fake implements the
-public API methods those cases need, with asynchronous readiness, a fixed-step
-playback clock, and cued/post-playback durations of 60/60.25 seconds. Assertions
-verify muted bootstrap playback, confirmed pause, settled duration, seeks and
-adapter cleanup. Existing interactions verify provider identity and Loop/Once
-behavior at clip and source boundaries. Unsupported API behavior remains outside
-this fixture's contract; it is not a general YouTube simulator.
-
-Browser routing fulfills the YouTube iframe with empty HTML and aborts other
-external requests. Request/response counts must match interception/fulfillment
-counts. The dedicated server on port 5174 loads `offline-server.mjs`, which rejects
-external server fetches before network access; social metadata uses its existing
-fallback. This also covers SSR oEmbed requests that browser routing cannot block.
-The default full suite mocks these selected browser cases but still uses the
-ordinary server; use the dedicated command for an entirely offline provider
-proof. Neither mock is imported by production code.
-
-For a live comparison of the same assertions, run:
-
-```bash
-YOULOOP_LIVE_PROOF=1 pnpm exec playwright test --grep @youtube-mock
-```
-
-To record blocked server URLs, set `YOULOOP_OFFLINE_METRICS` to a writable NDJSON
-path when running `pnpm test:browser:mock`. Each selected execution attaches
-`youtube-api-metrics` to the Playwright report. `embedRequests` includes locally
-fulfilled iframe requests; it does not count decoded frames or actual play starts.
-
-Local measurements on 2026-10-14, with one worker: before browser migration,
-the four live 10.1.0 executions passed in 33.8s; an instrumented live run passed
-in 31.3s and observed four iframe loads and 170 external browser responses.
-The initial mocked run passed in 26.0s. The stronger offline proof passed 8/8
-executions across two repetitions in 53.4s, with no retries. Each execution
-intercepted three external browser requests (one fulfilled iframe, two aborted
-requests), and cleanup destroyed one API player. The offline server blocked one
-oEmbed lookup across the repeated run. No external browser or server fetch was
-forwarded. Live API play-start counts were not measured; iframe loads are the
-provider-start proxy. These small local samples do not establish long-term
-reliability, and the first comparisons already used 10.1.0, so they isolate mock
-migration rather than dependency-upgrade performance.
-
-The mock proves event and UI contracts, not a decoded first frame, YouTube chrome,
-iframe crop pixels, real buffering or provider reliability. Retain live coverage
-for those. The consolidated viewport and watch-route coverage above reduces provider
-startups while retaining these boundaries. Moving unchanged cases to this mock
-alone does not reduce the count.
+Each routine case attaches `youtube-api-metrics`. External requests must be
+intercepted; locally fulfilled iframe requests are not live provider starts.
+Set `YOULOOP_OFFLINE_METRICS` to a writable NDJSON path to record blocked
+server-side URLs. The offline server exercises the application's metadata fallback.
+See [browser profiling and accepted gaps](tests/browser/PROFILE.md) for measured
+before/after costs, the full duration rankings and pruning decisions.
 
 With `pnpm dev` running, open the app and run
 the browser regressions in its developer console. Wait for the YouTube iframe
@@ -287,7 +182,7 @@ and Back/Forward. Every matrix cell retains action order, link state, 44px hit
 targets, bounds, focus outline, and Theater visibility checks, with named steps
 for failure location. This replaces six complete journeys while leaving all
 other playback, signed-range, framing, mobile scroll, and SSR regressions in
-place. Full browser coverage still runs with `pnpm test:browser`; Chromium does
+place. Broader advisory coverage runs with `pnpm test:browser:advisory`; Chromium does
 not verify the physical Safari checks documented below.
 
 ### Maintaining baselines

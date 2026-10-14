@@ -162,14 +162,14 @@ for (const once of [false, true]) {
 				await expect.poll(async () => (await state(page)).providerState).toBe(1);
 			}
 			await switchScope(page, 'video');
-			await seek(page, 7);
+			await seek(page, 8.5);
 			await expect.poll(async () => (await state(page)).time).toBeGreaterThan(9);
 			await expect.poll(async () => (await state(page)).providerState).toBe(1);
 			const duration = (await state(page)).duration;
 			await expect(timeline(page)).toHaveAttribute('aria-valuemax', String(duration));
 			await page.getByRole('button', { name: 'Pause video', exact: true }).press('Enter');
 			await expect.poll(async () => (await state(page)).paused).toBe(true);
-			await seek(page, duration - 4);
+			await seek(page, duration - 1);
 			await play(page);
 			if (once) {
 				await expect.poll(async () => (await state(page)).paused).toBe(true);

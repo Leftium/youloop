@@ -1,6 +1,9 @@
 import { defineConfig } from '@playwright/test';
 
-const offlineProof = process.env.YOULOOP_OFFLINE_PROOF === '1';
+// Routine gates exercise our UI and adapter without depending on YouTube availability.
+const advisory = process.env.YOULOOP_BROWSER_ADVISORY === '1';
+const offlineProof = !advisory;
+process.env.YOULOOP_OFFLINE_PROOF = offlineProof ? '1' : '0';
 const port = offlineProof ? 5174 : 5173;
 
 export default defineConfig({
@@ -9,6 +12,7 @@ export default defineConfig({
 	projects: [
 		{
 			name: 'chromium',
+			grep: advisory ? undefined : /@routine|@youtube-mock/,
 			use: {
 				browserName: 'chromium',
 				channel: 'chromium',
@@ -17,6 +21,7 @@ export default defineConfig({
 		},
 		{
 			name: 'webkit',
+			grep: advisory ? undefined : /@webkit-smoke|@youtube-mock/,
 			testMatch: [
 				'**/editor-workspace.spec.ts',
 				'**/editor-polish.spec.ts',

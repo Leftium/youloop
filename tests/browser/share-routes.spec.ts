@@ -1,4 +1,5 @@
-import { test, expect, type Page } from '@playwright/test';
+import { expect, type Page } from '@playwright/test';
+import { test, browserOrigin } from './youtube-api.fixture';
 
 const id = 'dt-SqNL4z3w';
 const mediaState = (page: Page) =>
@@ -53,13 +54,13 @@ async function runModule(page: Page, file: string, method = 'run', options: obje
 }
 
 test(
-	'bare root stays generic; malformed and reserved routes are safe',
+	'bare root stays generic; malformed and reserved routes are safe @routine',
 	{ tag: '@provider-free' },
 	async ({ page }) => {
 		await page.goto('/');
 		await expect(page.getByRole('button', { name: 'Choose video', exact: true })).toBeVisible();
 		await expect(page.locator('youtube-video')).toHaveCount(0);
-		await expect(page).toHaveURL('http://localhost:5173/');
+		await expect(page).toHaveURL(`${browserOrigin}/`);
 		for (const path of [`/?v=${id}&t=bad`, `/${id}?mute=0&mute`, `/?v=bad`]) {
 			await page.goto(path);
 			await expect(page.getByRole('alert')).toContainText('Invalid link');
@@ -71,7 +72,9 @@ test(
 	}
 );
 
-test('editor aliases, live state, canonical sharing, reload and Back/Forward', async ({ page }) => {
+test('editor aliases, live state, canonical sharing, reload and Back/Forward @routine', async ({
+	page
+}) => {
 	await page.goto(
 		`/?v=${id}&a=24.5&b=32.75&orientation=portrait&fit=contain&mute=0&speed=1.5&once`
 	);
@@ -105,7 +108,7 @@ test('editor aliases, live state, canonical sharing, reload and Back/Forward', a
 	const expected = `/${id}/25.5~33.2?once&mute&speed=1.5&vertical&fill`;
 	await expect(page.getByRole('link', { name: 'Share URL', exact: true })).toHaveAttribute(
 		'href',
-		new URL(expected, 'http://localhost:5173').href
+		new URL(expected, browserOrigin).href
 	);
 	expect(
 		await page.evaluate(
@@ -118,7 +121,7 @@ test('editor aliases, live state, canonical sharing, reload and Back/Forward', a
 	await settled(page);
 	await expect(page.getByRole('link', { name: 'Share URL', exact: true })).toHaveAttribute(
 		'href',
-		new URL(expected, 'http://localhost:5173').href
+		new URL(expected, browserOrigin).href
 	);
 	await page.getByRole('link', { name: 'Share URL', exact: true }).click();
 	await settled(page);
@@ -136,7 +139,7 @@ test('editor aliases, live state, canonical sharing, reload and Back/Forward', a
 	await settled(page);
 	await expect(page.getByRole('link', { name: 'Share URL', exact: true })).toHaveAttribute(
 		'href',
-		new URL(expected, 'http://localhost:5173').href
+		new URL(expected, browserOrigin).href
 	);
 });
 
@@ -234,7 +237,7 @@ test('source changes and out-of-duration validation retain editor parity', async
 	await settled(page);
 	await expect(page.getByRole('link', { name: 'Share URL', exact: true })).toHaveAttribute(
 		'href',
-		new URL('/jNQXAC9IVRw?mute', 'http://localhost:5173').href
+		new URL('/jNQXAC9IVRw?mute', browserOrigin).href
 	);
 	await page.reload();
 	await settled(page);
@@ -301,7 +304,7 @@ test(
 		for (const query of ['?utm_source=test', '?foo=1&foo=2']) {
 			await page.goto('/' + query);
 			await expect(page.locator('youtube-video')).toHaveCount(0);
-			await expect(page).toHaveURL('http://localhost:5173/' + query);
+			await expect(page).toHaveURL(`${browserOrigin}/` + query);
 			await expect(page.getByRole('alert')).toHaveCount(0);
 			await expect(page.getByRole('button', { name: 'Choose video', exact: true })).toBeVisible();
 			await expect(page.locator('meta[property="og:type"]')).toHaveAttribute('content', 'website');
@@ -442,7 +445,7 @@ test('Edit link preserves playback, provider identity, new tab and Back/Forward'
 	await edit.click({ modifiers: ['ControlOrMeta'] });
 	const tab = await opened;
 	await tab.waitForLoadState();
-	await expect(tab).toHaveURL('http://localhost:5173' + editorPath);
+	await expect(tab).toHaveURL(browserOrigin + editorPath);
 	await tab.close();
 	await edit.press('Enter');
 	await settled(page);
