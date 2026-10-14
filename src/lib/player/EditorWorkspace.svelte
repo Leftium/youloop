@@ -152,7 +152,7 @@
 	function moveDrag(event: PointerEvent) {
 		if (drag?.id !== event.pointerId) return;
 		const position = layout === 'columns' ? event.clientX : event.clientY;
-		resize(drag.size + position - drag.origin);
+		resize(drag.size + (layout === 'columns' ? drag.origin - position : position - drag.origin));
 		event.preventDefault();
 	}
 
@@ -172,7 +172,9 @@
 		else if (event.key === 'End') resize(maximum);
 		else if (keys.includes(event.key)) {
 			resize(
-				size + (event.key === keys[0] ? -1 : 1) * (layout === 'columns' ? 16 : available * 0.02)
+				size +
+					(event.key === keys[0] ? (layout === 'columns' ? 1 : -1) : layout === 'columns' ? -1 : 1) *
+					(layout === 'columns' ? 16 : available * 0.02)
 			);
 		} else return;
 		event.preventDefault();
@@ -277,7 +279,7 @@
 	<span
 		class="settings-edge"
 		aria-hidden="true"
-		style:left={layout === 'columns' ? `${size + dividerSize}px` : '0px'}
+		style:left={'0px'}
 	></span>
 	<div
 		class="video-scroll-runway"
@@ -425,8 +427,20 @@
 		height: 100%;
 		min-width: 0;
 		min-height: 0;
-		grid-template-columns: minmax(0, var(--preview-size)) var(--divider-size) minmax(0, 1fr);
+		grid-template-columns: minmax(0, 1fr) var(--divider-size) minmax(0, var(--preview-size));
 		grid-template-rows: minmax(0, 1fr);
+	}
+	.workspace-grid[data-layout='columns'] .settings-pane {
+		grid-column: 1;
+		grid-row: 1;
+	}
+	.workspace-grid[data-layout='columns'] .splitter {
+		grid-column: 2;
+		grid-row: 1;
+	}
+	.workspace-grid[data-layout='columns'] .preview-pane {
+		grid-column: 3;
+		grid-row: 1;
 	}
 	.workspace-grid[data-layout='rows'] {
 		grid-template-columns: minmax(0, 1fr);

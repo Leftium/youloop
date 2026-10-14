@@ -114,6 +114,42 @@ async function dragBy(page: Page, delta: number) {
 	await expect(page.locator('.workspace-grid')).not.toHaveClass(/dragging/);
 }
 
+test('side-by-side puts settings left of video; stacking retains video on top', async ({ page }) => {
+	await page.setViewportSize({ width: 1280, height: 800 });
+	await openEditor(page);
+	const order = () =>
+		page.evaluate(() => {
+			const rect = (selector: string) => document.querySelector(selector)!.getBoundingClientRect();
+			const preview = rect('#editor-preview');
+			const settings = rect('#editor-settings');
+			const splitter = rect('.splitter');
+			const mode = rect('.mode-toggle');
+			return { preview, settings, splitter, mode };
+		});
+	let boxes = await order();
+	expect(boxes.settings.right).toBeLessThanOrEqual(boxes.splitter.left + 1);
+	expect(boxes.splitter.right).toBeLessThanOrEqual(boxes.preview.left + 1);
+	expect(boxes.mode.left).toBeGreaterThanOrEqual(boxes.preview.left);
+	const firstPreview = boxes.preview.width;
+	await dragBy(page, -40);
+	boxes = await order();
+	expect(boxes.preview.width).toBeGreaterThan(firstPreview);
+	await identity(page);
+	await chooseLayout(page, 'rows');
+	boxes = await order();
+	expect(boxes.preview.bottom).toBeLessThanOrEqual(boxes.splitter.top + 1);
+	expect(boxes.splitter.bottom).toBeLessThanOrEqual(boxes.settings.top + 1);
+	await identity(page);
+	await page.setViewportSize({ width: 390, height: 844 });
+	boxes = await order();
+	expect(boxes.preview.bottom).toBeLessThanOrEqual(boxes.splitter.top + 1);
+	await page.setViewportSize({ width: 1280, height: 800 });
+	await chooseLayout(page, 'columns');
+	boxes = await order();
+	expect(boxes.settings.right).toBeLessThanOrEqual(boxes.preview.left);
+	await identity(page);
+});
+
 test('pointer and keyboard splitter bounds, capture cleanup, axes and reset', async ({ page }) => {
 	await page.setViewportSize({ width: 1440, height: 900 });
 	await openEditor(page);
@@ -121,10 +157,10 @@ test('pointer and keyboard splitter bounds, capture cleanup, axes and reset', as
 	await expect(handle).toHaveAttribute('aria-controls', 'editor-preview editor-settings');
 	await expect(handle).toHaveAttribute('aria-orientation', 'vertical');
 	const initial = await value(page);
-	await dragBy(page, 80);
+	await dragBy(page, -80);
 	expect(Math.abs((await value(page)) - initial - 80)).toBeLessThanOrEqual(1);
 	await handle.press('ArrowLeft');
-	expect(Math.abs((await value(page)) - initial - 64)).toBeLessThanOrEqual(1);
+	expect(Math.abs((await value(page)) - initial - 96)).toBeLessThanOrEqual(1);
 	for (const key of ['Home', 'End']) {
 		await handle.press(key);
 		expect(await value(page)).toBe(
@@ -132,7 +168,7 @@ test('pointer and keyboard splitter bounds, capture cleanup, axes and reset', as
 		);
 		await geometry(page);
 	}
-	await dragBy(page, -2000);
+	await dragBy(page, 2000);
 	expect(await value(page)).toBe(Number(await handle.getAttribute('aria-valuemin')));
 	await handle.focus();
 	expect(await handle.evaluate((el) => getComputedStyle(el).outlineStyle)).toBe('solid');
@@ -573,7 +609,7 @@ test.describe('mobile pane scrolling', () => {
 					}
 					await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
 					await expect(page.locator('.workspace-grid')).not.toHaveClass(/dragging/);
-					expect(Math.abs((await value(page)) - before - delta)).toBeLessThanOrEqual(1);
+					expect(Math.abs((await value(page)) - before - (columns ? -delta : delta))).toBeLessThanOrEqual(1);
 					expect(await rootOffset(page)).toBe(offset);
 					await geometry(page);
 					await identity(page);
@@ -840,7 +876,7 @@ test.describe('automatic mobile document scrolling', () => {
 						columns ? delta : 0,
 						columns ? 0 : delta
 					);
-					expect(Math.abs((await value(page)) - before - delta)).toBeLessThanOrEqual(1);
+					expect(Math.abs((await value(page)) - before - (columns ? -delta : delta))).toBeLessThanOrEqual(1);
 					expect(await offset()).toBe(root);
 					await expect(page.locator('.workspace-grid')).not.toHaveClass(/dragging/);
 					await pinned();
