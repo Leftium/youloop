@@ -27,7 +27,9 @@ Their bases shift inward at source edges and away from each other when endpoints
 approach, while crossing retains endpoint swapping. Timeline edits retain at least 1/30 second between endpoints. At source edges,
 the outer handle may become very narrow; the wider handle can reopen the range.
 Both endpoints remain keyboard editable. The timeline and full handle grab areas take priority over splitter hit padding,
-so clicks and drags on the track never resize the panes.
+so clicks and drags on the track never resize the panes. Splitter hit padding
+extends only toward settings; the video side remains available for playback
+taps and scrubbing.
 
 Colors match watch mode: red marks
 played time outside A:B, deep orange marks played time inside A:B, pale yellow marks the

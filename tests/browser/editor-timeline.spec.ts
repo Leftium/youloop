@@ -273,6 +273,38 @@ test.describe('editor timeline', { tag: '@timeline-proof' }, () => {
 					.click();
 			await expect(display).toHaveAttribute('aria-valuemax', '60.25');
 			const original = Number(await display.getAttribute('aria-valuenow'));
+			if (!watch) {
+				// The video edge belongs to taps and scrubbing, even beside the
+				// splitter. Resizing remains available from the settings side.
+				const video = (await surface.boundingBox())!;
+				const separator = page.getByRole('separator', { name: 'Resize video preview' });
+				const size = await separator.getAttribute('aria-valuenow');
+				const edgeX = video.x + 2,
+					edgeY = video.y + video.height / 2;
+				await page.mouse.click(edgeX, edgeY);
+				await expect(page.getByRole('button', { name: 'Pause', exact: true })).toBeVisible();
+				await expect(separator).toHaveAttribute('aria-valuenow', size!);
+				await page.mouse.click(edgeX, edgeY);
+				await expect(page.getByRole('button', { name: 'Play', exact: true })).toBeVisible();
+				await page.mouse.move(edgeX, edgeY);
+				await page.mouse.down();
+				await page.mouse.move(edgeX + 10, edgeY);
+				await page.mouse.up();
+				await expect
+					.poll(() => display.getAttribute('aria-valuenow').then(Number))
+					.toBeCloseTo((12 / video.width) * 60.25, 1);
+				await expect(separator).toHaveAttribute('aria-valuenow', size!);
+				await setSliderValue(page, 'Current time', original);
+				const divider = (await separator.boundingBox())!;
+				await page.mouse.move(divider.x - 6, edgeY);
+				await page.mouse.down();
+				await page.mouse.move(divider.x - 16, edgeY);
+				await expect(separator).not.toHaveAttribute('aria-valuenow', size!);
+				await page.mouse.move(divider.x - 6, edgeY);
+				await page.mouse.up();
+				await expect(separator).toHaveAttribute('aria-valuenow', size!);
+			}
+
 			const url = page.url();
 			const media = await page.locator('youtube-video').elementHandle();
 			const frame = await page

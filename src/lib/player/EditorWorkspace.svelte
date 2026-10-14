@@ -592,15 +592,15 @@
 		inset: 0;
 		background: var(--nc-border, #ababab);
 	}
-	/* Keep the wide resize hit area; the timeline and handle targets take priority. */
+	/* Extend resize padding only into settings; the preview owns its pointers. */
 	.splitter::after {
-		inset: 0 -12px;
+		inset: 0 0 0 -12px;
 	}
 	[data-layout='rows'] .splitter {
 		cursor: row-resize;
 	}
 	[data-layout='rows'] .splitter::after {
-		inset: -12px 0;
+		inset: 0 0 -12px;
 	}
 	.splitter:focus-visible {
 		outline: 2px solid #01aaff;
