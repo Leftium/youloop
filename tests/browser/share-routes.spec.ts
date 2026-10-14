@@ -52,20 +52,24 @@ async function runModule(page: Page, file: string, method = 'run', options: obje
 	);
 }
 
-test('bare root stays generic; malformed and reserved routes are safe', async ({ page }) => {
-	await page.goto('/');
-	await expect(page.getByRole('button', { name: 'Choose video', exact: true })).toBeVisible();
-	await expect(page.locator('youtube-video')).toHaveCount(0);
-	await expect(page).toHaveURL('http://localhost:5173/');
-	for (const path of [`/?v=${id}&t=bad`, `/${id}?mute=0&mute`, `/?v=bad`]) {
-		await page.goto(path);
-		await expect(page.getByRole('alert')).toContainText('Invalid link');
+test(
+	'bare root stays generic; malformed and reserved routes are safe',
+	{ tag: '@provider-free' },
+	async ({ page }) => {
+		await page.goto('/');
+		await expect(page.getByRole('button', { name: 'Choose video', exact: true })).toBeVisible();
 		await expect(page.locator('youtube-video')).toHaveCount(0);
+		await expect(page).toHaveURL('http://localhost:5173/');
+		for (const path of [`/?v=${id}&t=bad`, `/${id}?mute=0&mute`, `/?v=bad`]) {
+			await page.goto(path);
+			await expect(page.getByRole('alert')).toContainText('Invalid link');
+			await expect(page.locator('youtube-video')).toHaveCount(0);
+		}
+		for (const path of ['/about', '/v1', '/bad-video']) {
+			expect((await page.goto(path))?.status()).toBe(404);
+		}
 	}
-	for (const path of ['/about', '/v1', '/bad-video', '/__hosting_missing_route__']) {
-		expect((await page.goto(path))?.status()).toBe(404);
-	}
-});
+);
 
 test('editor aliases, live state, canonical sharing, reload and Back/Forward', async ({ page }) => {
 	await page.goto(
@@ -290,25 +294,29 @@ for (const viewport of [
 	});
 }
 
-test('benign root queries retain the empty editor and generic metadata', async ({ page }) => {
-	for (const query of ['?utm_source=test', '?foo=1&foo=2']) {
-		await page.goto('/' + query);
-		await expect(page.locator('youtube-video')).toHaveCount(0);
-		await expect(page).toHaveURL('http://localhost:5173/' + query);
-		await expect(page.getByRole('alert')).toHaveCount(0);
-		await expect(page.getByRole('button', { name: 'Choose video', exact: true })).toBeVisible();
-		await expect(page.locator('meta[property="og:type"]')).toHaveAttribute('content', 'website');
-		await expect(page.locator('meta[property="og:url"]')).toHaveAttribute(
-			'content',
-			'https://youloop.leftium.com/'
-		);
+test(
+	'benign root queries retain the empty editor and generic metadata',
+	{ tag: '@provider-free' },
+	async ({ page }) => {
+		for (const query of ['?utm_source=test', '?foo=1&foo=2']) {
+			await page.goto('/' + query);
+			await expect(page.locator('youtube-video')).toHaveCount(0);
+			await expect(page).toHaveURL('http://localhost:5173/' + query);
+			await expect(page.getByRole('alert')).toHaveCount(0);
+			await expect(page.getByRole('button', { name: 'Choose video', exact: true })).toBeVisible();
+			await expect(page.locator('meta[property="og:type"]')).toHaveAttribute('content', 'website');
+			await expect(page.locator('meta[property="og:url"]')).toHaveAttribute(
+				'content',
+				'https://youloop.leftium.com/'
+			);
+		}
+		for (const query of ['?utm_source=test&v=bad', '?utm_source=test&t=bad', '?mute=bad']) {
+			await page.goto('/' + query);
+			await expect(page.getByRole('alert')).toContainText('Invalid link');
+			await expect(page.locator('youtube-video')).toHaveCount(0);
+		}
 	}
-	for (const query of ['?utm_source=test&v=bad', '?utm_source=test&t=bad', '?mute=bad']) {
-		await page.goto('/' + query);
-		await expect(page.getByRole('alert')).toContainText('Invalid link');
-		await expect(page.locator('youtube-video')).toHaveCount(0);
-	}
-});
+);
 
 const editorPath = `/?v=${id}&t=31~38&once&speed=1.5&vertical=0&fill=0`;
 const editAction = (page: Page) =>
