@@ -167,6 +167,7 @@
 	}
 	.editor-axis {
 		position: relative;
+		z-index: 3;
 		height: 20px;
 	}
 	.navigation {
@@ -189,10 +190,10 @@
 		background: #f33;
 	}
 	.selection {
-		background: #fc3;
+		background: #ffe66d;
 	}
 	.overlap {
-		background: #f90;
+		background: #f07800;
 	}
 	.endpoints {
 		position: absolute;

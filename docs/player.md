@@ -21,15 +21,16 @@ verification procedures.
 
 The editor's source-wide timeline combines navigation and A/B handles on one
 20px track, flush with the video above and retaining the gap before the buttons
-below. The track spans the full preview width; triangle tips mark exact times
+below. That space is reserved before the video duration loads. The track spans the full preview width; triangle tips mark exact times
 and all three vertices stay within the track. Both A and B point up.
 Their bases shift inward at source edges and away from each other when endpoints
 approach, while crossing retains endpoint swapping. Timeline edits retain at least 1/30 second between endpoints. At source edges,
 the outer handle may become very narrow; the wider handle can reopen the range.
-Both endpoints remain keyboard editable. Overlapping handles take priority over splitter hit padding.
+Both endpoints remain keyboard editable. The timeline and full handle grab areas take priority over splitter hit padding,
+so clicks and drags on the track never resize the panes.
 
 Colors match watch mode: red marks
-played time outside A:B, orange marks played time inside A:B, yellow marks the
+played time outside A:B, deep orange marks played time inside A:B, pale yellow marks the
 unplayed selection, and gray marks remaining source time. Click empty track
 space or drag along the track to seek without changing the selected clip or its share URL. Edit mode starts in VIDEO scope so Play can run outside A:B. The "Clip Only" toggle
 beside Sound and Loop uses an A:B icon and switches to A:B for loop preview, entering A when the playhead is

@@ -135,7 +135,7 @@ export async function run(
 		);
 		check(
 			getComputedStyle(document.querySelector('.timeline-fill')!).backgroundColor ===
-				'rgb(255, 153, 0)',
+				'rgb(240, 120, 0)',
 			'A:B played selection is orange'
 		);
 		for (const type of ['pointerdown', 'pointerup'])
@@ -166,9 +166,9 @@ export async function run(
 		);
 		check(!document.querySelector('.timeline-tail'), 'VIDEO has no decorative tails');
 		check(
-			getComputedStyle(selection).backgroundColor === 'rgb(255, 204, 51)' &&
+			getComputedStyle(selection).backgroundColor === 'rgb(255, 230, 109)' &&
 				getComputedStyle(selection.querySelector('.timeline-overlap')!).backgroundColor ===
-					'rgb(255, 153, 0)',
+					'rgb(240, 120, 0)',
 			'Full-video selection is yellow with orange elapsed overlap'
 		);
 		check(

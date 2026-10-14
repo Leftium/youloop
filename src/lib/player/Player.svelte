@@ -1606,8 +1606,8 @@
 	}
 	.watch-overlay {
 		--timeline-progress: #f33;
-		--timeline-selection: #fc3;
-		--timeline-overlap: #f90;
+		--timeline-selection: #ffe66d;
+		--timeline-overlap: #f07800;
 		--timeline-remaining: #aaa;
 		position: absolute;
 		pointer-events: none;
@@ -1706,7 +1706,7 @@
 		gap: 0.3em;
 	}
 	.watch-time .time-label {
-		color: #fc3;
+		color: #ffe66d;
 	}
 	.watch-controls .watch-time:disabled {
 		opacity: 1;
@@ -1855,7 +1855,11 @@
 		z-index: 5;
 	}
 	.editor-playhead-line.inside-clip {
-		background: #f90;
+		background: #f07800;
+	}
+	.timeline-box {
+		/* Reserve the 20px track and its 16px bottom gap before duration settles. */
+		min-height: 36px;
 	}
 	.editor-transport {
 		padding: 0 0 max(1rem, env(safe-area-inset-bottom));

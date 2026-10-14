@@ -156,6 +156,37 @@ test.describe('editor timeline', { tag: '@timeline-proof' }, () => {
 			);
 		}
 
+		// Empty timeline beneath splitter padding seeks instead of resizing.
+		// A/B stay away from the source edge so this exercises navigation.
+		await setSliderValue(page, 'Repeat start', 10);
+		await setSliderValue(page, 'Repeat end', 20);
+		for (const [width, height] of [
+			[1280, 844],
+			[390, 844]
+		]) {
+			await page.setViewportSize({ width, height });
+			await expect(page.locator('.workspace-grid')).toHaveAttribute(
+				'data-layout',
+				width < 660 ? 'rows' : 'columns'
+			);
+			await page.evaluate(
+				() =>
+					new Promise<void>((resolve) =>
+						requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+					)
+			);
+			const box = (await page.locator('.editor-axis').boundingBox())!;
+			const split = await separator.getAttribute('aria-valuenow');
+			for (const x of [box.x + 2, box.x + box.width - 2]) {
+				await page.mouse.click(x, box.y + box.height / 2);
+				await expect
+					.poll(() => slider(page, 'Current time').getAttribute('aria-valuenow').then(Number))
+					.toBeCloseTo(((x - box.x) / box.width) * 60.25, 1);
+				await expect(separator).toHaveAttribute('aria-valuenow', split!);
+			}
+		}
+		await setSliderValue(page, 'Current time', 15);
+
 		await expect(slider(page, 'Current time')).toHaveAttribute('aria-valuenow', '15');
 		await slider(page, 'Repeat end').evaluate((el) => (el as HTMLElement).blur());
 		await screenshotControls(page, testInfo.outputPath('close-handles.png'));
@@ -212,6 +243,16 @@ test.describe('editor timeline', { tag: '@timeline-proof' }, () => {
 		test(`video scrub ${watch ? 'watch' : 'editor'} previews, cancels, commits and preserves controls`, async ({
 			page
 		}, testInfo) => {
+			if (!watch)
+				await page.addInitScript(() => {
+					const observer = new MutationObserver(() => {
+						const box = document.querySelector('.timeline-box');
+						if (!box || box.querySelector('.editor-axis')) return;
+						Object.assign(window, { loadingTimelineHeight: box.getBoundingClientRect().height });
+						observer.disconnect();
+					});
+					observer.observe(document, { childList: true, subtree: true });
+				});
 			await page.goto(
 				watch
 					? '/dt-SqNL4z3w/10~20.125?mute&fill=0'
@@ -220,6 +261,12 @@ test.describe('editor timeline', { tag: '@timeline-proof' }, () => {
 			const surface = page.locator('.video-surface');
 			const display = watch ? page.getByRole('progressbar') : slider(page, 'Current time');
 			await expect(display).toHaveAttribute('aria-valuemax', watch ? '10.125' : '60.25');
+			if (!watch)
+				expect(
+					await page.evaluate(
+						() => (window as unknown as { loadingTimelineHeight: number }).loadingTimelineHeight
+					)
+				).toBe(36);
 			if (watch)
 				await page
 					.getByRole('button', { name: 'A:B progress, switch to full-video playback', exact: true })
@@ -325,7 +372,7 @@ test.describe('editor timeline', { tag: '@timeline-proof' }, () => {
 				expect(combined.flush).toBeLessThan(1);
 				expect(combined.lineEnd).toBeLessThan(1);
 				expect(combined.belowGap).toBeGreaterThanOrEqual(12);
-				expect(combined.lineColor).toEqual([255, 153, 0]);
+				expect(combined.lineColor).toEqual([240, 120, 0]);
 				expect(combined.lineShadow).toBe('none');
 				expect(combined.markerTop).toBe(0);
 				expect(combined.markerColors).toEqual(['rgb(38, 139, 210)', 'rgb(99, 102, 241)']);
@@ -335,8 +382,8 @@ test.describe('editor timeline', { tag: '@timeline-proof' }, () => {
 				expect(combined.colors).toEqual([
 					'rgb(170, 170, 170)',
 					'rgb(255, 51, 51)',
-					'rgb(255, 204, 51)',
-					'rgb(255, 153, 0)'
+					'rgb(255, 230, 109)',
+					'rgb(240, 120, 0)'
 				]);
 				expect(combined.overlap).toBeCloseTo(5 / 10.125, 2);
 				// VIDEO permits playback outside A:B; switching to A:B enters the
