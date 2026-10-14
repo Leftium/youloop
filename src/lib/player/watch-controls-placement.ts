@@ -81,6 +81,9 @@ export function placeWatchTitle(
 	reserved?: Bounds
 ) {
 	const gap = 8;
+	function heightAt(width: number) {
+		return typeof measureHeight === 'number' ? measureHeight : measureHeight(width);
+	}
 	const clearTop = (left: number, top: number, width: number, height: number) =>
 		reserved &&
 		left < reserved.right + gap &&
@@ -117,8 +120,7 @@ export function placeWatchTitle(
 	for (const candidate of candidates) {
 		if (candidate.width < Math.min(180, width)) continue;
 		const anchorTop = candidate.top;
-		let height =
-			typeof measureHeight === 'number' ? measureHeight : measureHeight(candidate.width);
+		let height = heightAt(candidate.width);
 		let top = candidate.mode === 'above' ? anchorTop - height : anchorTop;
 		if (
 			reserved &&
@@ -130,8 +132,7 @@ export function placeWatchTitle(
 			const availableLeft = reserved.left - gap - candidate.left;
 			if (availableLeft >= Math.min(180, width)) {
 				candidate.width = availableLeft;
-				height =
-					typeof measureHeight === 'number' ? measureHeight : measureHeight(candidate.width);
+				height = heightAt(candidate.width);
 				top = candidate.mode === 'above' ? anchorTop - height : anchorTop;
 			}
 		}
@@ -163,7 +164,7 @@ export function placeWatchTitle(
 	const left = Math.max(safe.left, video.left + gap);
 	let fallbackWidth = Math.max(0, Math.min(safe.right, video.right - gap) - left);
 	const initialTop = Math.max(safe.top, video.top + gap);
-	let height = typeof measureHeight === 'number' ? measureHeight : measureHeight(fallbackWidth);
+	let height = heightAt(fallbackWidth);
 	if (
 		reserved &&
 		left < reserved.left - gap &&
@@ -174,7 +175,7 @@ export function placeWatchTitle(
 		const availableLeft = reserved.left - gap - left;
 		if (availableLeft >= Math.min(180, fallbackWidth)) {
 			fallbackWidth = availableLeft;
-			height = typeof measureHeight === 'number' ? measureHeight : measureHeight(fallbackWidth);
+			height = heightAt(fallbackWidth);
 		}
 	}
 	let top = clearTop(left, initialTop, fallbackWidth, height);
