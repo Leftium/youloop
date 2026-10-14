@@ -13,9 +13,10 @@ of normal development.
   preserve its earlier passing run and remove the test in a later PR commit before
   merge. Link the evidence and explain the deletion in the PR summary. The final
   commit must still pass the regular required suite.
-- **Probationary:** Keep a check during stabilization with a clear review trigger,
-  such as the next few related PRs or approximately 30 days, and an owner or
-  explicit follow-up decision. At review, retire it or promote it with a rationale.
+- **Probationary:** If a check survives merge during stabilization, name a concrete
+  review point: the next related PR, an existing follow-up issue, or an owner and
+  date around 30 days away. At that point, review it for deletion or promotion
+  with a rationale.
 - **Permanent:** Retain tests for important, likely, or difficult-to-diagnose
   recurring regressions. Catching a real bug once does not make a test permanent.
 
@@ -32,7 +33,7 @@ their maintenance and runtime cost, whether required or advisory. Moving every
 low-value test into advisory forever is not retirement.
 
 Diagnose useful failures. Fix, demote, or delete unreliable network-duration waits;
-avoid broad retries or timeout increases that merely produce green results.
+avoid blanket skips, retries, or timeout increases that merely produce green results.
 Advisory checks may fail; report those failures accurately.
 
 ## Select checks within a soft budget
@@ -41,13 +42,20 @@ Use small, fast Node tests for logic and targeted Playwright tests with mocked
 providers for UI contracts. Keep WebKit and real-YouTube cases representative and
 uniquely valuable rather than repeating every Chromium case.
 
+Routine gate membership requires its own justification. Adding or passing a
+Playwright test, or tagging it `@routine` or `@webkit-smoke`, does not make it
+permanent or required. Before admission, name the plausible regression and its
+impact or diagnostic value, what cheaper Node, mocked-provider, or existing
+coverage misses, and the reliability/runtime tradeoff. Prefer PR proof, short
+probation, or advisory coverage for one-off cases.
+
 The routine `pnpm test:browser` baseline is about 36 browser executions (28 Chromium,
 8 WebKit), taking about 57 seconds locally. Current counts and roughly one minute
 are soft reference budgets, never hard quotas. Explain why significant persistent
 additions earn their runtime and, where practical, offset them by retiring
 low-value coverage. Reassess the broader `pnpm test:browser:advisory` selection too.
 
-See [README.md](README.md#required-verification) for commands, setup, suite selection,
+See [the development guide](docs/development.md) for commands, setup, suite selection,
 and profiling details.
 
 ## Review in each PR
