@@ -2,7 +2,8 @@ import { defineConfig } from '@playwright/test';
 
 // Routine gates exercise our UI and adapter without depending on YouTube availability.
 const advisory = process.env.YOULOOP_BROWSER_ADVISORY === '1';
-const offlineProof = !advisory;
+const timelineProof = process.env.YOULOOP_TIMELINE_PROOF === '1';
+const offlineProof = timelineProof || !advisory;
 process.env.YOULOOP_OFFLINE_PROOF = offlineProof ? '1' : '0';
 const port = offlineProof ? 5174 : 5173;
 
@@ -12,7 +13,7 @@ export default defineConfig({
 	projects: [
 		{
 			name: 'chromium',
-			grep: advisory ? undefined : /@routine|@youtube-mock/,
+			grep: timelineProof ? /@timeline-proof/ : advisory ? undefined : /@routine|@youtube-mock/,
 			use: {
 				browserName: 'chromium',
 				channel: 'chromium',
@@ -21,13 +22,18 @@ export default defineConfig({
 		},
 		{
 			name: 'webkit',
-			grep: advisory ? undefined : /@webkit-smoke|@youtube-mock/,
+			grep: timelineProof
+				? /@timeline-proof/
+				: advisory
+					? undefined
+					: /@webkit-smoke|@youtube-mock/,
 			testMatch: [
 				'**/editor-workspace.spec.ts',
 				'**/editor-polish.spec.ts',
 				'**/video-picker.spec.ts',
 				'**/framing.spec.ts',
-				'**/share-footer.spec.ts'
+				'**/share-footer.spec.ts',
+				'**/editor-timeline.spec.ts'
 			],
 			use: { browserName: 'webkit', channel: undefined }
 		}

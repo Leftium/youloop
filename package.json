@@ -17,6 +17,7 @@
 		"test:metadata": "node --test tests/video-metadata.test.js tests/youtube-thumbnail.test.js",
 		"test:social": "node --test tests/social-smoke.test.js",
 		"test:browser": "playwright test",
+		"test:browser:timeline": "YOULOOP_TIMELINE_PROOF=1 playwright test editor-timeline.spec.ts",
 		"test:browser:mock": "playwright test --grep @youtube-mock",
 		"test:browser:routine": "pnpm test:browser",
 		"test:clip": "node --test tests/clip-bounds.test.js tests/watch-playback-scope.test.js tests/editor-controls.test.js tests/youtube-orientation.test.js tests/watch-controls-placement.test.js",

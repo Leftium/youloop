@@ -28,6 +28,7 @@ Chromium uses full headless Chromium with `--mute-audio`.
 | `pnpm test:browser`          | Required routine suite, with external requests blocked in browser and server.                     |
 | `pnpm test:browser:routine`  | Alias for the required routine suite.                                                             |
 | `pnpm test:browser:mock`     | Four focused Video.js API/identity and watch Loop/Once proofs, also included in routine.          |
+| `pnpm test:browser:timeline` | Offline Chromium/WebKit editor timeline proofs, excluded from routine gates.                      |
 | `pnpm test:browser:advisory` | On-demand broader Chromium/WebKit coverage with live YouTube and metadata. Not a deployment gate. |
 
 For a focused live probe, append Playwright arguments, for example
@@ -36,6 +37,12 @@ To compare the four API proofs with the live provider, use
 `YOULOOP_LIVE_PROOF=1 pnpm test:browser:advisory --grep @youtube-mock`.
 The old extended/provider/UI commands have been replaced by this explicit advisory
 command; use `--grep @provider-free` when useful.
+
+Timeline proofs cover source navigation, endpoint swap/focus/capture, temporary
+frame inspection and restoration, and red-line alignment. They are probationary
+through PR 2 in [issue #62](https://github.com/Leftium/youloop/issues/62), when
+they should be reviewed for retirement or promotion. They add no routine browser
+executions. The small numeric swap/relative-step checks remain in `test:clip`.
 
 Routine coverage retains clip bounds and Loop/Once, signed URL/share semantics,
 reload/history, picker commits, modal focus, splitter input and playback/provider

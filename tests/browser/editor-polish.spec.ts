@@ -1,3 +1,4 @@
+import { setSliderValue } from './editor-timeline.fixture';
 import { expect, type Page } from '@playwright/test';
 import { test, browserOrigin } from './youtube-api.fixture';
 import { editorTime, parseEditorTime } from '../../src/lib/player/editor-time';
@@ -85,10 +86,10 @@ test.describe('editor polish', () => {
 		await expect(source).toHaveAttribute('href', `https://youtu.be/${id}?t=24`);
 		await expect(source).toHaveText(`youtu.be/${id}?t=24`);
 		await expect(source).toHaveAttribute('target', '_blank');
-		await page.getByRole('slider', { name: 'Repeat start', exact: true }).fill('31');
+		await setSliderValue(page, 'Repeat start', '31');
 		await expect(source).toHaveAttribute('href', `https://youtu.be/${id}?t=31`);
 		await expect(source).toHaveText(`youtu.be/${id}?t=31`);
-		await page.getByRole('slider', { name: 'Repeat start', exact: true }).fill('0');
+		await setSliderValue(page, 'Repeat start', '0');
 		await expect(source).toHaveAttribute('href', `https://youtu.be/${id}`);
 		await expect(source).toHaveText(`youtu.be/${id}`);
 		await identity(page);
@@ -97,7 +98,9 @@ test.describe('editor polish', () => {
 	test('duration-relative A links to the resolved absolute YouTube time', async ({ page }) => {
 		await open(page);
 		const resolvedA = Number(
-			await page.getByRole('slider', { name: 'Repeat start', exact: true }).inputValue()
+			await page
+				.getByRole('slider', { name: 'Repeat start', exact: true })
+				.getAttribute('aria-valuenow')
 		);
 		expect(resolvedA).toBeGreaterThan(0);
 		const source = page.locator('.source-link a');
@@ -134,7 +137,7 @@ test.describe('editor polish', () => {
 		await expect(
 			page.getByRole('link', { name: 'Share URL', exact: true, includeHidden: true })
 		).toHaveAttribute('href', /^http/);
-		await page.getByRole('slider', { name: 'Repeat start', exact: true }).fill('31.204');
+		await setSliderValue(page, 'Repeat start', '31.204');
 		await expect(preview(page)).toHaveText(
 			`${browserOrigin}/${id}/31.2~-5.251234?once&mute&speed=1.5&fill=0`
 		);
@@ -144,7 +147,7 @@ test.describe('editor polish', () => {
 			page.getByRole('link', { name: 'Share URL', exact: true, includeHidden: true })
 		).toHaveAttribute('href', /^http/);
 		await expect(preview(page)).toHaveText(`${browserOrigin}/${id}/31.234567~59.251234?once&mute`);
-		await page.getByRole('slider', { name: 'Current time', exact: true }).fill('32');
+		await setSliderValue(page, 'Current time', '32');
 		await page.waitForFunction(
 			() => !(document.querySelector('youtube-video') as HTMLMediaElement).seeking
 		);
@@ -157,7 +160,9 @@ test.describe('editor polish', () => {
 		await page.getByRole('button', { name: 'Set start at playhead', exact: true }).click();
 		await closeRange(page);
 		const stored = Number(
-			await page.getByRole('slider', { name: 'Repeat start', exact: true }).inputValue()
+			await page
+				.getByRole('slider', { name: 'Repeat start', exact: true })
+				.getAttribute('aria-valuenow')
 		);
 		const shared = Number(new URL(page.url()).searchParams.get('t')!.split('~')[0]);
 		expect(Number.isInteger(stored)).toBe(false);
@@ -177,7 +182,7 @@ test.describe('editor polish', () => {
 			media.dispatchEvent(new Event('durationchange'));
 		});
 		await expect(page.getByRole('slider', { name: 'Repeat end', exact: true })).toHaveAttribute(
-			'max',
+			'aria-valuemax',
 			'65.123456789'
 		);
 		await openRange(page);
@@ -225,10 +230,12 @@ test.describe('editor polish', () => {
 			await expect(page).toHaveURL(
 				`${browserOrigin}/?v=${id}&t=${range}&once&mute&speed=1.5&fill=0`
 			);
-			await expect(page.getByRole('slider', { name: 'Repeat start', exact: true })).toHaveValue(
+			await expect(page.getByRole('slider', { name: 'Repeat start', exact: true })).toHaveAttribute(
+				'aria-valuenow',
 				'13.267487'
 			);
-			await expect(page.getByRole('slider', { name: 'Repeat end', exact: true })).toHaveValue(
+			await expect(page.getByRole('slider', { name: 'Repeat end', exact: true })).toHaveAttribute(
+				'aria-valuenow',
 				'59.25'
 			);
 			await identity(page);
@@ -237,14 +244,15 @@ test.describe('editor polish', () => {
 		await page.locator('youtube-video').evaluate((element) => {
 			Reflect.deleteProperty(element, 'currentTime');
 		});
-		await page.getByRole('slider', { name: 'Repeat start', exact: true }).fill('31.204');
+		await setSliderValue(page, 'Repeat start', '31.204');
 		await expect(page).toHaveURL(/t=31\.2~59\.25/);
-		await expect(page.getByRole('slider', { name: 'Repeat start', exact: true })).toHaveValue(
+		await expect(page.getByRole('slider', { name: 'Repeat start', exact: true })).toHaveAttribute(
+			'aria-valuenow',
 			'31.204'
 		);
-		await page.getByRole('slider', { name: 'Repeat start', exact: true }).fill('31.25');
+		await setSliderValue(page, 'Repeat start', '31.25');
 		await expect(page).toHaveURL(/t=31\.25~59\.25/);
-		await page.getByRole('slider', { name: 'Repeat start', exact: true }).fill('13.267487');
+		await setSliderValue(page, 'Repeat start', '13.267487');
 		await expect(page).toHaveURL(/t=13\.27~59\.25/);
 		const editor = page.url();
 		await page.getByRole('link', { name: 'Share URL', exact: true }).click();
@@ -549,7 +557,7 @@ test.describe('editor polish', () => {
 		const duration = Number(
 			await page
 				.getByRole('slider', { name: 'Current time', exact: true, includeHidden: true })
-				.getAttribute('max')
+				.getAttribute('aria-valuemax')
 		);
 		expect(parseEditorTime(await input(page).inputValue())! + duration).toBeCloseTo(12.5, 1);
 		await input(page).press('Enter');
@@ -678,7 +686,7 @@ test.describe('editor polish', () => {
 		).toBeFocused();
 		await precision.uncheck();
 		await closeRange(page);
-		await page.getByRole('slider', { name: 'Current time', exact: true }).fill('15.5');
+		await setSliderValue(page, 'Current time', '15.5');
 		await openRange(page);
 		await page.getByRole('button', { name: 'Set start at playhead' }).click();
 		await expect(page).toHaveURL(/t=16~-5\.25/);
@@ -693,7 +701,9 @@ test.describe('editor polish', () => {
 		await page.getByRole('button', { name: 'Set start at playhead' }).click();
 		await closeRange(page);
 		const preciseStart = Number(
-			await page.getByRole('slider', { name: 'Repeat start', exact: true }).inputValue()
+			await page
+				.getByRole('slider', { name: 'Repeat start', exact: true })
+				.getAttribute('aria-valuenow')
 		);
 		expect(preciseStart).toBeCloseTo(18.25, 1);
 		expect(Number.isInteger(preciseStart)).toBe(false);
@@ -754,10 +764,12 @@ test.describe('editor polish', () => {
 				new URL(expected, browserOrigin).href
 			);
 			await expect(preview(page)).toHaveText(`${browserOrigin}${expected}`);
-			await expect(page.getByRole('slider', { name: 'Repeat start', exact: true })).toHaveValue(
+			await expect(page.getByRole('slider', { name: 'Repeat start', exact: true })).toHaveAttribute(
+				'aria-valuenow',
 				'12.5'
 			);
-			await expect(page.getByRole('slider', { name: 'Repeat end', exact: true })).toHaveValue(
+			await expect(page.getByRole('slider', { name: 'Repeat end', exact: true })).toHaveAttribute(
+				'aria-valuenow',
 				'59.25'
 			);
 			await identity(page);

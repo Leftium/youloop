@@ -17,6 +17,33 @@ On small touch viewports, video swipes use native document scrolling with 20px
 See [Mobile Safari](mobile-safari.md) for scroll layout, device observations, and
 verification procedures.
 
+### Editor timeline
+
+The editor's source-wide timeline separates navigation from A/B editing. Click
+empty track space or drag the red playhead to seek without changing the selected
+clip or its share URL. Seeking outside A:B pauses for inspection; Play returns
+to A when the transport is outside the clip. Frame stepping also uses the full
+source. Watch playback retains its own VIDEO/A:B scope and progress bar.
+
+A/B handles use the generic range slider's swap policy. Crossing another handle
+changes the moving handle's role while retaining its physical focus and pointer
+capture. Arrow keys edit by a relative 0.1 seconds, preserving non-grid offsets;
+Page keys move ten increments, and Home/End select source bounds. Collapsed
+ranges remain editable, although they cannot be played or shared until B is after A.
+
+`transportTime` is the logical playback position; `currentTime` is the displayed
+or requested media position. Endpoint inspection saves the transport and playback
+state, pauses, and requests the endpoint frame. Release, keyup, cancellation,
+Escape, blur, and teardown restore the saved transport and state. A source
+replacement clears the old preview before the new provider bootstraps. Pending
+seeks protect requested time from stale provider observations for up to two seconds.
+YouTube can display a delayed or approximate frame; inspection is not frame-exact.
+
+The noninteractive translucent red line spans the preview and timeline against
+the same source-wide axis. Resizing and changing layout or framing reposition
+the chrome without adding a provider. The Clip range dialog remains available
+for precise signed or absolute entry and explicit Set at playhead actions.
+
 ## Clip links and navigation
 
 `/` is the existing editor, including its demo player. Both `/?v=ID&a=A&b=B`
