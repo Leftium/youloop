@@ -50,7 +50,9 @@ In editor and watch modes, a horizontal drag on the video jumps to the time at t
 cursor position, like the timeline. The left and right edges map to the full
 source bounds in the editor or the selected VIDEO/A:B bounds in watch. Editor
 dragging uses the timeline axis, including its inset margins, so the red playhead
-lines up with the cursor. Direction locks after 8 CSS
+lines up with the cursor. Watch dragging uses the visible progress track between any
+clip tails, and keeps that axis when Theater hides the chrome. Black margins
+remain tappable; dragging outside the axis clamps to the selected scope bounds. Direction locks after 8 CSS
 pixels: horizontal travel scrubs; vertical travel retains native document scrolling.
 The surface uses static `touch-action: pan-y pinch-zoom`, with pointer capture
 only after horizontal intent. A stationary tap toggles playback once; controls

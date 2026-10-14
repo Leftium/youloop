@@ -352,9 +352,11 @@
 			prepareNavigationScrub,
 			togglePaused,
 			() => {
-				// Use the same inset axis as the editor playhead, including responsive margins.
-				const axis = !minimal && timelineBox?.querySelector('.editor-axis');
-				return (axis || videoSurface).getBoundingClientRect();
+				// Use the visible timeline axis in both modes, including margins and clip tails.
+				const axis = minimal
+					? playerContainer.querySelector('.watch-timeline .timeline-track')
+					: timelineBox?.querySelector('.editor-axis');
+				return (axis ?? (minimal ? mediaCanvas : videoSurface)).getBoundingClientRect();
 			}
 		);
 		cancelVideoGesture = attachment.cancel;
@@ -1061,46 +1063,45 @@
 						style:width={`${visibleBounds.width}px`}
 						style:height={`${visibleBounds.height}px`}
 					>
-						{#if !theater}
-							<div
-								class="watch-timeline"
-								class:clip={clipTimeline}
-								data-mode={clipTimeline ? 'clip' : 'video'}
-								role="progressbar"
-								aria-label={clipTimeline ? 'A:B progress' : 'Video progress'}
-								aria-valuemin="0"
-								aria-valuemax={timelineDuration}
-								aria-valuenow={timelineTime}
-								aria-valuetext={`${range.valid ? formatVideoTime(timelineTime) : '?:??'} / ${range.valid ? formatVideoTime(timelineDuration) : '?:??'}`}
-							>
-								{#if clipTimeline && range.leftTail}<div
-										class="timeline-tail left"
-										aria-hidden="true"
-									></div>{/if}
-								<div class="timeline-track">
-									{#if !clipTimeline && range.restricted}
-										<div
-											class="timeline-selection"
-											style:left={`${range.selectionStart * 100}%`}
-											style:width={`${range.selectionWidth * 100}%`}
-										>
-											<div
-												class="timeline-overlap"
-												style:width={`${range.clipProgress * 100}%`}
-											></div>
-										</div>
-									{/if}
+						<div
+							class="watch-timeline"
+							aria-hidden={theater}
+							class:clip={clipTimeline}
+							data-mode={clipTimeline ? 'clip' : 'video'}
+							role="progressbar"
+							aria-label={clipTimeline ? 'A:B progress' : 'Video progress'}
+							aria-valuemin="0"
+							aria-valuemax={timelineDuration}
+							aria-valuenow={timelineTime}
+							aria-valuetext={`${range.valid ? formatVideoTime(timelineTime) : '?:??'} / ${range.valid ? formatVideoTime(timelineDuration) : '?:??'}`}
+						>
+							{#if clipTimeline && range.leftTail}<div
+									class="timeline-tail left"
+									aria-hidden="true"
+								></div>{/if}
+							<div class="timeline-track">
+								{#if !clipTimeline && range.restricted}
 									<div
-										class="timeline-fill"
-										style:width={`${(clipTimeline ? range.clipProgress : range.videoProgress) * 100}%`}
-									></div>
-								</div>
-								{#if clipTimeline && range.rightTail}<div
-										class="timeline-tail right"
-										aria-hidden="true"
-									></div>{/if}
+										class="timeline-selection"
+										style:left={`${range.selectionStart * 100}%`}
+										style:width={`${range.selectionWidth * 100}%`}
+									>
+										<div
+											class="timeline-overlap"
+											style:width={`${range.clipProgress * 100}%`}
+										></div>
+									</div>
+								{/if}
+								<div
+									class="timeline-fill"
+									style:width={`${(clipTimeline ? range.clipProgress : range.videoProgress) * 100}%`}
+								></div>
 							</div>
-						{/if}
+							{#if clipTimeline && range.rightTail}<div
+									class="timeline-tail right"
+									aria-hidden="true"
+								></div>{/if}
+						</div>
 					</div>
 					<div
 						class="watch-controls-region"
@@ -1744,6 +1745,10 @@
 		height: 3px;
 		display: flex;
 		pointer-events: none;
+	}
+	// Retain the axis for scrubbing when Theater hides the chrome.
+	.watch-overlay.theater .watch-timeline {
+		visibility: hidden;
 	}
 	.timeline-track {
 		position: relative;

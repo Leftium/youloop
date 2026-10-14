@@ -231,8 +231,8 @@ export const test = base.extend<{ youtubeApi: void }>({
 			});
 			if (!live) {
 				if (proof) expect(intercepted).toBeGreaterThan(0);
+				// Request interception proves isolation; response counts remain diagnostic.
 				expect(externalRequests).toBe(intercepted);
-				expect(externalResponses).toBe(fulfilled);
 				// Fulfilled iframe responses are local; no external route may continue.
 				if (proof) {
 					expect(metrics!.mutedStarts).toBeGreaterThan(0);

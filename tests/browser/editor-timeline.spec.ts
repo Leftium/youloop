@@ -299,6 +299,68 @@ test.describe('editor timeline', { tag: '@timeline-proof' }, () => {
 					.locator('youtube-video')
 					.evaluate((el) => el.shadowRoot!.querySelector('iframe')!.getAttribute('src'))
 			).toBe(frame);
+			if (watch) {
+				await page.goto('/dt-SqNL4z3w/10~20.125?mute&vertical&fill=0');
+				const timeline = page.locator('.watch-timeline');
+				await expect(timeline).toHaveAttribute('aria-valuemax', '10.125');
+				await page
+					.getByRole('button', { name: 'A:B progress, switch to full-video playback', exact: true })
+					.click();
+				await expect(timeline).toHaveAttribute('aria-valuemax', '60.25');
+				const video = (await surface.boundingBox())!;
+				const fullAxis = (await page.locator('.watch-timeline .timeline-track').boundingBox())!;
+				expect(fullAxis.width).toBeLessThan(video.width / 2);
+				async function dragAt(cursor: number) {
+					const bounds = (await surface.boundingBox())!;
+					await page.mouse.move(cursor - 12, bounds.y + bounds.height / 2);
+					await page.mouse.down();
+					await page.mouse.move(cursor, bounds.y + bounds.height / 2);
+					await page.mouse.up();
+				}
+				const cursor = Math.round(fullAxis.x + fullAxis.width * 0.25);
+				await dragAt(cursor);
+				await expect
+					.poll(() => timeline.getAttribute('aria-valuenow').then(Number))
+					.toBeCloseTo(((cursor - fullAxis.x) / fullAxis.width) * 60.25, 1);
+				const leftMargin = Math.round(video.x + 30);
+				await dragAt(leftMargin);
+				await expect(timeline).toHaveAttribute('aria-valuenow', '0');
+				await dragAt(Math.round(video.x + video.width - 30));
+				await expect(timeline).toHaveAttribute('aria-valuenow', '60.25');
+				await page.touchscreen.tap(leftMargin, video.y + video.height / 2);
+				await expect
+					.poll(() =>
+						page.locator('youtube-video').evaluate((el) => (el as HTMLMediaElement).paused)
+					)
+					.toBe(false);
+				await page.touchscreen.tap(leftMargin, video.y + video.height / 2);
+				await expect
+					.poll(() =>
+						page.locator('youtube-video').evaluate((el) => (el as HTMLMediaElement).paused)
+					)
+					.toBe(true);
+				await page
+					.getByRole('button', { name: 'VIDEO progress, switch to A:B playback', exact: true })
+					.click();
+				const clipAxis = (await page.locator('.watch-timeline .timeline-track').boundingBox())!;
+				expect(clipAxis.width).toBeLessThan(fullAxis.width);
+				const clipCursor = Math.round(clipAxis.x + clipAxis.width * 0.3);
+				const elapsed = ((clipCursor - clipAxis.x) / clipAxis.width) * 10.125;
+				await dragAt(clipCursor);
+				await expect
+					.poll(() => timeline.getAttribute('aria-valuenow').then(Number))
+					.toBeCloseTo(elapsed, 1);
+				await page.evaluate(() => window.scrollTo({ top: 100, behavior: 'instant' }));
+				await expect(page.locator('.share-prototype')).toHaveAttribute('data-mode', 'theater');
+				await expect(timeline).toBeHidden();
+				await dragAt(leftMargin);
+				await expect(timeline).toHaveAttribute('aria-valuenow', '0');
+				await dragAt(clipCursor);
+				await expect
+					.poll(() => timeline.getAttribute('aria-valuenow').then(Number))
+					.toBeCloseTo(elapsed, 1);
+				await expect(page.locator('.editor-playhead-line')).toHaveCount(0);
+			}
 			expect(await surface.evaluate((el) => getComputedStyle(el).touchAction)).toBe(
 				'pan-y pinch-zoom'
 			);
