@@ -347,54 +347,60 @@ mockedTest(
 	}
 );
 
-for (const viewport of [
-	{ width: 320, height: 568 },
-	{ width: 390, height: 844 },
-	{ width: 844, height: 390 }
-]) {
-	test(`responsive preview, independent scrolling and Fit/Fill at ${viewport.width}x${viewport.height}`, async ({
-		page
-	}) => {
-		await page.setViewportSize(viewport);
-		await openEditor(page);
-		await geometry(page);
-		if (viewport.width < 660) {
-			await expect(divider(page)).toHaveAttribute('aria-orientation', 'horizontal');
-			await expect(
-				page.getByRole('button', { name: 'Switch to side-by-side layout' })
-			).toBeDisabled();
-		}
-		for (const orientation of ['Portrait', 'Landscape']) {
-			await page.getByRole('button', { name: orientation, exact: true }).click();
-			for (let i = 0; i < 2; i++) {
-				await page
-					.getByRole('group', { name: 'Crop', exact: true })
-					.getByRole('button', { name: 'Fill', exact: true })
-					.click();
-				await geometry(page);
-				await identity(page);
+test('responsive preview, independent scrolling and Fit/Fill across mobile viewports', async ({
+	page
+}) => {
+	// Share one live provider across viewport checks; retain each size and assertion.
+	await page.setViewportSize({ width: 320, height: 568 });
+	await openEditor(page);
+	for (const viewport of [
+		{ width: 320, height: 568 },
+		{ width: 390, height: 844 },
+		{ width: 844, height: 390 }
+	]) {
+		await test.step(`${viewport.width}x${viewport.height}`, async () => {
+			await page.setViewportSize(viewport);
+			await geometry(page);
+			if (viewport.width < 660) {
+				await expect(divider(page)).toHaveAttribute('aria-orientation', 'horizontal');
+				await expect(
+					page.getByRole('button', { name: 'Switch to side-by-side layout' })
+				).toBeDisabled();
 			}
-		}
-		await page.locator('.settings-scroll').evaluate((el) => {
-			const extra = document.createElement('div');
-			extra.style.height = '1600px';
-			el.prepend(extra);
+			for (const orientation of ['Portrait', 'Landscape']) {
+				await page.getByRole('button', { name: orientation, exact: true }).click();
+				for (let i = 0; i < 2; i++) {
+					await page
+						.getByRole('group', { name: 'Crop', exact: true })
+						.getByRole('button', { name: 'Fill', exact: true })
+						.click();
+					await geometry(page);
+					await identity(page);
+				}
+			}
+			await page.locator('.settings-scroll').evaluate((el) => {
+				const extra = document.createElement('div');
+				extra.style.height = '1600px';
+				extra.dataset.viewportScrollProbe = '';
+				el.prepend(extra);
+			});
+			const before = await page.locator('#editor-preview').boundingBox();
+			const timelineBefore = await page.locator('.wrap-sliders').boundingBox();
+			const transportBefore = await page.locator('.preview-actions').boundingBox();
+			await page.locator('.settings-scroll').hover();
+			await page.mouse.wheel(0, 800);
+			await expect
+				.poll(() => page.locator('.settings-scroll').evaluate((el) => el.scrollTop))
+				.toBeGreaterThan(0);
+			expect(await page.locator('#editor-preview').boundingBox()).toEqual(before);
+			expect(await page.locator('.wrap-sliders').boundingBox()).toEqual(timelineBefore);
+			expect(await page.locator('.preview-actions').boundingBox()).toEqual(transportBefore);
+			await page.locator('[data-viewport-scroll-probe]').evaluate((el) => el.remove());
+			await geometry(page);
+			await identity(page);
 		});
-		const before = await page.locator('#editor-preview').boundingBox();
-		const timelineBefore = await page.locator('.wrap-sliders').boundingBox();
-		const transportBefore = await page.locator('.preview-actions').boundingBox();
-		await page.locator('.settings-scroll').hover();
-		await page.mouse.wheel(0, 800);
-		await expect
-			.poll(() => page.locator('.settings-scroll').evaluate((el) => el.scrollTop))
-			.toBeGreaterThan(0);
-		expect(await page.locator('#editor-preview').boundingBox()).toEqual(before);
-		expect(await page.locator('.wrap-sliders').boundingBox()).toEqual(timelineBefore);
-		expect(await page.locator('.preview-actions').boundingBox()).toEqual(transportBefore);
-		await geometry(page);
-		await identity(page);
-	});
-}
+	}
+});
 
 test('session preferences restore, reconcile on resize, reset and stay out of share URLs', async ({
 	page,
@@ -498,151 +504,161 @@ for (const storage of ['stale', 'blocked']) {
 	});
 }
 
-for (const viewport of [
-	{ width: 1920, height: 1080 },
-	{ width: 320, height: 568 },
-	{ width: 390, height: 844 },
-	{ width: 844, height: 390 }
-]) {
-	test(`preview transport, branding and grouped layout fill viewport at ${viewport.width}x${viewport.height}`, async ({
-		page
-	}) => {
-		await page.setViewportSize(viewport);
-		await openEditor(page);
-		await geometry(page);
-		const preview = page.locator('#editor-preview');
-		const settings = page.locator('.settings-scroll');
-		await expect(preview.locator('.timestamps')).toHaveCount(1);
-		await expect(preview.locator('.wrap-sliders')).toHaveCount(1);
-		await expect(
-			preview.getByRole('slider', { name: /Current time|Repeat start|Repeat end/ })
-		).toHaveCount(3);
-		await expect(
-			settings.locator('.wrap-sliders,.timestamps,.workspace-layout,.preview-playback')
-		).toHaveCount(0);
-		await expect(page.locator('.workspace-toolbar')).toHaveCount(0);
-		await expect(page.getByRole('button', { name: /fullscreen/i })).toHaveCount(0);
-		const group = preview.getByRole('group', { name: 'Workspace layout' });
-		const corners = await preview.evaluate((element) => {
-			const rect = (s: string) => element.querySelector(s)!.getBoundingClientRect();
-			const brand = rect('.preview-brand');
-			const layout = rect('.workspace-layout');
-			const mode = rect('.mode-toggle');
-			return {
-				brandLeftOfLayout: brand.right < layout.left,
-				layoutLeftOfMode: layout.right < mode.left,
-				sameTop: Math.abs(brand.top - layout.top) < 1
-			};
-		});
-		expect(corners).toEqual({
-			brandLeftOfLayout: true,
-			layoutLeftOfMode: true,
-			sameTop: true
-		});
-		await expect(group.locator('button')).toHaveCount(1);
-		await expect(group.locator('button')).not.toHaveAttribute('aria-pressed');
-		await expect(
-			settings.getByRole('button', { name: 'Restore default layout' })
-		).not.toHaveAttribute('aria-pressed');
-		expect(
-			await group.locator('button').evaluateAll((buttons) =>
-				buttons.every((button) => {
-					const box = button.getBoundingClientRect();
+test('preview transport, branding and grouped layout fill desktop and mobile viewports', async ({
+	page
+}) => {
+	// Share one live provider across viewport checks; retain each size and assertion.
+	await page.setViewportSize({ width: 1920, height: 1080 });
+	await openEditor(page);
+	for (const viewport of [
+		{ width: 1920, height: 1080 },
+		{ width: 320, height: 568 },
+		{ width: 390, height: 844 },
+		{ width: 844, height: 390 }
+	]) {
+		await test.step(`${viewport.width}x${viewport.height}`, async () => {
+			await page.setViewportSize(viewport);
+			await geometry(page);
+			const preview = page.locator('#editor-preview');
+			const settings = page.locator('.settings-scroll');
+			await expect(preview.locator('.timestamps')).toHaveCount(1);
+			await expect(preview.locator('.wrap-sliders')).toHaveCount(1);
+			await expect(
+				preview.getByRole('slider', { name: /Current time|Repeat start|Repeat end/ })
+			).toHaveCount(3);
+			await expect(
+				settings.locator('.wrap-sliders,.timestamps,.workspace-layout,.preview-playback')
+			).toHaveCount(0);
+			await expect(page.locator('.workspace-toolbar')).toHaveCount(0);
+			await expect(page.getByRole('button', { name: /fullscreen/i })).toHaveCount(0);
+			const group = preview.getByRole('group', { name: 'Workspace layout' });
+			const corners = await preview.evaluate((element) => {
+				const rect = (s: string) => element.querySelector(s)!.getBoundingClientRect();
+				const brand = rect('.preview-brand');
+				const layout = rect('.workspace-layout');
+				const mode = rect('.mode-toggle');
+				return {
+					brandLeftOfLayout: brand.right < layout.left,
+					layoutLeftOfMode: layout.right < mode.left,
+					sameTop: Math.abs(brand.top - layout.top) < 1
+				};
+			});
+			expect(corners).toEqual({
+				brandLeftOfLayout: true,
+				layoutLeftOfMode: true,
+				sameTop: true
+			});
+			await expect(group.locator('button')).toHaveCount(1);
+			await expect(group.locator('button')).not.toHaveAttribute('aria-pressed');
+			await expect(
+				settings.getByRole('button', { name: 'Restore default layout' })
+			).not.toHaveAttribute('aria-pressed');
+			expect(
+				await group.locator('button').evaluateAll((buttons) =>
+					buttons.every((button) => {
+						const box = button.getBoundingClientRect();
+						return (
+							box.width >= 32 &&
+							box.height >= 32 &&
+							button.getAttribute('data-tooltip') &&
+							button.getAttribute('aria-label')
+						);
+					})
+				)
+			).toBe(true);
+			if (viewport.width < 660) {
+				const side = group.getByRole('button', { name: 'Switch to side-by-side layout' });
+				await expect(side).toBeDisabled();
+				await expect(side).toHaveAttribute('data-tooltip', 'Side by side requires at least 660px');
+				await expect(page.locator('#layout-unavailable')).toContainText('at least 660px');
+			}
+			await expect(preview.locator('.preview-brand')).toContainText('YouLoop');
+			await expect(preview.locator('.preview-brand img:visible')).toHaveAttribute(
+				'src',
+				'/logo.svg'
+			);
+			await expect(page.locator('.editor-page > nav')).toHaveCount(0);
+			expect(
+				await preview.evaluate((preview) => {
+					const picture = preview.querySelector('.player')!.getBoundingClientRect();
+					const brand = preview.querySelector('.preview-brand')!.getBoundingClientRect();
+					const timeline = preview.querySelector('.wrap-sliders')!.getBoundingClientRect();
+					const pictureCenter = document.elementFromPoint(
+						picture.left + picture.width / 2,
+						picture.top + picture.height / 2
+					);
+					const settings = document.querySelector('.settings-scroll')!;
+					const overlap = (a: DOMRect, b: DOMRect) =>
+						a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
 					return (
-						box.width >= 32 &&
-						box.height >= 32 &&
-						button.getAttribute('data-tooltip') &&
-						button.getAttribute('aria-label')
+						brand.left >= preview.getBoundingClientRect().left &&
+						brand.right <= preview.getBoundingClientRect().right &&
+						brand.top >= preview.getBoundingClientRect().top &&
+						brand.bottom <= picture.bottom &&
+						picture.top === preview.getBoundingClientRect().top &&
+						!overlap(brand, timeline) &&
+						pictureCenter?.classList.contains('video-toggle') &&
+						parseFloat(getComputedStyle(settings).paddingLeft) >= 4 &&
+						document.documentElement.scrollHeight <= innerHeight
 					);
 				})
-			)
-		).toBe(true);
-		if (viewport.width < 660) {
-			const side = group.getByRole('button', { name: 'Switch to side-by-side layout' });
-			await expect(side).toBeDisabled();
-			await expect(side).toHaveAttribute('data-tooltip', 'Side by side requires at least 660px');
-			await expect(page.locator('#layout-unavailable')).toContainText('at least 660px');
-		}
-		await expect(preview.locator('.preview-brand')).toContainText('YouLoop');
-		await expect(preview.locator('.preview-brand img:visible')).toHaveAttribute('src', '/logo.svg');
-		await expect(page.locator('.editor-page > nav')).toHaveCount(0);
-		expect(
-			await preview.evaluate((preview) => {
-				const picture = preview.querySelector('.player')!.getBoundingClientRect();
-				const brand = preview.querySelector('.preview-brand')!.getBoundingClientRect();
-				const timeline = preview.querySelector('.wrap-sliders')!.getBoundingClientRect();
-				const pictureCenter = document.elementFromPoint(
-					picture.left + picture.width / 2,
-					picture.top + picture.height / 2
-				);
-				const settings = document.querySelector('.settings-scroll')!;
-				const overlap = (a: DOMRect, b: DOMRect) =>
-					a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
-				return (
-					brand.left >= preview.getBoundingClientRect().left &&
-					brand.right <= preview.getBoundingClientRect().right &&
-					brand.top >= preview.getBoundingClientRect().top &&
-					brand.bottom <= picture.bottom &&
-					picture.top === preview.getBoundingClientRect().top &&
-					!overlap(brand, timeline) &&
-					pictureCenter?.classList.contains('video-toggle') &&
-					parseFloat(getComputedStyle(settings).paddingLeft) >= 4 &&
-					document.documentElement.scrollHeight <= innerHeight
-				);
-			})
-		).toBe(true);
-		if (viewport.width === 1920) {
-			await expect(preview.locator('.brand')).toBeVisible();
-			await expect(preview.locator('.brand')).toHaveAttribute('href', '/');
-			await expect(preview.locator('.brand')).toHaveAttribute('data-sveltekit-reload');
-		} else if (viewport.width < 660) {
-			await expect(preview.locator('.brand')).toBeVisible();
-		}
-		await page.screenshot({
-			path: `/tmp/youloop-pr38-overlay-${viewport.width}x${viewport.height}.png`
+			).toBe(true);
+			if (viewport.width === 1920) {
+				await expect(preview.locator('.brand')).toBeVisible();
+				await expect(preview.locator('.brand')).toHaveAttribute('href', '/');
+				await expect(preview.locator('.brand')).toHaveAttribute('data-sveltekit-reload');
+			} else if (viewport.width < 660) {
+				await expect(preview.locator('.brand')).toBeVisible();
+			}
+			await page.screenshot({
+				path: `/tmp/youloop-pr38-overlay-${viewport.width}x${viewport.height}.png`
+			});
+			await preview.getByRole('button', { name: 'Play video', exact: true }).click();
+			await page.waitForFunction(
+				() =>
+					(
+						document.querySelector('youtube-video') as HTMLElement & {
+							engine: { getPlayerState(): number };
+						}
+					).engine.getPlayerState() === 1
+			);
+			await preview.getByRole('button', { name: 'Pause video', exact: true }).click();
+			const start = preview.getByRole('slider', { name: 'Repeat start', exact: true });
+			await start.focus();
+			await start.press('ArrowRight');
+			await expect(start).toHaveValue('5.1');
+			const url = page.url();
+			const box = (await divider(page).boundingBox())!;
+			const columns = (await divider(page).getAttribute('aria-orientation')) === 'vertical';
+			const x = box.x + box.width / 2 + (columns ? -10 : 0);
+			const y = box.y + box.height / 2 + (columns ? 0 : -10);
+			expect(columns ? box.width : box.height).toBe(3);
+			// Hit the transparent extension, outside the visible 3px line.
+			expect(
+				await page.evaluate(({ x, y }) => document.elementFromPoint(x, y)?.getAttribute('role'), {
+					x,
+					y
+				})
+			).toBe('separator');
+			await page.mouse.move(x, y);
+			await page.mouse.down();
+			await expect(page.locator('.workspace-grid')).toHaveClass(/dragging/);
+			await page.mouse.move(x + (columns ? 30 : 0), y + (columns ? 0 : 30));
+			await page.mouse.up();
+			await geometry(page);
+			await identity(page);
+			expect(page.url()).toBe(url);
+			// Padded action targets remain outside the divider's expanded hit area.
+			await page.getByRole('button', { name: 'Restore default layout' }).click();
+			await expect(group.locator('button')).toHaveCount(1);
+			await expect(group.locator('button')).not.toHaveAttribute('aria-pressed');
+			await identity(page);
+			// Restore the range before the next viewport uses the same provider.
+			await start.press('ArrowLeft');
+			await expect(start).toHaveValue('5');
 		});
-		await preview.getByRole('button', { name: 'Play video', exact: true }).click();
-		await page.waitForFunction(
-			() =>
-				(
-					document.querySelector('youtube-video') as HTMLElement & {
-						engine: { getPlayerState(): number };
-					}
-				).engine.getPlayerState() === 1
-		);
-		await preview.getByRole('button', { name: 'Pause video', exact: true }).click();
-		const start = preview.getByRole('slider', { name: 'Repeat start', exact: true });
-		await start.focus();
-		await start.press('ArrowRight');
-		await expect(start).toHaveValue('5.1');
-		const url = page.url();
-		const box = (await divider(page).boundingBox())!;
-		const columns = (await divider(page).getAttribute('aria-orientation')) === 'vertical';
-		const x = box.x + box.width / 2 + (columns ? -10 : 0);
-		const y = box.y + box.height / 2 + (columns ? 0 : -10);
-		expect(columns ? box.width : box.height).toBe(3);
-		// Hit the transparent extension, outside the visible 3px line.
-		expect(
-			await page.evaluate(({ x, y }) => document.elementFromPoint(x, y)?.getAttribute('role'), {
-				x,
-				y
-			})
-		).toBe('separator');
-		await page.mouse.move(x, y);
-		await page.mouse.down();
-		await expect(page.locator('.workspace-grid')).toHaveClass(/dragging/);
-		await page.mouse.move(x + (columns ? 30 : 0), y + (columns ? 0 : 30));
-		await page.mouse.up();
-		await geometry(page);
-		await identity(page);
-		expect(page.url()).toBe(url);
-		// Padded action targets remain outside the divider's expanded hit area.
-		await page.getByRole('button', { name: 'Restore default layout' }).click();
-		await expect(group.locator('button')).toHaveCount(1);
-		await expect(group.locator('button')).not.toHaveAttribute('aria-pressed');
-		await identity(page);
-	});
-}
+	}
+});
 
 test.describe('mobile pane scrolling', () => {
 	test.skip(

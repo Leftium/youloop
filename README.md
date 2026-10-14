@@ -59,13 +59,70 @@ whose primary contracts already have routine coverage. See
 [PR #53](https://github.com/Leftium/youloop/pull/53) for pruning measurements and
 the retained coverage inventory.
 
+### Consolidated browser journeys
+
+The workspace viewport matrices share one live provider per test and name each
+viewport with `test.step`. They retain every size and assertion while avoiding
+repeated app, browser-page and YouTube startup. Range edits and temporary scroll
+content are reset between steps. The canonical watch route keeps the full live
+scope-switch journey. The existing mocked Loop journey checks legacy `/s`
+clip bounds, the canonical editor link, unchanged URL/history, media/iframe/engine
+identity and reload before exercising clip and full-video boundaries.
+
+| Previous case                                                                   | Surviving coverage                                                                                                                                                                                                                                                                                                                                                                                      |
+| ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `responsive preview, independent scrolling and Fit/Fill at 320x568`             | `responsive preview, independent scrolling and Fit/Fill across mobile viewports`, step `320x568`: geometry, disabled columns, both orientations, Fit/Fill, scroll ownership and identity.                                                                                                                                                                                                               |
+| Same responsive case at `390x844`                                               | Same surviving test, step `390x844`, with every original assertion.                                                                                                                                                                                                                                                                                                                                     |
+| Same responsive case at `844x390`                                               | Same surviving test, step `844x390`, with every original assertion.                                                                                                                                                                                                                                                                                                                                     |
+| `preview transport, branding and grouped layout fill viewport at 1920x1080`     | `preview transport, branding and grouped layout fill desktop and mobile viewports`, step `1920x1080`: brand navigation, transport placement, labels/targets, playback, keyboard range edits, expanded splitter hit area and identity.                                                                                                                                                                   |
+| Same preview transport case at `320x568`                                        | Same surviving test, step `320x568`, including disabled columns/tooltip, brand visibility and every original assertion.                                                                                                                                                                                                                                                                                 |
+| Same preview transport case at `390x844`                                        | Same surviving test, step `390x844`, with every original assertion.                                                                                                                                                                                                                                                                                                                                     |
+| Same preview transport case at `844x390`                                        | Same surviving test, step `844x390`, with every original assertion.                                                                                                                                                                                                                                                                                                                                     |
+| `scope switches preserve playback, URL and provider: /s?v=dt-SqNL4z3w&a=5&b=15` | `canonical scope switches preserve playback, URL and provider` retains live paused/playing seeks, out-of-clip recovery, mute/speed, editor-link stability, identity and reload. `selected scope obeys Loop with legacy routing at clip and video end` retains targeted `/s` compatibility under the existing API mock. Live `/s` source geometry and open-ended clips remain in `share-routes.spec.ts`. |
+
+Local measurements on 2026-10-14, with one worker:
+
+| Selection                                  | Before                       | After                       |
+| ------------------------------------------ | ---------------------------- | --------------------------- |
+| Full configured suite                      | 175: Chromium 101, WebKit 74 | 164: Chromium 95, WebKit 69 |
+| Mock / provider-free / live-or-mount cases | 4 / 10 / 161                 | 4 / 10 / 150                |
+| Traced affected coverage                   | 17 passed in 64.4s           | 6 passed in 37.3s           |
+| Affected live iframe requests              | 18                           | 6                           |
+| Affected mocked iframe requests            | 1                            | 2                           |
+
+The trace comparison selects `scope switches preserve|selected scope obeys Loop|responsive preview|preview transport`
+with `--grep`, `--trace on` and separate `--output` directories. Counts come from
+YouTube `/embed/` requests in trace network records. They are provider-start
+proxies, not decoded frames or API play-start counts. The added mock request is
+legacy reload. These are single local samples; they do not establish long-term
+runtime or reliability. The untouched PR base has the same tree as `main` at
+`961f558`; its full run passed 165, skipped nine and failed the WebKit Landscape
+crop duration wait in 577.8s. See [PR #57](https://github.com/Leftium/youloop/pull/57)
+for the complete after-run and CI/deployment results.
+
+Both workspace matrices still run in Chromium and WebKit. Framing's three widths
+remain separate because they also exercise portrait-source detection and actual
+iframe crop geometry. Editor polish retains its precision, dialog/focus,
+container-width transport and 660px threshold assertions. Native CDP touch,
+scroll ownership, first-frame readiness, live seeking/recovery, source navigation
+and WebKit layout/focus coverage remain. No passing case became skipped or
+extended. The WebKit project selection and all browser commands are unchanged.
+
+A failed viewport step stops later steps in that journey; use its named trace
+step to locate the failing size. Fresh startup is no longer repeated at every
+matrix size. Other layout, breakpoint and native mobile tests retain independent
+startup coverage. The legacy mock cannot prove decoded YouTube pixels or live
+buffering; those contracts remain in the canonical journey and live `/s` tests.
+Physical Safari chrome and momentum handoff still require the checks below.
+
 ### Offline YouTube API proof
 
 `pnpm test:browser:mock` selects the existing cases tagged `@youtube-mock`:
 the workspace playback/identity journey in Chromium and WebKit, plus the watch
-Loop and Once boundary journeys in Chromium. No cases were added or removed.
-The complete suite retains 175 configured executions and representative live
-YouTube coverage, including scope switching, crop, framing and source navigation.
+Loop and Once boundary journeys in Chromium. The Loop journey also checks legacy
+`/s` routing and reload. The offline selection remains four executions; the
+complete suite has 164 configured executions and representative live YouTube
+coverage, including scope switching, crop, framing and source navigation.
 
 The fixture installs `window.YT.Player` before app startup. The ordinary
 `Player.svelte`, `<youtube-video>` element and installed Video.js 10.1.0 adapter
@@ -112,9 +169,9 @@ migration rather than dependency-upgrade performance.
 
 The mock proves event and UI contracts, not a decoded first frame, YouTube chrome,
 iframe crop pixels, real buffering or provider reliability. Retain live coverage
-for those. Future test-count reduction can consolidate overlapping scope-switch
-routes and repeated workspace resize/layout identity checks after reviewing their
-unique contracts. Moving cases to this mock alone does not reduce the count.
+for those. The consolidated viewport and watch-route coverage above reduces provider
+startups while retaining these boundaries. Moving unchanged cases to this mock
+alone does not reduce the count.
 
 With `pnpm dev` running, open the app and run
 the browser regressions in its developer console. Wait for the YouTube iframe
