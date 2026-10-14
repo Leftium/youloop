@@ -218,6 +218,8 @@ test('mirror watch/editor reload, history, false flags and source imports', asyn
 		const dialog = page.getByRole('dialog');
 		await dialog.getByRole('textbox').fill(input);
 		await dialog.getByRole('button', { name: 'Load', exact: true }).click();
+		// Canonical URL publication waits for the new source's settled duration.
+		await settled(page);
 		await expect.poll(() => query(page).has('mirror')).toBe(mirror);
 		await expect(page.getByRole('switch', { name: 'Mirror video' })).toBeChecked({
 			checked: mirror

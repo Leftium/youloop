@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onMount, tick, untrack, type Snippet } from 'svelte';
+	import { flushSync, onMount, tick, untrack, type Snippet } from 'svelte';
 	import IcRoundViewAgenda from '~icons/ic/round-view-agenda';
 	import IcRoundRestartAlt from '~icons/ic/round-restart-alt';
 
@@ -63,7 +63,7 @@
 		const updateScrollMode = () => (nativeScroll = query.matches);
 		updateScrollMode();
 		query.addEventListener('change', updateScrollMode);
-		const observer = new ResizeObserver(() => {
+		function measure() {
 			endDrag();
 			width = grid.clientWidth;
 			height = grid.clientHeight;
@@ -74,10 +74,17 @@
 				parseFloat(contentStyle.maxWidth) +
 				parseFloat(scrollStyle.paddingLeft) +
 				parseFloat(scrollStyle.paddingRight);
-		});
+		}
+		// Reconcile the breakpoint before animation frames, rather than waiting
+		// for ResizeObserver. It still catches later viewport-unit/container changes.
+		const syncMeasure = () => flushSync(measure);
+		measure();
+		window.addEventListener('resize', syncMeasure);
+		const observer = new ResizeObserver(syncMeasure);
 		observer.observe(grid);
 		return () => {
 			query.removeEventListener('change', updateScrollMode);
+			window.removeEventListener('resize', syncMeasure);
 			observer.disconnect();
 			endDrag();
 		};
@@ -381,7 +388,13 @@
 		top: calc(100% + 4px);
 		width: max-content;
 		/* In narrow previews, reserve room for the adjacent upper-right mode action. */
-		max-width: min(260px, calc(100cqw - 96px));
+		max-width: min(
+			260px,
+			calc(
+				100cqw - max(8px, env(safe-area-inset-left)) - max(8px, env(safe-area-inset-right)) -
+					var(--youloop-control-size) - var(--youloop-control-gap)
+			)
+		);
 		box-sizing: border-box;
 		overflow-wrap: anywhere;
 		padding: 6px 8px;

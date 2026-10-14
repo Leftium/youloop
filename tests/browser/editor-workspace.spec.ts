@@ -152,6 +152,66 @@ test('form leads in columns; video leads in rows', async ({ page }) => {
 	await identity(page);
 });
 
+test('viewport resize commits the new axis before animation frames without interrupting playback', async ({
+	page
+}) => {
+	await page.setViewportSize({ width: 1280, height: 800 });
+	await openEditor(page);
+	await page.evaluate(async () => {
+		await (document.querySelector('youtube-video') as HTMLMediaElement).play();
+	});
+	await page.waitForFunction(
+		() => !(document.querySelector('youtube-video') as HTMLMediaElement).paused
+	);
+	for (const reducedMotion of ['no-preference', 'reduce'] as const) {
+		await page.emulateMedia({ reducedMotion });
+		for (const viewport of [
+			{ width: 390, height: 844 },
+			{ width: 844, height: 390 },
+			{ width: 659, height: 800 },
+			{ width: 660, height: 800 },
+			{ width: 1280, height: 800 }
+		]) {
+			await page.evaluate(() => {
+				(window as unknown as { firstResizeFrame: unknown }).firstResizeFrame = null;
+				window.addEventListener(
+					'resize',
+					() =>
+						requestAnimationFrame(() => {
+							const grid = document.querySelector<HTMLElement>('.workspace-grid')!;
+							Object.assign(window, {
+								firstResizeFrame: {
+									layout: grid.dataset.layout
+								}
+							});
+						}),
+					{ once: true }
+				);
+			});
+			await page.setViewportSize(viewport);
+			await page.waitForFunction(
+				() => (window as unknown as { firstResizeFrame: unknown }).firstResizeFrame
+			);
+			const first = await page.evaluate(
+				() =>
+					(
+						window as unknown as {
+							firstResizeFrame: { layout: string };
+						}
+					).firstResizeFrame
+			);
+			expect(first.layout).toBe(viewport.width < 660 ? 'rows' : 'columns');
+			await identity(page);
+			expect(
+				await page.evaluate(
+					() => (document.querySelector('youtube-video') as HTMLMediaElement).paused
+				)
+			).toBe(false);
+			await geometry(page);
+		}
+	}
+});
+
 test('pointer and keyboard splitter bounds, capture cleanup, axes and reset', async ({ page }) => {
 	await page.setViewportSize({ width: 1440, height: 900 });
 	await openEditor(page);
@@ -371,8 +431,10 @@ test('session preferences restore, reconcile on resize, reset and stay out of sh
 });
 
 test('touch capture and cancellation clean up without changing provider identity', async ({
-	browser
+	browser,
+	browserName
 }) => {
+	test.skip(browserName !== 'chromium', 'Touch dispatch and cancellation require Chromium CDP.');
 	const context = await browser.newContext({
 		viewport: { width: 390, height: 844 },
 		hasTouch: true
@@ -577,6 +639,10 @@ for (const viewport of [
 }
 
 test.describe('mobile pane scrolling', () => {
+	test.skip(
+		({ browserName }) => browserName !== 'chromium',
+		'Native swipe injection requires Chromium CDP.'
+	);
 	test.use({ hasTouch: true, isMobile: true, viewport: { width: 390, height: 844 } });
 	const rootOffset = (page: Page) => page.evaluate(() => scrollY);
 	for (const viewport of [
@@ -732,6 +798,10 @@ test.describe('mobile pane scrolling', () => {
 });
 
 test.describe('automatic mobile document scrolling', () => {
+	test.skip(
+		({ browserName }) => browserName !== 'chromium',
+		'Native swipe injection requires Chromium CDP.'
+	);
 	for (const viewport of [
 		{ width: 390, height: 844 },
 		{ width: 844, height: 390 }
@@ -991,6 +1061,10 @@ for (const viewport of [
 	{ width: 844, height: 390 }
 ]) {
 	test.describe(`short controls ${viewport.width}x${viewport.height}`, () => {
+		test.skip(
+			({ browserName }) => browserName !== 'chromium',
+			'Native swipe injection requires Chromium CDP.'
+		);
 		test.use({ hasTouch: true, isMobile: true, viewport, screen: viewport });
 		test('fitting controls retain gesture ownership and provider identity', async ({
 			page,
@@ -1032,7 +1106,7 @@ for (const viewport of [
 	});
 }
 
-test('layout stays in the upper-left over picture without reserving height through resize, reflow and settings scroll', async ({
+test('layout stays in the upper-right beside mode action without reserving height through resize, reflow and settings scroll', async ({
 	page
 }) => {
 	await page.setViewportSize({ width: 1280, height: 800 });
@@ -1042,16 +1116,20 @@ test('layout stays in the upper-left over picture without reserving height throu
 			const pane = preview.getBoundingClientRect();
 			const group = preview.querySelector('.workspace-layout')!.getBoundingClientRect();
 			const brand = preview.querySelector('.brand')!.getBoundingClientRect();
+			const mode = preview.querySelector('.mode-toggle')!.getBoundingClientRect();
 			const picture = preview.querySelector('.player')!.getBoundingClientRect();
 			return {
-				x: group.left - pane.left,
+				x: pane.right - group.right,
 				y: group.top - pane.top,
 				clear:
 					group.top >= picture.top &&
 					group.bottom <= picture.bottom &&
 					brand.bottom <= picture.bottom &&
 					picture.top === preview.getBoundingClientRect().top &&
-					group.right <= brand.left
+					brand.right <= group.left &&
+					group.right <= mode.left &&
+					mode.right <= pane.right &&
+					Math.abs(group.top - mode.top) < 1
 			};
 		});
 		expect(result.clear).toBe(true);
@@ -1151,7 +1229,10 @@ test('named bound actions respect precision, retain Once, and share direct speed
 	}
 });
 
-test('upper-right tooltips fit inside the preview at narrow and wide sizes', async ({ page }) => {
+test('upper-right tooltips fit inside the preview at narrow and wide sizes', async ({
+	page,
+	browserName
+}) => {
 	await page.setViewportSize({ width: 1280, height: 800 });
 	await openEditor(page);
 	const measure = () =>
@@ -1161,7 +1242,7 @@ test('upper-right tooltips fit inside the preview at narrow and wide sizes', asy
 				const action = document.querySelector<HTMLElement>(selector)!;
 				const style = getComputedStyle(action, '::after');
 				// The layout tooltip is positioned within its relative parent;
-				// the mode tooltip is positioned within the player.
+				// the mode tooltip is positioned within its button.
 				const anchor = action.matches('.mode-toggle')
 					? action.getBoundingClientRect()
 					: action.closest('.workspace-layout')!.getBoundingClientRect();
@@ -1171,10 +1252,39 @@ test('upper-right tooltips fit inside the preview at narrow and wide sizes', asy
 						? 0
 						: parseFloat(style.paddingLeft) + parseFloat(style.paddingRight));
 				const right = anchor.right - parseFloat(style.right);
-				return { selector, left: right - width, right, width };
+				const top = anchor.top + parseFloat(style.top);
+				const height =
+					parseFloat(style.height) +
+					(style.boxSizing === 'border-box'
+						? 0
+						: parseFloat(style.paddingTop) + parseFloat(style.paddingBottom));
+				return { selector, left: right - width, right, width, top, bottom: top + height };
 			});
-			return { preview: { left: preview.left, right: preview.right }, tooltips };
+			return {
+				preview: {
+					left: preview.left,
+					right: preview.right,
+					top: preview.top,
+					bottom: preview.bottom
+				},
+				tooltips
+			};
 		});
+	const checkTooltips = async (safeInset = 0) => {
+		for (const selector of ['.workspace-layout button', '.mode-toggle']) {
+			await page.locator(selector).hover();
+			expect(
+				await page.locator(selector).evaluate((el) => getComputedStyle(el, '::after').opacity)
+			).toBe('1');
+			const bounds = await measure();
+			const tooltip = bounds.tooltips.find((t) => t.selector === selector)!;
+			expect(tooltip.width, selector).toBeGreaterThan(0);
+			expect(tooltip.left, selector).toBeGreaterThanOrEqual(bounds.preview.left + safeInset - 1);
+			expect(tooltip.right, selector).toBeLessThanOrEqual(bounds.preview.right - safeInset + 1);
+			expect(tooltip.top, selector).toBeGreaterThanOrEqual(bounds.preview.top - 1);
+			expect(tooltip.bottom, selector).toBeLessThanOrEqual(bounds.preview.bottom + 1);
+		}
+	};
 	for (const viewport of [
 		{ width: 240, height: 568 },
 		{ width: 320, height: 568 },
@@ -1183,17 +1293,31 @@ test('upper-right tooltips fit inside the preview at narrow and wide sizes', asy
 		{ width: 1280, height: 800 }
 	]) {
 		await page.setViewportSize(viewport);
-		const bounds = await measure();
-		for (const tooltip of bounds.tooltips) {
-			expect(tooltip.width, tooltip.selector).toBeGreaterThan(0);
-			expect(tooltip.left, tooltip.selector).toBeGreaterThanOrEqual(bounds.preview.left - 1);
-			expect(tooltip.right, tooltip.selector).toBeLessThanOrEqual(bounds.preview.right + 1);
-		}
+		await checkTooltips();
 	}
 	await page.getByRole('separator', { name: 'Resize video preview' }).press('Home');
-	const narrow = await measure();
-	for (const tooltip of narrow.tooltips)
-		expect(tooltip.left, tooltip.selector).toBeGreaterThanOrEqual(narrow.preview.left - 1);
+	await checkTooltips();
+	// CDP overrides actual env() values, rather than replacing the tooltip CSS.
+	if (browserName === 'chromium') {
+		const cdp = await page.context().newCDPSession(page);
+		await cdp.send('Emulation.setSafeAreaInsetsOverride', {
+			insets: { left: 44, right: 44, top: 20, bottom: 20 }
+		});
+		try {
+			for (const viewport of [
+				{ width: 240, height: 568 },
+				{ width: 320, height: 568 },
+				{ width: 390, height: 844 },
+				{ width: 844, height: 390 }
+			]) {
+				await page.setViewportSize(viewport);
+				await checkTooltips(44);
+			}
+		} finally {
+			await cdp.send('Emulation.setSafeAreaInsetsOverride', { insets: {} });
+			await cdp.detach();
+		}
+	}
 	await identity(page);
 });
 
