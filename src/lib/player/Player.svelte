@@ -352,7 +352,7 @@
 			prepareNavigationScrub,
 			togglePaused,
 			() => {
-				// Use the visible timeline axis in both modes, including margins and clip tails.
+				// Use the full-width timeline axis in both modes, including watch clip tails.
 				const axis = minimal
 					? playerContainer.querySelector('.watch-timeline .timeline-track')
 					: timelineBox?.querySelector('.editor-axis');
@@ -1066,6 +1066,8 @@
 					>
 						<div
 							class="watch-timeline"
+							style:left={`${controlsBounds.left - visibleBounds.left}px`}
+							style:width={`${controlsBounds.width}px`}
 							aria-hidden={theater}
 							class:clip={clipTimeline}
 							data-mode={clipTimeline ? 'clip' : 'video'}
@@ -1592,8 +1594,8 @@
 	}
 	.watch-overlay {
 		--timeline-progress: #f33;
-		--timeline-selection: #39f;
-		--timeline-overlap: #a855f7;
+		--timeline-selection: #fc3;
+		--timeline-overlap: #f90;
 		--timeline-remaining: #aaa;
 		position: absolute;
 		pointer-events: none;
@@ -1692,7 +1694,7 @@
 		gap: 0.3em;
 	}
 	.watch-time .time-label {
-		color: #39f;
+		color: #fc3;
 	}
 	.watch-controls .watch-time:disabled {
 		opacity: 1;
@@ -1742,7 +1744,7 @@
 	.watch-timeline {
 		position: absolute;
 		left: 0;
-		right: 0;
+		right: auto;
 		bottom: 0;
 		height: 3px;
 		display: flex;
@@ -1838,13 +1840,13 @@
 		transform: translateX(-50%);
 		background: #f33;
 		box-shadow:
-			-1px 0 0 rgb(255 255 255 / 85%),
-			1px 0 0 rgb(0 0 0 / 70%);
+			-1px 0 0 rgb(0 0 0 / 45%),
+			1px 0 0 rgb(0 0 0 / 45%);
 		pointer-events: none;
 		z-index: 5;
 	}
 	.editor-playhead-line.inside-clip {
-		background: #a855f7;
+		background: #f90;
 	}
 	.editor-transport {
 		padding: 0 0 max(1rem, env(safe-area-inset-bottom));

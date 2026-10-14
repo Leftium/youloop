@@ -4,7 +4,6 @@
 	import { timelineRange } from './watch-timeline';
 	import {
 		rangeValueAtPosition,
-		rangeValuePercent,
 		stepRangeValue,
 		type NumericRange
 	} from '../components/range-slider';
@@ -34,14 +33,13 @@
 		onpreviewend: () => void;
 	} = $props();
 	let axis = $state<HTMLDivElement>(undefined!);
-	let drag: { pointerId: number; node: HTMLElement; offset: number } | undefined;
+	let drag: { pointerId: number; node: HTMLElement } | undefined;
 	let range = $derived(timelineRange(duration, start, end, transportTime));
 	let progress = $derived(range.videoProgress * 100);
-	let displayed = $derived(rangeValuePercent(currentTime, 0, duration));
 	function move(event: PointerEvent) {
 		if (!drag || event.pointerId !== drag.pointerId) return;
 		const box = axis.getBoundingClientRect();
-		onseek(rangeValueAtPosition(event.clientX - box.left - drag.offset, box.width, 0, duration));
+		onseek(rangeValueAtPosition(event.clientX - box.left, box.width, 0, duration));
 	}
 	function begin(event: PointerEvent) {
 		if (disabled || drag || event.button !== 0 || !event.isPrimary) return;
@@ -49,13 +47,9 @@
 		const node = event.currentTarget as HTMLElement;
 		node.focus();
 		node.setPointerCapture(event.pointerId);
-		const box = axis.getBoundingClientRect();
 		drag = {
 			pointerId: event.pointerId,
-			node,
-			offset: (event.target as Element).closest('.playhead')
-				? event.clientX - box.left - (displayed / 100) * box.width
-				: 0
+			node
 		};
 		move(event);
 	}
@@ -106,14 +100,7 @@
 </script>
 
 <svelte:window onblur={() => finish()} />
-<div
-	class="editor-timeline"
-	data-transport-time={transportTime}
-	data-current-time={currentTime}
-	style:--playhead-color={currentTime >= range.start && currentTime <= range.end
-		? '#a855f7'
-		: '#f33'}
->
+<div class="editor-timeline" data-transport-time={transportTime} data-current-time={currentTime}>
 	<div class="editor-axis" bind:this={axis}>
 		<div
 			class="navigation"
@@ -142,7 +129,6 @@
 			>
 				<div class="overlap" style:width={`${range.clipProgress * 100}%`}></div>
 			</div>
-			<div class="playhead" style:left={`${displayed}%`} aria-hidden="true"></div>
 		</div>
 		<div class="endpoints">
 			<RangeSlider
@@ -171,8 +157,7 @@
 
 <style>
 	.editor-timeline {
-		/* Leave the original 16px gap below the downward marker. */
-		padding-bottom: 26px;
+		padding-bottom: 16px;
 	}
 	.editor-axis {
 		position: relative;
@@ -198,27 +183,10 @@
 		background: #f33;
 	}
 	.selection {
-		background: #39f;
+		background: #fc3;
 	}
 	.overlap {
-		background: #a855f7;
-	}
-	.playhead {
-		position: absolute;
-		top: -10px;
-		width: 24px;
-		height: 30px;
-		transform: translateX(-50%);
-		cursor: grab;
-	}
-	.playhead::after {
-		content: '';
-		position: absolute;
-		left: 7px;
-		top: 0;
-		border-inline: 5px solid transparent;
-		border-top: 10px solid var(--playhead-color);
-		filter: drop-shadow(0 0 1px rgb(0 0 0 / 70%));
+		background: #f90;
 	}
 	.endpoints {
 		position: absolute;
@@ -230,6 +198,7 @@
 		--range-slider-track: transparent;
 		--range-slider-selection: transparent;
 		--range-slider-thumb: white;
-		--range-slider-end-thumb: #6366f1;
+		--range-slider-color: #b58900;
+		--range-slider-end-thumb: #c65a00;
 	}
 </style>

@@ -144,15 +144,14 @@
 		if (event.button !== 0 || !event.isPrimary || drag) return;
 		// Splitter hit padding can cover an endpoint at the pane edge. Forward
 		// acquisition to that handle so it owns the real pointer capture.
-		for (const handle of grid.querySelectorAll<HTMLElement>('.editor-timeline .thumb')) {
-			const box = handle.getBoundingClientRect();
-			if (
-				event.clientX < box.left ||
-				event.clientX > box.right ||
-				event.clientY < box.top ||
-				event.clientY > box.bottom
-			)
-				continue;
+		const splitter = event.currentTarget as HTMLElement;
+		const previousPointerEvents = splitter.style.pointerEvents;
+		splitter.style.pointerEvents = 'none';
+		const handle = document
+			.elementFromPoint(event.clientX, event.clientY)
+			?.closest<HTMLElement>('.editor-timeline .thumb');
+		splitter.style.pointerEvents = previousPointerEvents;
+		if (handle && grid.contains(handle)) {
 			const forwarded = new PointerEvent('pointerdown', {
 				pointerId: event.pointerId,
 				pointerType: event.pointerType,

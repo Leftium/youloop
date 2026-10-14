@@ -14,9 +14,7 @@ export async function setSliderValue(page: Page, name: string, value: number | s
 				const axis = document.querySelector('.editor-axis')!.getBoundingClientRect();
 				const max = Number(el.getAttribute('aria-valuemax'));
 				const current = Number(el.getAttribute('aria-valuenow'));
-				const thumb =
-					el.getAttribute('aria-label') !== 'Current time' ||
-					(event.target as Element).closest('.playhead');
+				const thumb = el.getAttribute('aria-label') !== 'Current time';
 				el.setAttribute('data-proof-pointer', String(pointer.pointerId));
 				el.setAttribute(
 					'data-proof-offset',

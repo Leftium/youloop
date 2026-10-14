@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onDestroy, untrack } from 'svelte';
+	import { rangeTriangles } from './range-triangles';
 	import {
 		applyThumbInteraction,
 		normalizeRange,
@@ -106,12 +107,7 @@
 		return () => observer.disconnect();
 	});
 
-	function triangleLeft(percent: number) {
-		return Math.max(0, Math.min(trackWidth - 20, (percent * trackWidth) / 100 - 10));
-	}
-	function triangleTip(percent: number) {
-		return (percent * trackWidth) / 100 - triangleLeft(percent);
-	}
+	let triangles = $derived(rangeTriangles(trackWidth, 20, startPercent / 100, endPercent / 100));
 
 	function interact(
 		edge: RangeEdge,
@@ -356,8 +352,9 @@
 				aria-valuenow={range[edge]}
 				aria-valuetext={formatValue(range[edge])}
 				style:left={thumbShape === 'triangles'
-					? `${triangleLeft(edge === 'start' ? startPercent : endPercent)}px`
+					? `${triangles[edge].left}px`
 					: `${edge === 'start' ? startPercent : endPercent}%`}
+				style:width={thumbShape === 'triangles' ? `${triangles[edge].width}px` : undefined}
 				onpointerdown={(event) => beginDrag(event, edge)}
 				onpointermove={moveDrag}
 				onpointerup={endDrag}
@@ -369,11 +366,24 @@
 				onblur={blurThumb}
 			>
 				{#if thumbShape === 'triangles'}
-					{@const tip = triangleTip(edge === 'start' ? startPercent : endPercent)}
-					<svg class="triangle-marker" viewBox="0 0 20 20" aria-hidden="true">
-						<polygon points={edge === 'start' ? `${tip},0 20,20 0,20` : `0,0 20,0 ${tip},20`} />
+					{@const marker = triangles[edge]}
+					{@const points =
+						edge === 'start'
+							? `${marker.tip},0 ${marker.baseRight},20 ${marker.baseLeft},20`
+							: `${marker.baseLeft},0 ${marker.baseRight},0 ${marker.tip},20`}
+					<svg class="triangle-marker" viewBox={`0 0 ${marker.width} 20`} aria-hidden="true">
+						<polygon class="triangle-body" {points} />
+						<polygon
+							class="triangle-hit"
+							{points}
+							style:clip-path={triangles.sharedEdge
+								? edge === 'start'
+									? 'inset(50% 0 0 0)'
+									: 'inset(0 0 50% 0)'
+								: undefined}
+						/>
 						<text
-							x={(20 + tip) / 3}
+							x={marker.label}
 							y={edge === 'start' ? 14 : 6}
 							text-anchor="middle"
 							dominant-baseline="middle">{edge === 'start' ? 'A' : 'B'}</text
@@ -479,31 +489,35 @@
 		cursor: default;
 	}
 	.triangles .thumb {
-		top: -10px;
+		top: 0;
 		width: 20px;
 		height: 20px;
 		transform: none;
-	}
-	.triangles .thumb.end {
-		top: 10px;
+		pointer-events: none;
 	}
 	.triangles .thumb::after {
 		display: none;
 	}
 	.triangle-marker {
 		display: block;
-		width: 20px;
+		width: 100%;
 		height: 20px;
-		overflow: visible;
+		overflow: hidden;
+		pointer-events: none;
 	}
-	.triangle-marker polygon {
+	.triangle-marker .triangle-body {
 		fill: white;
 		stroke: var(--range-slider-color, #268bd2);
 		stroke-width: 1.5px;
 		stroke-linejoin: round;
 	}
-	.thumb.end .triangle-marker polygon {
+	.thumb.end .triangle-marker .triangle-body {
 		stroke: var(--range-slider-end-thumb, #6366f1);
+	}
+	.triangle-hit {
+		fill: transparent;
+		stroke: none;
+		pointer-events: auto;
 	}
 	.triangle-marker text {
 		fill: #1f2937;

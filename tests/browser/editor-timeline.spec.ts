@@ -115,8 +115,8 @@ test.describe('editor timeline', { tag: '@timeline-proof' }, () => {
 		const separator = page.getByRole('separator', { name: 'Resize video preview' });
 		const splitPosition = await separator.getAttribute('aria-valuenow');
 		for (const [name, y] of [
-			['Repeat start', edgeAxis.y + 3],
-			['Repeat end', edgeAxis.y + 20]
+			['Repeat start', edgeAxis.y + 15],
+			['Repeat end', edgeAxis.y + 5]
 		] as const) {
 			if (name === 'Repeat end') await slider(page, 'Repeat end').press('Home');
 			const handle = slider(page, name);
@@ -266,11 +266,6 @@ test.describe('editor timeline', { tag: '@timeline-proof' }, () => {
 				const line = await page.locator('.editor-playhead-line').boundingBox();
 				expect(Math.abs(line!.x + line!.width / 2 - dragX)).toBeLessThan(1);
 				await expect(page.locator('.editor-playhead-line')).not.toHaveClass(/inside-clip/);
-				expect(
-					await page
-						.locator('.playhead')
-						.evaluate((el) => getComputedStyle(el, '::after').borderTopColor)
-				).toBe('rgb(255, 51, 51)');
 				await setSliderValue(page, 'Current time', 15);
 				const combined = await page.evaluate(() => {
 					const box = (selector: string) =>
@@ -288,8 +283,8 @@ test.describe('editor timeline', { tag: '@timeline-proof' }, () => {
 							.backgroundColor.match(/\d+/g)!
 							.slice(0, 3)
 							.map(Number),
-						arrowColor: getComputedStyle(document.querySelector('.playhead')!, '::after')
-							.borderTopColor,
+						lineShadow: getComputedStyle(document.querySelector('.editor-playhead-line')!)
+							.boxShadow,
 						insets: [
 							Math.abs(axis.left - box('.player').left),
 							Math.abs(axis.right - box('.player').right)
@@ -309,15 +304,15 @@ test.describe('editor timeline', { tag: '@timeline-proof' }, () => {
 				expect(combined.flush).toBeLessThan(1);
 				expect(combined.lineEnd).toBeLessThan(1);
 				expect(combined.belowGap).toBeGreaterThanOrEqual(12);
-				expect(combined.lineColor).toEqual([168, 85, 247]);
-				expect(combined.arrowColor).toBe('rgb(168, 85, 247)');
+				expect(combined.lineColor).toEqual([255, 153, 0]);
+				expect(combined.lineShadow).not.toContain('255, 255, 255');
 				expect(combined.insets.every((inset) => inset < 1)).toBe(true);
 				expect(combined.heights).toEqual([20, 20, 20]);
 				expect(combined.colors).toEqual([
 					'rgb(170, 170, 170)',
 					'rgb(255, 51, 51)',
-					'rgb(51, 153, 255)',
-					'rgb(168, 85, 247)'
+					'rgb(255, 204, 51)',
+					'rgb(255, 153, 0)'
 				]);
 				expect(combined.overlap).toBeCloseTo(5 / 10.125, 2);
 				await slider(page, 'Current time').evaluate((el) => (el as HTMLElement).blur());
@@ -422,7 +417,10 @@ test.describe('editor timeline', { tag: '@timeline-proof' }, () => {
 				await expect(timeline).toHaveAttribute('aria-valuemax', '60.25');
 				const video = (await surface.boundingBox())!;
 				const fullAxis = (await page.locator('.watch-timeline .timeline-track').boundingBox())!;
-				expect(fullAxis.width).toBeLessThan(video.width / 2);
+				expect(Math.abs(fullAxis.width - video.width)).toBeLessThan(1);
+				expect((await page.locator('.media-canvas').boundingBox())!.width).toBeLessThan(
+					video.width / 2
+				);
 				async function dragAt(cursor: number) {
 					const bounds = (await surface.boundingBox())!;
 					await page.mouse.move(cursor - 12, bounds.y + bounds.height / 2);
@@ -437,9 +435,14 @@ test.describe('editor timeline', { tag: '@timeline-proof' }, () => {
 					.toBeCloseTo(((cursor - fullAxis.x) / fullAxis.width) * 60.25, 1);
 				const leftMargin = Math.round(video.x + 30);
 				await dragAt(leftMargin);
-				await expect(timeline).toHaveAttribute('aria-valuenow', '0');
-				await dragAt(Math.round(video.x + video.width - 30));
-				await expect(timeline).toHaveAttribute('aria-valuenow', '60.25');
+				await expect
+					.poll(() => timeline.getAttribute('aria-valuenow').then(Number))
+					.toBeCloseTo(((leftMargin - fullAxis.x) / fullAxis.width) * 60.25, 1);
+				const rightMargin = Math.round(video.x + video.width - 30);
+				await dragAt(rightMargin);
+				await expect
+					.poll(() => timeline.getAttribute('aria-valuenow').then(Number))
+					.toBeCloseTo(((rightMargin - fullAxis.x) / fullAxis.width) * 60.25, 1);
 				await page.touchscreen.tap(leftMargin, video.y + video.height / 2);
 				await expect
 					.poll(() =>

@@ -22,14 +22,15 @@ verification procedures.
 The editor's source-wide timeline combines navigation and A/B handles on one
 20px track, flush with the video above and retaining the gap before the buttons
 below. The track spans the full preview width; triangle tips mark exact times
-and their bodies stay inside the edges. A points up in the upper lane; B points
-down in the lower lane, keeping close or coincident endpoints independently
-grabbable. Overlapping handles take priority over splitter hit padding.
+and all three vertices stay within the track. A points up and B points down.
+Their bases shift inward at source edges and away from each other when endpoints
+approach, while crossing retains endpoint swapping. Coincident source-edge
+handles divide their hit regions vertically so both remain grabbable. Overlapping handles take priority over splitter hit padding.
 
 Colors match watch mode: red marks
-played time outside A:B, purple marks played time inside A:B, blue marks the
+played time outside A:B, orange marks played time inside A:B, yellow marks the
 unplayed selection, and gray marks remaining source time. Click empty track
-space or drag the playhead to seek without changing the selected clip or its share URL. Seeking outside A:B pauses for inspection; Play returns
+space or drag along the track to seek without changing the selected clip or its share URL. Seeking outside A:B pauses for inspection; Play returns
 to A when the transport is outside the clip. Frame stepping also uses the full
 source. Watch playback retains its own VIDEO/A:B scope and progress bar.
 
@@ -48,12 +49,11 @@ replacement clears the old preview before the new provider bootstraps. Pending
 seeks protect requested time from stale provider observations for up to two seconds.
 YouTube can display a delayed or approximate frame; inspection is not frame-exact.
 
-White A/B triangles use dark labels and blue/purple outlines to stand apart from
-the colored track. The noninteractive playhead line spans the preview and ends at the top
-of the timeline, against the same source-wide axis. A small downward arrow points
-to the track without adding another row. The line and arrow are purple inside
-A:B and red outside it. The solid line and arrow use subtle dark shadows for
-contrast over video. Resizing and changing layout or framing reposition
+White A/B triangles use dark labels and gold/brown outlines to stand apart from
+the colored track. The noninteractive playhead line spans the preview and ends
+at the top of the timeline, against the same source-wide axis. It is orange
+inside A:B and red outside, with subtle dark edges for contrast over video.
+There is no transport arrow. Resizing and changing layout or framing reposition
 the chrome without adding a provider. The Clip range dialog remains available
 for precise signed or absolute entry and explicit Set at playhead actions.
 
@@ -62,8 +62,7 @@ for precise signed or absolute entry and explicit Set at playhead actions.
 In editor and watch modes, a horizontal drag on the video jumps to the time at the
 cursor position, like the timeline. The left and right edges map to the full
 source bounds in the editor or the selected VIDEO/A:B bounds in watch. Editor
-dragging uses the timeline axis, including its inset margins, so the red playhead
-lines up with the cursor. Watch dragging uses the visible progress track between any
+dragging uses the full-width timeline axis, so the playhead lines up with the cursor. Watch dragging uses the visible progress track between any
 clip tails, and keeps that axis when Theater hides the chrome. Black margins
 remain tappable; dragging outside the axis clamps to the selected scope bounds. Direction locks after 8 CSS
 pixels: horizontal travel scrubs; vertical travel retains native document scrolling.
@@ -142,8 +141,8 @@ playback rather than toggling control visibility.
 and controls element. The shared `video-gesture.ts` owns surface taps and scrubbing. It attaches to the existing media
 without replacing YouLoop's A/B state machine or remounting the iframe.
 
-The persistent three-pixel Default timeline follows the intersection of the
-media canvas and `visualViewport`. Viewport changes reposition only the chrome;
+The persistent three-pixel Default timeline spans the visible player width,
+including black side margins, at the visible media canvas bottom edge. Viewport changes reposition only the chrome;
 they do not resize the `100lvh` stage or the centered `16000px` iframe crop.
 Downward document-scroll travel selects Theater; upward travel selects Default,
 including after the empty runway grows. Returning from Theater explicitly reveals
@@ -152,11 +151,11 @@ title, controls, and timeline. Fullscreen is independent of those modes. Safari 
 the Theater button only advances the native document scroll.
 
 The time button at the left of the control row switches between VIDEO and A:B
-without seeking or changing playback or the share URL. The blue `A:B` label
+without seeking or changing playback or the share URL. The yellow `A:B` label
 follows the duration in clip mode; full-video mode has no visible mode label.
-VIDEO shows absolute time and red full-video progress, with the blue selection at its true proportional
-position. The elapsed part of A:B is purple where progress overlaps selection.
-A:B shows elapsed clip time with purple progress over the blue clip track. Fixed
+VIDEO shows absolute time and red full-video progress, with the yellow selection at its true proportional
+position. The elapsed part of A:B is orange where progress overlaps selection.
+A:B shows elapsed clip time with orange progress over the yellow clip track. Fixed
 six-percent dashed tails indicate excluded video: red before A, gray after B.
 The tails are inert. Full-video selections have no highlight, tails, or available toggle.
 
