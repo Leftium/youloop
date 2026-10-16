@@ -210,7 +210,10 @@
 
 		loaded = true;
 		if (wasEmpty) {
-			const next = new URL(serializeEditorUrl(imported ?? { videoId, start: startSeconds }), page.url.origin);
+			const next = new URL(
+				serializeEditorUrl(imported ?? { videoId, start: startSeconds }),
+				page.url.origin
+			);
 			loadedHref = next.href;
 			pushState(next, page.state);
 		}
