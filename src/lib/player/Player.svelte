@@ -103,7 +103,7 @@
 		ontheater?: () => void;
 		onfillchange?: (fill: boolean | undefined) => void;
 		onorientationchange?: (orientation: 'landscape' | 'portrait' | undefined) => void;
-		onsourcechange?: (videoId: string, clip?: ShareUrlState) => void;
+		onsourcechange?: (source: EditorSource) => void;
 		ondurationresolved?: (duration: number | undefined) => void;
 		timestampPolicy?: TimestampPolicy;
 		timestampOptions?: { value: TimestampPolicy; label: string; preview?: string }[];
@@ -996,7 +996,7 @@
 
 	function applySource(source: EditorSource) {
 		const changed = source.videoId !== youtubeId;
-		onsourcechange?.(source.videoId, source.clip);
+		onsourcechange?.(source);
 		if (changed || !source.clip) sourceVersion += 1;
 	}
 
