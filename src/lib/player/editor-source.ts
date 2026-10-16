@@ -1,6 +1,18 @@
 import { parseShareUrl, type ShareUrlState } from '../share-url.ts';
 
-export type EditorSource = { videoId: string; clip?: ShareUrlState };
+export type EditorSource = { videoId: string; clip?: ShareUrlState; startSeconds?: number };
+
+// YouTube share links use seconds or h/m/s timestamps, unlike YouLoop's A~B grammar.
+function parseYouTubeStart(raw: string | null): number | undefined {
+	if (raw === null) return undefined;
+	const seconds = /^(\d+(?:\.\d+)?)(?:s)?$/.exec(raw);
+	const units = /^(?:(\d+)h)?(?:(\d+)m)?(?:(\d+(?:\.\d+)?)s)?$/.exec(raw);
+	if (!seconds && (!units || !units.slice(1).some(Boolean))) return undefined;
+	const value = seconds
+		? Number(seconds[1])
+		: Number(units![1] ?? 0) * 3600 + Number(units![2] ?? 0) * 60 + Number(units![3] ?? 0);
+	return Number.isFinite(value) ? value : undefined;
+}
 
 /** Plain YouTube sources keep existing source-change defaults; YouLoop links import options. */
 export function parseEditorSource(text: string): EditorSource | undefined {
@@ -30,7 +42,9 @@ export function parseEditorSource(text: string): EditorSource | undefined {
 		const videoId = url.hostname.endsWith('youtu.be')
 			? url.pathname.slice(1).split('/')[0]
 			: (url.searchParams.get('v') ?? /^\/(?:shorts|embed|v)\/([^/]+)/.exec(url.pathname)?.[1]);
-		return videoId && idPattern.test(videoId) ? { videoId } : undefined;
+		if (!videoId || !idPattern.test(videoId)) return undefined;
+		const startSeconds = parseYouTubeStart(url.searchParams.get('t'));
+		return startSeconds === undefined ? { videoId } : { videoId, startSeconds };
 	}
 	// The canonical codec validates compatible watch/editor paths and all imported options.
 	if (!input.startsWith('/') && !/^https?:\/\//i.test(input)) return undefined;

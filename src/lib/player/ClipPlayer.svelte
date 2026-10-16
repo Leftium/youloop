@@ -183,16 +183,16 @@
 		});
 	});
 
-	function applySource({ videoId, clip: imported }: EditorSource) {
+	function applySource({ videoId, clip: imported, startSeconds }: EditorSource) {
 		const wasEmpty = !loaded;
 		if (!imported || videoId !== youtubeId) settledDuration = undefined;
 		youtubeId = videoId;
 		timestampPolicy = 'preserve';
-		startExpression = imported?.start;
+		startExpression = imported?.start ?? startSeconds;
 		endExpression = imported?.end;
 		generatedStart = false;
 		generatedEnd = false;
-		repeatA = Math.max(0, imported?.start ?? 0);
+		repeatA = Math.max(0, imported?.start ?? startSeconds ?? 0);
 		repeatB = imported?.end !== undefined && imported.end > 0 ? imported.end : 99999;
 		if (imported) {
 			once = imported.once ?? false;
@@ -210,7 +210,10 @@
 
 		loaded = true;
 		if (wasEmpty) {
-			const next = new URL(serializeEditorUrl(imported ?? { videoId }), page.url.origin);
+			const next = new URL(
+				serializeEditorUrl(imported ?? { videoId, start: startSeconds }),
+				page.url.origin
+			);
 			loadedHref = next.href;
 			pushState(next, page.state);
 		}
@@ -269,7 +272,7 @@
 				if (value === undefined) controller.clearOverride();
 				else controller.choose(value);
 			}}
-			onsourcechange={(videoId, clip) => applySource({ videoId, clip })}
+			onsourcechange={applySource}
 		>
 			{#snippet editorFooter(available: boolean)}
 				<div class="share-row">

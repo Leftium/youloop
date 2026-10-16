@@ -296,16 +296,16 @@ test('clipboard preview does not commit until Load @routine', async ({ page }) =
 	await page.evaluate(() =>
 		Object.defineProperty(navigator, 'clipboard', {
 			configurable: true,
-			value: { readText: async () => '/dt-SqNL4z3w/31~38?mute' }
+			value: { readText: async () => 'https://youtu.be/dt-SqNL4z3w?t=31s' }
 		})
 	);
 	await dialog.getByRole('button', { name: 'Paste from clipboard' }).click();
-	await expect(input).toHaveValue('/dt-SqNL4z3w/31~38?mute');
+	await expect(input).toHaveValue('https://youtu.be/dt-SqNL4z3w?t=31s');
 	await expect(dialog.locator('.candidate-preview')).toContainText('Selected candidate');
 	await expect(page).toHaveURL(`${browserOrigin}/`);
 	await expect(page.locator('youtube-video')).toHaveCount(0);
 	await dialog.getByRole('button', { name: 'Load', exact: true }).click();
-	await expect(page).toHaveURL(/v=dt-SqNL4z3w&t=31~38&mute/);
+	await expect(page).toHaveURL(/v=dt-SqNL4z3w&t=31~/);
 });
 
 test.describe('invisible touch targets', () => {

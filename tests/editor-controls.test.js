@@ -69,12 +69,22 @@ test('source parser supports plain sources and imports YouLoop range/options wit
 		videoId,
 		`youtu.be/${videoId}`,
 		`www.youtube.com/watch?v=${videoId}`,
-		`https://youtu.be/${videoId}?t=10`,
 		`https://www.youtube.com/watch?v=${videoId}`,
 		`https://m.youtube.com/shorts/${videoId}`,
 		`https://www.youtube-nocookie.com/embed/${videoId}`
 	])
 		assert.deepEqual(parseEditorSource(text), { videoId });
+	for (const [text, startSeconds] of [
+		[`https://youtu.be/${videoId}?t=10`, 10],
+		[`youtu.be/${videoId}?t=12.5s`, 12.5],
+		[`https://www.youtube.com/watch?v=${videoId}&t=1m30s`, 90],
+		[`https://m.youtube.com/shorts/${videoId}?t=1h2m3s`, 3723],
+		[`https://www.youtube-nocookie.com/embed/${videoId}?t=2m`, 120]
+	])
+		assert.deepEqual(parseEditorSource(text), { videoId, startSeconds });
+	for (const time of ['invalid', '-1', '1e3', '1m30', '1h2m3', 'Infinity']) {
+		assert.deepEqual(parseEditorSource(`https://youtu.be/${videoId}?t=${time}`), { videoId });
+	}
 	for (const text of [
 		`https://youloop.app/${videoId}/-30.25~-5.5?once&mute&speed=0.5`,
 		`/?v=${videoId}&t=-30.25~-5.5&once&mute&speed=0.5`
