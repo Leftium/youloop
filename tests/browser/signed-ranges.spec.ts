@@ -27,9 +27,14 @@ test('signed fractions survive watch/editor/copy/reload/history and explicit bou
 	await settled(page);
 	const duration = (await state(page)).duration;
 	await expect(page.locator('.watch-timeline')).toHaveAttribute('aria-valuemax', '25.25');
+	// The paused bootstrap frame can differ from the intended signed start.
+	await expect(page.locator('.watch-timeline')).toHaveAttribute('aria-valuenow', '0');
+	await page.getByRole('button', { name: 'Play video', exact: true }).press('Enter');
 	await expect
 		.poll(async () => Math.abs((await state(page)).time - (duration - 30.5)))
 		.toBeLessThan(0.5);
+	await page.getByRole('button', { name: 'Pause video', exact: true }).press('Enter');
+	await settled(page);
 	await expect(
 		page.getByRole('link', { name: 'Switch to edit-first mode', exact: true })
 	).toHaveAttribute('href', editor);
