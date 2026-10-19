@@ -1848,7 +1848,7 @@
 		pointer-events: none;
 	}
 	.watch-overlay.scrubbing .watch-timeline {
-		height: 7px;
+		height: 5px;
 	}
 	// Retain the axis for scrubbing when Theater hides the chrome.
 	.watch-overlay.theater:not(.scrubbing) .watch-timeline {
@@ -1946,7 +1946,7 @@
 		background: #f07800;
 	}
 	.editor-playhead-line.scrubbing {
-		width: 6px;
+		width: 4px;
 	}
 	.timeline-box {
 		/* Reserve the 20px track and its 16px bottom gap before duration settles. */

@@ -332,7 +332,7 @@ test.describe('editor timeline', { tag: '@timeline-proof' }, () => {
 			await expect(display).toHaveAttribute('aria-valuenow', String(original));
 			await expect(feedback).toHaveCSS(feedbackSize, normalSize);
 			await page.mouse.move(dragX, y + 2);
-			await expect(feedback).toHaveCSS(feedbackSize, watch ? '7px' : '6px');
+			await expect(feedback).toHaveCSS(feedbackSize, watch ? '5px' : '4px');
 			if (!watch) {
 				const line = (await feedback.boundingBox())!;
 				expect(Math.abs(line.x + line.width / 2 - dragX)).toBeLessThan(1);
@@ -566,7 +566,7 @@ test.describe('editor timeline', { tag: '@timeline-proof' }, () => {
 					await page.mouse.move(cursor, bounds.y + bounds.height / 2);
 					if (theater) {
 						await expect(timeline).toBeVisible();
-						await expect(timeline).toHaveCSS('height', '7px');
+						await expect(timeline).toHaveCSS('height', '5px');
 						await expect(timeline).toHaveAttribute('aria-hidden', 'false');
 						await expect(page.locator('.watch-controls')).toBeHidden();
 					}
