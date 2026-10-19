@@ -4,6 +4,7 @@ import { attachVideoGesture } from '../src/lib/player/video-gesture.ts';
 
 function setup(left = 0, pointerType = 'mouse', position) {
 	globalThis.window = new EventTarget();
+	window.innerWidth = 200;
 	const surface = new EventTarget();
 	let captured;
 	surface.getBoundingClientRect = () => ({ left, width: 200 });
@@ -217,4 +218,49 @@ test('touch pickup near either endpoint preserves grab offset on the full axis',
 		assert.deepEqual(calls, ['begin', expected, expected, 'commit']);
 		attachment.destroy();
 	}
+});
+
+test('touchstart reserves only single-finger edge playhead grabs and still taps once', () => {
+	for (const [left, position, x, reserved] of [
+		[0, 0, 0, true],
+		[0, 0, 24, true],
+		[0, 0, 25, false],
+		[0, 1, 176, true],
+		[0, 1, 175, false],
+		[0, 0.5, 10, false],
+		[0, undefined, 10, false],
+		[44, 0, 0, true],
+		[45, 0, 0, false]
+	]) {
+		const { emit, touch, calls, attachment } = setup(left, 'touch', position);
+		emit('pointerdown', x);
+		assert.equal(touch('touchstart', x).defaultPrevented, reserved);
+		assert.deepEqual(calls, []);
+		emit('pointerup', x);
+		emit('click');
+		assert.deepEqual(calls, ['tap']);
+		attachment.destroy();
+	}
+});
+
+test('reserved edge starts release on multitouch and use the visible viewport edges', () => {
+	const { emit, touch, calls, attachment } = setup(50, 'touch', 0);
+	window.visualViewport = { offsetLeft: 50, width: 100 };
+	emit('pointerdown', 55);
+	assert.equal(touch('touchstart', 55).defaultPrevented, true);
+	emit('pointermove', 75);
+	assert.equal(touch('touchmove', 75).defaultPrevented, true);
+	emit('pointerdown', 85, 0, 2, false);
+	assert.equal(touch('touchstart', 85, 0, 2).defaultPrevented, false);
+	assert.equal(touch('touchmove', 85, 0, 2).defaultPrevented, false);
+	emit('pointerup', 85, 0, 2, false);
+	emit('pointerup', 75);
+	assert.deepEqual(calls, ['begin', 0.1, 'cancel']);
+	emit('pointerdown', 55);
+	assert.equal(touch('touchstart', 55, 0, 1, false).defaultPrevented, false);
+	emit('pointercancel', 55);
+	emit('pointerdown', 10);
+	assert.equal(touch('touchstart', 10).defaultPrevented, false);
+	emit('pointercancel', 10);
+	attachment.destroy();
 });

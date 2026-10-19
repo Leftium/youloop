@@ -74,14 +74,26 @@ export function attachVideoGesture(
 	);
 	// Pointer preventDefault does not cancel native touch panning. Keep this
 	// listener on the initial target (touch events retain it outside the video),
-	// and cancel only after horizontal intent. Never change touch-action mid-drag.
+	// and normally cancel only after horizontal intent. Never change touch-action mid-drag.
 	surface.addEventListener(
 		'touchstart',
 		(event) => {
-			if (event.touches.length === 1 && gesture?.touch)
-				gesture.touchId = event.touches[0].identifier;
+			const saved = gesture;
+			if (event.touches.length !== 1 || !saved?.touch) return;
+			const touch = event.touches[0];
+			saved.touchId = touch.identifier;
+			const viewport = window.visualViewport;
+			const left = viewport?.offsetLeft ?? 0;
+			const right = left + (viewport?.width ?? window.innerWidth);
+			const x = touch.clientX;
+			const nearEdge = x >= left && x <= right && (x - left <= 24 || right - x <= 24);
+			const playhead = saved.left + (saved.scrub.position ?? NaN) * saved.width;
+			// Experimental Safari Back mitigation: reserve only edge playhead grabs
+			// from touch-down. Vertical starts here also forgo native scrolling;
+			// everywhere else retains the usual direction decision and native pan-y.
+			if (event.cancelable && nearEdge && Math.abs(x - playhead) <= 44) event.preventDefault();
 		},
-		{ ...options, passive: true }
+		{ ...options, passive: false }
 	);
 	window.addEventListener(
 		'touchstart',

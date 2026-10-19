@@ -1292,6 +1292,7 @@
 		{#if duration}
 			<div
 				class="editor-playhead-line"
+				class:scrubbing={!!navigationScrub}
 				class:inside-clip={currentTime >= repeatA && currentTime <= repeatB}
 				aria-hidden="true"
 				style:left={`${Math.max(0, Math.min(1, currentTime / duration)) * 100}%`}
@@ -1846,6 +1847,9 @@
 		display: flex;
 		pointer-events: none;
 	}
+	.watch-overlay.scrubbing .watch-timeline {
+		height: 7px;
+	}
 	// Retain the axis for scrubbing when Theater hides the chrome.
 	.watch-overlay.theater:not(.scrubbing) .watch-timeline {
 		visibility: hidden;
@@ -1940,6 +1944,9 @@
 	}
 	.editor-playhead-line.inside-clip {
 		background: #f07800;
+	}
+	.editor-playhead-line.scrubbing {
+		width: 6px;
 	}
 	.timeline-box {
 		/* Reserve the 20px track and its 16px bottom gap before duration settles. */
