@@ -156,7 +156,7 @@
 
 	let currentTime = $state(repeatA);
 	let transportTime = $state(repeatA);
-	let navigationScrub: { time: number; paused: boolean; target: number } | undefined;
+	let navigationScrub = $state.raw<{ time: number; paused: boolean; target: number }>();
 	let scrubFrame = 0;
 	let cancelVideoGesture: (() => void) | undefined;
 	let endpointPreview: { time: number; paused: boolean } | undefined;
@@ -1136,6 +1136,7 @@
 					<div
 						class="watch-overlay"
 						class:theater
+						class:scrubbing={!!navigationScrub}
 						style:left={`${visibleBounds.left}px`}
 						style:top={`${visibleBounds.top}px`}
 						style:width={`${visibleBounds.width}px`}
@@ -1145,7 +1146,7 @@
 							class="watch-timeline"
 							style:left={`${controlsBounds.left - visibleBounds.left}px`}
 							style:width={`${controlsBounds.width}px`}
-							aria-hidden={theater}
+							aria-hidden={theater && !navigationScrub}
 							class:clip={clipTimeline}
 							data-mode={clipTimeline ? 'clip' : 'video'}
 							role="progressbar"
@@ -1846,7 +1847,7 @@
 		pointer-events: none;
 	}
 	// Retain the axis for scrubbing when Theater hides the chrome.
-	.watch-overlay.theater .watch-timeline {
+	.watch-overlay.theater:not(.scrubbing) .watch-timeline {
 		visibility: hidden;
 	}
 	.timeline-track {

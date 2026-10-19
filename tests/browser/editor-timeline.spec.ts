@@ -543,12 +543,19 @@ test.describe('editor timeline', { tag: '@timeline-proof' }, () => {
 				expect((await page.locator('.media-canvas').boundingBox())!.width).toBeLessThan(
 					video.width / 2
 				);
-				async function dragAt(cursor: number) {
+				async function dragAt(cursor: number, theater = false) {
 					const bounds = (await surface.boundingBox())!;
 					await page.mouse.move(cursor - 12, bounds.y + bounds.height / 2);
 					await page.mouse.down();
+					if (theater) await expect(timeline).toBeHidden();
 					await page.mouse.move(cursor, bounds.y + bounds.height / 2);
+					if (theater) {
+						await expect(timeline).toBeVisible();
+						await expect(timeline).toHaveAttribute('aria-hidden', 'false');
+						await expect(page.locator('.watch-controls')).toBeHidden();
+					}
 					await page.mouse.up();
+					if (theater) await expect(timeline).toBeHidden();
 				}
 				const cursor = Math.round(fullAxis.x + fullAxis.width * 0.25);
 				await dragAt(cursor);
@@ -591,9 +598,18 @@ test.describe('editor timeline', { tag: '@timeline-proof' }, () => {
 				await page.evaluate(() => window.scrollTo({ top: 100, behavior: 'instant' }));
 				await expect(page.locator('.share-prototype')).toHaveAttribute('data-mode', 'theater');
 				await expect(timeline).toBeHidden();
-				await dragAt(leftMargin);
+				const theaterVideo = (await surface.boundingBox())!;
+				await page.mouse.move(clipCursor - 12, theaterVideo.y + theaterVideo.height / 2);
+				await page.mouse.down();
+				await page.mouse.move(clipCursor, theaterVideo.y + theaterVideo.height / 2);
+				await expect(timeline).toBeVisible();
+				await page.evaluate(() => window.dispatchEvent(new Event('blur')));
+				await expect(timeline).toBeHidden();
+				await expect(timeline).toHaveAttribute('aria-hidden', 'true');
+				await page.mouse.up();
+				await dragAt(leftMargin, true);
 				await expect(timeline).toHaveAttribute('aria-valuenow', '0');
-				await dragAt(clipCursor);
+				await dragAt(clipCursor, true);
 				await expect
 					.poll(() => timeline.getAttribute('aria-valuenow').then(Number))
 					.toBeCloseTo(elapsed, 1);
