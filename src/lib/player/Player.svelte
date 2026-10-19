@@ -1584,6 +1584,9 @@
 	$slate-100: #dfe3eb; // --pico-range-border-color (track)
 
 	.player {
+		-webkit-user-select: none;
+		user-select: none;
+		-webkit-touch-callout: none;
 		position: relative;
 		display: flex;
 		align-items: center;
