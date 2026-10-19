@@ -20,11 +20,13 @@
 	let {
 		minimal = false,
 		theater = false,
-		ontheater
+		ontheater,
+		onscrubchange
 	}: {
 		minimal?: boolean;
 		theater?: boolean;
 		ontheater?: () => void;
+		onscrubchange?: (active: boolean) => void;
 	} = $props();
 
 	function emptyRoot(url: URL) {
@@ -258,6 +260,7 @@
 			viewPath={sharePath ?? (normalized.ok && !clipInvalid ? serializeShareUrl(clip) : undefined)}
 			{theater}
 			{ontheater}
+			{onscrubchange}
 			ononcechange={(value) => (once = value)}
 			onmutechange={(value) => (mute = value)}
 			onspeedchange={(value) => (speed = value)}

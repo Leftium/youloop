@@ -101,6 +101,7 @@
 		theater?: boolean;
 		controlPageVisible?: boolean;
 		ontheater?: () => void;
+		onscrubchange?: (active: boolean) => void;
 		onfillchange?: (fill: boolean | undefined) => void;
 		onorientationchange?: (orientation: 'landscape' | 'portrait' | undefined) => void;
 		onsourcechange?: (source: EditorSource) => void;
@@ -139,6 +140,7 @@
 		theater = false,
 		controlPageVisible = false,
 		ontheater,
+		onscrubchange,
 		onfillchange,
 		onorientationchange,
 		onsourcechange,
@@ -614,11 +616,13 @@
 		const saved = { time: transportTime, paused: requestedPaused, target: transportTime };
 		const bounds = minimal ? { ...activeBounds } : { start: 0, end: duration };
 		return {
+			position: (saved.time - bounds.start) / (bounds.end - bounds.start),
 			begin() {
 				startupPending = false;
 				resetFrameStepping();
 				endEndpointPreview();
 				navigationScrub = saved;
+				onscrubchange?.(true);
 				transportTime = saved.time;
 				pause();
 			},
@@ -642,6 +646,7 @@
 				if (scrubFrame) cancelAnimationFrame(scrubFrame);
 				scrubFrame = 0;
 				navigationScrub = undefined;
+				onscrubchange?.(false);
 				const target = commit ? saved.target : saved.time;
 				const outside = target < activeBounds.start || target >= activeBounds.end;
 				const stayPaused =
@@ -1028,6 +1033,7 @@
 
 	function discardNavigationScrub() {
 		// Teardown has no provider to restore. Invalidate before gesture cleanup.
+		if (navigationScrub) onscrubchange?.(false);
 		navigationScrub = undefined;
 		if (scrubFrame) cancelAnimationFrame(scrubFrame);
 		scrubFrame = 0;
@@ -1668,6 +1674,10 @@
 
 	youloop-controls-player {
 		display: contents;
+	}
+	:global(html:has(.video-surface)) {
+		/* Horizontal navigation containment belongs on the scrolling root. */
+		overscroll-behavior-x: contain;
 	}
 	.video-surface {
 		touch-action: pan-y pinch-zoom;

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { attachVideoGesture } from '../src/lib/player/video-gesture.ts';
 
-function setup(left = 0) {
+function setup(left = 0, pointerType = 'mouse', position) {
 	globalThis.window = new EventTarget();
 	const surface = new EventTarget();
 	let captured;
@@ -18,6 +18,7 @@ function setup(left = 0) {
 	const attachment = attachVideoGesture(
 		surface,
 		() => ({
+			position,
 			begin: () => calls.push('begin'),
 			move: (position) => calls.push(position),
 			end: (commit) => calls.push(commit ? 'commit' : 'cancel')
@@ -26,13 +27,33 @@ function setup(left = 0) {
 	);
 	function emit(type, x = 0, y = 0, id = 1, primary = true) {
 		const event = new Event(type, { cancelable: true });
-		Object.assign(event, { pointerId: id, isPrimary: primary, button: 0, clientX: x, clientY: y });
+		Object.assign(event, {
+			pointerId: id,
+			pointerType,
+			isPrimary: primary,
+			button: 0,
+			clientX: x,
+			clientY: y
+		});
 		if (type === 'pointerdown' || type === 'click' || type === 'lostpointercapture')
 			surface.dispatchEvent(event);
 		if (type !== 'click' && type !== 'lostpointercapture') window.dispatchEvent(event);
 		return event;
 	}
-	return { emit, calls, attachment };
+	function touch(type, x = 0, y = 0, count = 1, cancelable = true) {
+		const event = new Event(type, { cancelable });
+		Object.assign(event, {
+			touches: Array.from({ length: count }, (_, identifier) => ({
+				identifier,
+				clientX: x,
+				clientY: y
+			}))
+		});
+		surface.dispatchEvent(event);
+		window.dispatchEvent(event);
+		return event;
+	}
+	return { emit, touch, calls, attachment };
 }
 
 test('tap has no down seek and synthetic click cannot toggle twice', () => {
@@ -105,5 +126,81 @@ test('second pointer cancels scrub and neither finger becomes a tap', () => {
 	emit('pointerup', 30, 0, 2, false);
 	emit('pointerup', 20);
 	assert.deepEqual(calls, ['begin', 0.1, 'cancel']);
+	attachment.destroy();
+});
+
+// Permanent: cheap ownership/cancellation contracts protect touch playback restoration.
+test('touch horizontal lock cancels native movement through vertical travel and residual scroll', () => {
+	const { emit, touch, calls, attachment } = setup(0, 'touch');
+	emit('pointerdown', 40);
+	touch('touchstart', 40);
+	assert.equal(touch('touchmove', 44, 1).defaultPrevented, false);
+	emit('pointermove', 60, 2);
+	assert.equal(touch('touchmove', 60, 2).defaultPrevented, true);
+	emit('scroll');
+	emit('pointermove', 80, 150);
+	assert.equal(touch('touchmove', 80, 150).defaultPrevented, true);
+	emit('pointerup', 80, 150);
+	assert.equal(touch('touchmove', 80, 160).defaultPrevented, false);
+	assert.deepEqual(calls, ['begin', 0.3, 0.4, 0.4, 'commit']);
+	attachment.destroy();
+});
+
+test('vertical touch intent remains native and cannot become a scrub later', () => {
+	const { emit, touch, calls, attachment } = setup(0, 'touch');
+	emit('pointerdown', 40);
+	touch('touchstart', 40);
+	emit('pointermove', 42, 20);
+	assert.equal(touch('touchmove', 42, 20).defaultPrevented, false);
+	emit('pointermove', 80, 22);
+	assert.equal(touch('touchmove', 80, 22).defaultPrevented, false);
+	emit('pointerup', 80, 22);
+	assert.deepEqual(calls, []);
+	attachment.destroy();
+});
+
+test('touch cancellation, browser takeover, multitouch and explicit cleanup release native scrolling', () => {
+	for (const reason of [
+		'touchcancel',
+		'pointercancel',
+		'takeover',
+		'multitouch',
+		'cancel',
+		'destroy'
+	]) {
+		const { emit, touch, calls, attachment } = setup(0, 'touch');
+		emit('pointerdown', 40);
+		touch('touchstart', 40);
+		emit('pointermove', 60);
+		if (reason === 'takeover') touch('touchmove', 80, 0, 1, false);
+		else if (reason === 'multitouch') touch('touchstart', 80, 0, 2);
+		else if (reason === 'cancel' || reason === 'destroy') attachment[reason]();
+		else if (reason === 'pointercancel') emit(reason);
+		else touch(reason);
+		assert.equal(touch('touchmove', 80).defaultPrevented, false, reason);
+		emit('pointerup', 80);
+		assert.deepEqual(calls, ['begin', 0.3, 'cancel'], reason);
+		attachment.destroy();
+	}
+});
+
+test('touch pickup near either endpoint preserves grab offset on the full axis', () => {
+	for (const [position, down, move, expected] of [
+		[0, 18, 38, 0.1],
+		[1, 182, 162, 0.9]
+	]) {
+		const { emit, calls, attachment } = setup(0, 'touch', position);
+		emit('pointerdown', down);
+		assert.deepEqual(calls, []);
+		emit('pointermove', move);
+		emit('pointerup', move);
+		assert.deepEqual(calls, ['begin', expected, expected, 'commit']);
+		attachment.destroy();
+	}
+	const { emit, calls, attachment } = setup(0, 'touch', 0);
+	emit('pointerdown', 60);
+	emit('pointermove', 80);
+	emit('pointerup', 80);
+	assert.deepEqual(calls, ['begin', 0.4, 0.4, 'commit']);
 	attachment.destroy();
 });

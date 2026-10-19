@@ -1,4 +1,6 @@
 export interface VideoScrub {
+	// Current position on the same axis, for offset-preserving touch pickup.
+	position?: number;
 	begin(): void;
 	// Axis position: 0 at the left edge, 1 at the right; caller clamps overshoot.
 	move(position: number): void;
@@ -23,6 +25,9 @@ export function attachVideoGesture(
 				y: number;
 				left: number;
 				width: number;
+				touch: boolean;
+				touchId?: number;
+				offset: number;
 				horizontal: boolean;
 				scrub: VideoScrub;
 		  }
@@ -50,18 +55,62 @@ export function attachVideoGesture(
 			const scrub = prepare();
 			if (!scrub) return;
 			const bounds = axisBounds();
+			const playhead = bounds.left + (scrub.position ?? NaN) * bounds.width;
+			const touch = event.pointerType === 'touch';
 			gesture = {
 				id: event.pointerId,
 				x: event.clientX,
 				y: event.clientY,
 				left: bounds.left,
 				width: Math.max(1, bounds.width),
+				touch,
+				// A 44px pickup area extends inward at either physical endpoint.
+				offset: touch && Math.abs(event.clientX - playhead) <= 22 ? event.clientX - playhead : 0,
 				horizontal: false,
 				scrub
 			};
 		},
 		options
 	);
+	// Pointer preventDefault does not cancel native touch panning. Keep this
+	// listener on the initial target (touch events retain it outside the video),
+	// and cancel only after horizontal intent. Never change touch-action mid-drag.
+	surface.addEventListener(
+		'touchstart',
+		(event) => {
+			if (event.touches.length === 1 && gesture?.touch)
+				gesture.touchId = event.touches[0].identifier;
+		},
+		{ ...options, passive: true }
+	);
+	window.addEventListener(
+		'touchstart',
+		(event) => {
+			if (event.touches.length > 1) finish();
+		},
+		{ ...options, passive: true }
+	);
+	surface.addEventListener(
+		'touchmove',
+		(event) => {
+			const saved = gesture;
+			if (!saved?.touch || event.touches.length !== 1) return;
+			const touch = event.touches[0];
+			if (touch.identifier !== saved.touchId) return;
+			const dx = touch.clientX - saved.x;
+			const dy = touch.clientY - saved.y;
+			if (!saved.horizontal && (Math.hypot(dx, dy) <= 8 || Math.abs(dx) <= Math.abs(dy))) return;
+			// The browser can already own a gesture. Restore rather than committing
+			// a partial scrub when native cancellation is no longer available.
+			if (!event.cancelable) {
+				finish();
+				return;
+			}
+			event.preventDefault();
+		},
+		{ ...options, passive: false }
+	);
+	surface.addEventListener('touchcancel', () => finish(), { ...options, passive: true });
 	window.addEventListener(
 		'pointermove',
 		(event) => {
@@ -80,7 +129,7 @@ export function attachVideoGesture(
 				surface.setPointerCapture(event.pointerId);
 			}
 			event.preventDefault();
-			saved.scrub.move((event.clientX - saved.left) / saved.width);
+			saved.scrub.move((event.clientX - saved.left - saved.offset) / saved.width);
 		},
 		{ ...options, passive: false }
 	);
@@ -90,7 +139,8 @@ export function attachVideoGesture(
 			if (gesture?.id === event.pointerId) {
 				// A release can carry travel without an intervening move event.
 				const stationary = Math.hypot(event.clientX - gesture.x, event.clientY - gesture.y) <= 8;
-				if (gesture.horizontal) gesture.scrub.move((event.clientX - gesture.left) / gesture.width);
+				if (gesture.horizontal)
+					gesture.scrub.move((event.clientX - gesture.left - gesture.offset) / gesture.width);
 				finish(true, stationary && pointers.size === 1);
 			}
 			pointers.delete(event.pointerId);
@@ -112,7 +162,15 @@ export function attachVideoGesture(
 		},
 		options
 	);
-	window.addEventListener('scroll', () => finish(), { ...options, capture: true, passive: true });
+	window.addEventListener(
+		'scroll',
+		() => {
+			// An active touch scrub owns its direction. Residual scroll must not
+			// turn its final release into a cancellation or a playback toggle.
+			if (!gesture?.touch || !gesture.horizontal) finish();
+		},
+		{ ...options, capture: true, passive: true }
+	);
 	window.addEventListener('wheel', () => finish(), { ...options, passive: true });
 	window.addEventListener(
 		'blur',
