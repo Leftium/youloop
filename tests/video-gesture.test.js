@@ -187,20 +187,34 @@ test('touch cancellation, browser takeover, multitouch and explicit cleanup rele
 test('touch pickup near either endpoint preserves grab offset on the full axis', () => {
 	for (const [position, down, move, expected] of [
 		[0, 18, 38, 0.1],
-		[1, 182, 162, 0.9]
+		[1, 182, 162, 0.9],
+		[0, 40, 60, 0.1],
+		[1, 160, 140, 0.9],
+		[0, 44, 64, 0.1],
+		[1, 156, 136, 0.9]
 	]) {
-		const { emit, calls, attachment } = setup(0, 'touch', position);
-		emit('pointerdown', down);
+		const left = 27;
+		const { emit, calls, attachment } = setup(left, 'touch', position);
+		emit('pointerdown', left + down);
 		assert.deepEqual(calls, []);
+		emit('pointermove', left + move);
+		assert.deepEqual(calls, ['begin', expected]);
+		// Returning to the pickup point still reaches the exact original endpoint.
+		emit('pointermove', left + down);
+		emit('pointerup', left + down);
+		assert.deepEqual(calls, ['begin', expected, position, position, 'commit']);
+		attachment.destroy();
+	}
+	for (const [pointerType, down, move, expected] of [
+		['touch', 45, 65, 0.325],
+		['touch', 155, 135, 0.675],
+		['mouse', 44, 64, 0.32]
+	]) {
+		const { emit, calls, attachment } = setup(0, pointerType, down > 100 ? 1 : 0);
+		emit('pointerdown', down);
 		emit('pointermove', move);
 		emit('pointerup', move);
 		assert.deepEqual(calls, ['begin', expected, expected, 'commit']);
 		attachment.destroy();
 	}
-	const { emit, calls, attachment } = setup(0, 'touch', 0);
-	emit('pointerdown', 60);
-	emit('pointermove', 80);
-	emit('pointerup', 80);
-	assert.deepEqual(calls, ['begin', 0.4, 0.4, 'commit']);
-	attachment.destroy();
 });

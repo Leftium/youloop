@@ -64,8 +64,8 @@ export function attachVideoGesture(
 				left: bounds.left,
 				width: Math.max(1, bounds.width),
 				touch,
-				// A 44px pickup area extends inward at either physical endpoint.
-				offset: touch && Math.abs(event.clientX - playhead) <= 22 ? event.clientX - playhead : 0,
+				// Allow pickup up to 44px inward from either endpoint without moving the axis.
+				offset: touch && Math.abs(event.clientX - playhead) <= 44 ? event.clientX - playhead : 0,
 				horizontal: false,
 				scrub
 			};

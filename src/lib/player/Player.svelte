@@ -1587,7 +1587,6 @@
 	.player {
 		-webkit-user-select: none;
 		user-select: none;
-		-webkit-touch-callout: none;
 		position: relative;
 		display: flex;
 		align-items: center;
@@ -1684,6 +1683,7 @@
 		overscroll-behavior-x: contain;
 	}
 	.video-surface {
+		-webkit-touch-callout: none;
 		touch-action: pan-y pinch-zoom;
 		position: absolute;
 		inset: 0;
