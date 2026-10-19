@@ -116,7 +116,12 @@ Out-of-duration bounds clamp to a nonempty range using the actual provider
 duration. Invalid links show an error without starting a different video.
 
 Default clips repeat; `once` pauses at B. `mute` and `speed` apply to real media
-after the existing silent first-frame bootstrap. Browser autoplay policy and
+after the existing silent first-frame bootstrap. Its temporary preview seek does
+not advance the logical playhead: first Play seeks to resolved A before unmuting
+and starting playback. A deliberate seek, scrub, frame step, or scope change
+consumes that startup restoration. The clean preview stays paused at the
+bootstrap frame until then; YouTube seeking remains approximate.
+Browser autoplay policy and
 YouTube's supported playback rates still govern playback. Fit/Fill and orientation
 retain automatic detection unless overridden. SSR social cards use canonical
 video paths and clip bounds, omit playback/framing flags, and fall back safely

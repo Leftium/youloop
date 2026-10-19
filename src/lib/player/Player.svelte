@@ -189,7 +189,8 @@
 		cancelVideoGesture?.();
 		if (!range.restricted || !player) return;
 		endEndpointPreview();
-		const position = frameStepper.target ?? player.currentTime;
+		const position = frameStepper.target ?? (startupPending ? transportTime : player.currentTime);
+		startupPending = false;
 		resetFrameStepping();
 		playbackScope = scopeChoice.toggle();
 		const target = scopeSwitchTarget(position, activeBounds);
@@ -212,6 +213,8 @@
 	let boundsError = $state('');
 	let pauseAfterSeek = false;
 	let initialFramePending = false;
+	let startupPending = false;
+	let sourceGeneration = 0;
 	let bootstrapMuted = false;
 	let metadataReceived = $state(false);
 	let firstFrameReady = false;
@@ -253,7 +256,8 @@
 			)
 				endEndpointPreview();
 			if (duration !== undefined && !validateBounds()) return;
-			if (navigationScrub || endpointPreview || (!minimal && requestedPaused)) return;
+			if (startupPending || navigationScrub || endpointPreview || (!minimal && requestedPaused))
+				return;
 			if (player.currentTime < activeBounds.start || player.currentTime > activeBounds.end) {
 				seek(activeBounds.start);
 			}
@@ -586,6 +590,7 @@
 	}
 
 	function setMediaTime(time: number, stayPaused: boolean, preview = false, frameStep = false) {
+		startupPending = false;
 		if (!frameStep) resetFrameStepping();
 		pauseAfterSeek = stayPaused;
 		currentTime = Math.max(0, Math.min(duration ?? player.duration, time));
@@ -610,6 +615,7 @@
 		const bounds = minimal ? { ...activeBounds } : { start: 0, end: duration };
 		return {
 			begin() {
+				startupPending = false;
 				resetFrameStepping();
 				endEndpointPreview();
 				navigationScrub = saved;
@@ -707,8 +713,10 @@
 		duration = nextDuration;
 		ondurationresolved?.(duration);
 		if (!validateBounds()) return;
+		if (startupPending) currentTime = transportTime = repeatA;
 		if (minimal) playbackScope = scopeChoice.choose(nextDuration, repeatA, repeatB);
 		if (
+			!startupPending &&
 			!navigationScrub &&
 			!endpointPreview &&
 			(minimal || firstDuration || !requestedPaused) &&
@@ -750,7 +758,8 @@
 		scheduleDuration();
 	}
 
-	function handlePause() {
+	function handlePause(event?: Event) {
+		if (event && event.currentTarget !== player) return;
 		paused = true;
 		// pauseVideo() is asynchronous. Keep the bootstrap silent until the
 		// provider confirms it has stopped, including its final audio samples.
@@ -771,7 +780,8 @@
 		}
 	}
 
-	function handleMetadata() {
+	function handleMetadata(event?: Event) {
+		if (event && event.currentTarget !== player) return;
 		readVideoTitle();
 		if (!Number.isFinite(player.duration) || player.duration <= 0) return;
 		if (metadataReceived) {
@@ -779,6 +789,7 @@
 			return;
 		}
 		metadataReceived = true;
+		startupPending = true;
 		initialFramePending = true;
 		bootstrapMuted = true;
 		player.muted = true;
@@ -787,15 +798,16 @@
 		// An out-of-duration A cannot render a first frame. Bootstrap inside the
 		// provider first; settled duration then clamps the requested range.
 		pauseAfterSeek = true;
-		currentTime =
+		const previewTime =
 			!resolveClipRange(requestedBounds, player.duration).ok || repeatA >= player.duration - 1
 				? Math.min(1, player.duration / 2)
 				: Math.max(repeatA, Math.min(1, repeatB));
-		transportTime = currentTime;
-		player.currentTime = currentTime;
-		const version = sourceVersion;
+		// Keep the rendered preview separate from the logical resume position.
+		// Rewinding a paused YouTube provider can restore its cued thumbnail.
+		player.currentTime = previewTime;
+		const generation = sourceGeneration;
 		void player.play().catch((error) => {
-			if (version !== sourceVersion) return;
+			if (generation !== sourceGeneration) return;
 			initialFramePending = false;
 			pause();
 			if (player.paused) restoreBootstrapMute();
@@ -803,7 +815,8 @@
 		});
 	}
 
-	function handlePlaying() {
+	function handlePlaying(event?: Event) {
+		if (event && event.currentTarget !== player) return;
 		if (navigationScrub || endpointPreview || frameStepper.target !== undefined) {
 			player.pause();
 			return;
@@ -838,7 +851,8 @@
 		}
 	}
 
-	function handleSeeked() {
+	function handleSeeked(event?: Event) {
+		if (event && event.currentTarget !== player) return;
 		if (initialFramePending) {
 			if (youtubePlayerState() === YOUTUBE_STATE_PLAYING) handlePlaying();
 		} else if (pauseAfterSeek) {
@@ -852,8 +866,10 @@
 		handleTimeUpdate();
 	}
 
-	function handleTimeUpdate() {
+	function handleTimeUpdate(event?: Event) {
+		if (event && event.currentTarget !== player) return;
 		if (!videoTitle) readVideoTitle();
+		if (startupPending) return;
 		if (duration === undefined || boundsError || player.seeking) return;
 		// YouTube observations can arrive from the previous seek. Keep requested
 		// display time until acknowledgement, with a bounded recovery window.
@@ -898,6 +914,13 @@
 	async function play() {
 		resetFrameStepping();
 		if (boundsError) return;
+		// Seek before unmuting/play, in the same user activation on mobile.
+		// Explicit navigation consumes this source-scoped restoration instead.
+		if (startupPending) {
+			const bounds = resolveClipRange(requestedBounds, duration ?? player.duration);
+			if (!bounds.ok) return;
+			setMediaTime(bounds.start, false);
+		}
 		requestedPaused = false;
 		pauseAfterSeek = false;
 		initialFramePending = false;
@@ -921,8 +944,11 @@
 				providerStalled = true;
 				retrySeekTime = recoverySeekTarget();
 			}
-			const position = frameStepper.target ?? player.currentTime;
-			if (player.ended || position < activeBounds.start || position >= activeBounds.end) {
+			const position = frameStepper.target ?? (startupPending ? repeatA : player.currentTime);
+			if (
+				!startupPending &&
+				(player.ended || position < activeBounds.start || position >= activeBounds.end)
+			) {
 				seek(activeBounds.start);
 			} else if (frameStepper.target !== undefined) {
 				setMediaTime(position, true);
@@ -1009,6 +1035,8 @@
 	}
 
 	function resetSource() {
+		sourceGeneration += 1;
+		startupPending = false;
 		resetFrameStepping();
 		// A new provider owns bootstrap; never resume the old source from teardown.
 		discardNavigationScrub();

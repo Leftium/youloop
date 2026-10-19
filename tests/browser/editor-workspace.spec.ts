@@ -277,10 +277,26 @@ mockedTest(
 	{ tag: '@youtube-mock' },
 	async ({ page }) => {
 		await page.setViewportSize({ width: 1280, height: 800 });
-		await openEditor(page);
+		await openEditor(page, `/?v=${id}&t=0~50&mute&speed=1.5&fill=0`);
 		await expectMockBootstrap(page);
+		await expect(page.getByRole('slider', { name: 'Current time', exact: true })).toHaveAttribute(
+			'aria-valuenow',
+			'0'
+		);
+		// Observe the provider at Play, before timer ticks can conceal a skipped opening.
+		await page.locator('youtube-video').evaluate((el) => {
+			const engine = (
+				el as HTMLElement & { engine: { playVideo(): void; getCurrentTime(): number } }
+			).engine;
+			const play = engine.playVideo.bind(engine);
+			engine.playVideo = () => {
+				el.setAttribute('data-first-play-time', String(engine.getCurrentTime()));
+				play();
+			};
+		});
 		const originalUrl = page.url();
 		await page.getByRole('button', { name: 'Play', exact: true }).click();
+		await expect(page.locator('youtube-video')).toHaveAttribute('data-first-play-time', '0');
 		await page.waitForFunction(
 			() =>
 				(
