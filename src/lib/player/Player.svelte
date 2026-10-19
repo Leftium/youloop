@@ -101,6 +101,7 @@
 		theater?: boolean;
 		controlPageVisible?: boolean;
 		ontheater?: () => void;
+		onscrubchange?: (active: boolean) => void;
 		onfillchange?: (fill: boolean | undefined) => void;
 		onorientationchange?: (orientation: 'landscape' | 'portrait' | undefined) => void;
 		onsourcechange?: (source: EditorSource) => void;
@@ -139,6 +140,7 @@
 		theater = false,
 		controlPageVisible = false,
 		ontheater,
+		onscrubchange,
 		onfillchange,
 		onorientationchange,
 		onsourcechange,
@@ -154,7 +156,7 @@
 
 	let currentTime = $state(repeatA);
 	let transportTime = $state(repeatA);
-	let navigationScrub: { time: number; paused: boolean; target: number } | undefined;
+	let navigationScrub = $state.raw<{ time: number; paused: boolean; target: number }>();
 	let scrubFrame = 0;
 	let cancelVideoGesture: (() => void) | undefined;
 	let endpointPreview: { time: number; paused: boolean } | undefined;
@@ -614,11 +616,13 @@
 		const saved = { time: transportTime, paused: requestedPaused, target: transportTime };
 		const bounds = minimal ? { ...activeBounds } : { start: 0, end: duration };
 		return {
+			position: (saved.time - bounds.start) / (bounds.end - bounds.start),
 			begin() {
 				startupPending = false;
 				resetFrameStepping();
 				endEndpointPreview();
 				navigationScrub = saved;
+				onscrubchange?.(true);
 				transportTime = saved.time;
 				pause();
 			},
@@ -642,6 +646,7 @@
 				if (scrubFrame) cancelAnimationFrame(scrubFrame);
 				scrubFrame = 0;
 				navigationScrub = undefined;
+				onscrubchange?.(false);
 				const target = commit ? saved.target : saved.time;
 				const outside = target < activeBounds.start || target >= activeBounds.end;
 				const stayPaused =
@@ -1028,6 +1033,7 @@
 
 	function discardNavigationScrub() {
 		// Teardown has no provider to restore. Invalidate before gesture cleanup.
+		if (navigationScrub) onscrubchange?.(false);
 		navigationScrub = undefined;
 		if (scrubFrame) cancelAnimationFrame(scrubFrame);
 		scrubFrame = 0;
@@ -1130,6 +1136,7 @@
 					<div
 						class="watch-overlay"
 						class:theater
+						class:scrubbing={!!navigationScrub}
 						style:left={`${visibleBounds.left}px`}
 						style:top={`${visibleBounds.top}px`}
 						style:width={`${visibleBounds.width}px`}
@@ -1139,7 +1146,7 @@
 							class="watch-timeline"
 							style:left={`${controlsBounds.left - visibleBounds.left}px`}
 							style:width={`${controlsBounds.width}px`}
-							aria-hidden={theater}
+							aria-hidden={theater && !navigationScrub}
 							class:clip={clipTimeline}
 							data-mode={clipTimeline ? 'clip' : 'video'}
 							role="progressbar"
@@ -1285,6 +1292,7 @@
 		{#if duration}
 			<div
 				class="editor-playhead-line"
+				class:scrubbing={!!navigationScrub}
 				class:inside-clip={currentTime >= repeatA && currentTime <= repeatB}
 				aria-hidden="true"
 				style:left={`${Math.max(0, Math.min(1, currentTime / duration)) * 100}%`}
@@ -1578,6 +1586,8 @@
 	$slate-100: #dfe3eb; // --pico-range-border-color (track)
 
 	.player {
+		-webkit-user-select: none;
+		user-select: none;
 		position: relative;
 		display: flex;
 		align-items: center;
@@ -1669,7 +1679,12 @@
 	youloop-controls-player {
 		display: contents;
 	}
+	:global(html:has(.video-surface)) {
+		/* Horizontal navigation containment belongs on the scrolling root. */
+		overscroll-behavior-x: contain;
+	}
 	.video-surface {
+		-webkit-touch-callout: none;
 		touch-action: pan-y pinch-zoom;
 		position: absolute;
 		inset: 0;
@@ -1832,8 +1847,11 @@
 		display: flex;
 		pointer-events: none;
 	}
+	.watch-overlay.scrubbing .watch-timeline {
+		height: 5px;
+	}
 	// Retain the axis for scrubbing when Theater hides the chrome.
-	.watch-overlay.theater .watch-timeline {
+	.watch-overlay.theater:not(.scrubbing) .watch-timeline {
 		visibility: hidden;
 	}
 	.timeline-track {
@@ -1926,6 +1944,9 @@
 	}
 	.editor-playhead-line.inside-clip {
 		background: #f07800;
+	}
+	.editor-playhead-line.scrubbing {
+		width: 4px;
 	}
 	.timeline-box {
 		/* Reserve the 20px track and its 16px bottom gap before duration settles. */

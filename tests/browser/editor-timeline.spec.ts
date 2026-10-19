@@ -316,6 +316,12 @@ test.describe('editor timeline', { tag: '@timeline-proof' }, () => {
 			const dragX = Math.round(x + box.width * 0.1);
 			const axisBox = watch ? box : (await page.locator('.editor-axis').boundingBox())!;
 			const targetTime = ((dragX - axisBox.x) / axisBox.width) * 60.25;
+			const feedback = watch
+				? page.locator('.watch-timeline')
+				: page.locator('.editor-playhead-line');
+			const feedbackSize = watch ? 'height' : 'width';
+			const normalSize = watch ? '3px' : '2px';
+			await expect(feedback).toHaveCSS(feedbackSize, normalSize);
 			await surface.evaluate((el) =>
 				el.addEventListener('pointerdown', (event) =>
 					el.setAttribute('data-pointer', String((event as PointerEvent).pointerId))
@@ -324,7 +330,13 @@ test.describe('editor timeline', { tag: '@timeline-proof' }, () => {
 			await page.mouse.move(x, y);
 			await page.mouse.down();
 			await expect(display).toHaveAttribute('aria-valuenow', String(original));
+			await expect(feedback).toHaveCSS(feedbackSize, normalSize);
 			await page.mouse.move(dragX, y + 2);
+			await expect(feedback).toHaveCSS(feedbackSize, watch ? '5px' : '4px');
+			if (!watch) {
+				const line = (await feedback.boundingBox())!;
+				expect(Math.abs(line.x + line.width / 2 - dragX)).toBeLessThan(1);
+			}
 			await expect
 				.poll(() => display.getAttribute('aria-valuenow').then(Number))
 				.toBeCloseTo(targetTime, 1);
@@ -340,11 +352,13 @@ test.describe('editor timeline', { tag: '@timeline-proof' }, () => {
 			});
 			await page.mouse.up();
 			await expect(display).toHaveAttribute('aria-valuenow', String(original));
+			await expect(feedback).toHaveCSS(feedbackSize, normalSize);
 			if (!watch) expect(await time(page)).toBe(original);
 			await page.mouse.move(x, y);
 			await page.mouse.down();
 			await page.mouse.move(dragX, y);
 			await page.mouse.up();
+			await expect(feedback).toHaveCSS(feedbackSize, normalSize);
 			await expect
 				.poll(() => display.getAttribute('aria-valuenow').then(Number))
 				.toBeCloseTo(targetTime, 1);
@@ -478,6 +492,7 @@ test.describe('editor timeline', { tag: '@timeline-proof' }, () => {
 			await page.mouse.move(x + box.width * 0.04, y);
 			await page.evaluate(() => window.dispatchEvent(new Event('blur')));
 			await page.mouse.up();
+			await expect(feedback).toHaveCSS(feedbackSize, normalSize);
 			await expect
 				.poll(() => page.locator('youtube-video').evaluate((el) => (el as HTMLMediaElement).paused))
 				.toBe(false);
@@ -543,12 +558,21 @@ test.describe('editor timeline', { tag: '@timeline-proof' }, () => {
 				expect((await page.locator('.media-canvas').boundingBox())!.width).toBeLessThan(
 					video.width / 2
 				);
-				async function dragAt(cursor: number) {
+				async function dragAt(cursor: number, theater = false) {
 					const bounds = (await surface.boundingBox())!;
 					await page.mouse.move(cursor - 12, bounds.y + bounds.height / 2);
 					await page.mouse.down();
+					if (theater) await expect(timeline).toBeHidden();
 					await page.mouse.move(cursor, bounds.y + bounds.height / 2);
+					if (theater) {
+						await expect(timeline).toBeVisible();
+						await expect(timeline).toHaveCSS('height', '5px');
+						await expect(timeline).toHaveAttribute('aria-hidden', 'false');
+						await expect(page.locator('.watch-controls')).toBeHidden();
+					}
 					await page.mouse.up();
+					await expect(timeline).toHaveCSS('height', '3px');
+					if (theater) await expect(timeline).toBeHidden();
 				}
 				const cursor = Math.round(fullAxis.x + fullAxis.width * 0.25);
 				await dragAt(cursor);
@@ -565,13 +589,20 @@ test.describe('editor timeline', { tag: '@timeline-proof' }, () => {
 				await expect
 					.poll(() => timeline.getAttribute('aria-valuenow').then(Number))
 					.toBeCloseTo(((rightMargin - fullAxis.x) / fullAxis.width) * 60.25, 1);
-				await page.touchscreen.tap(leftMargin, video.y + video.height / 2);
+				await surface.evaluate((el) =>
+					el.addEventListener('touchstart', (event) =>
+						el.setAttribute('data-edge-reserved', String(event.defaultPrevented))
+					)
+				);
+				const edgeTap = video.x + video.width - 2;
+				await page.touchscreen.tap(edgeTap, video.y + video.height / 2);
+				await expect(surface).toHaveAttribute('data-edge-reserved', 'true');
 				await expect
 					.poll(() =>
 						page.locator('youtube-video').evaluate((el) => (el as HTMLMediaElement).paused)
 					)
 					.toBe(false);
-				await page.touchscreen.tap(leftMargin, video.y + video.height / 2);
+				await page.touchscreen.tap(edgeTap, video.y + video.height / 2);
 				await expect
 					.poll(() =>
 						page.locator('youtube-video').evaluate((el) => (el as HTMLMediaElement).paused)
@@ -591,9 +622,19 @@ test.describe('editor timeline', { tag: '@timeline-proof' }, () => {
 				await page.evaluate(() => window.scrollTo({ top: 100, behavior: 'instant' }));
 				await expect(page.locator('.share-prototype')).toHaveAttribute('data-mode', 'theater');
 				await expect(timeline).toBeHidden();
-				await dragAt(leftMargin);
+				const theaterVideo = (await surface.boundingBox())!;
+				await page.mouse.move(clipCursor - 12, theaterVideo.y + theaterVideo.height / 2);
+				await page.mouse.down();
+				await page.mouse.move(clipCursor, theaterVideo.y + theaterVideo.height / 2);
+				await expect(timeline).toBeVisible();
+				await page.evaluate(() => window.dispatchEvent(new Event('blur')));
+				await expect(timeline).toBeHidden();
+				await expect(timeline).toHaveCSS('height', '3px');
+				await expect(timeline).toHaveAttribute('aria-hidden', 'true');
+				await page.mouse.up();
+				await dragAt(leftMargin, true);
 				await expect(timeline).toHaveAttribute('aria-valuenow', '0');
-				await dragAt(clipCursor);
+				await dragAt(clipCursor, true);
 				await expect
 					.poll(() => timeline.getAttribute('aria-valuenow').then(Number))
 					.toBeCloseTo(elapsed, 1);

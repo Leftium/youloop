@@ -4,6 +4,15 @@
 
 	let theater = $state(false);
 	let runway: HTMLDivElement;
+	let scrubbing = false;
+	let lastScroll = 0;
+	let travel = 0;
+
+	function scrubChanged(active: boolean) {
+		scrubbing = active;
+		lastScroll = Math.max(0, window.scrollY);
+		travel = 0;
+	}
 
 	function enterTheater() {
 		theater = true;
@@ -31,13 +40,12 @@
 				extending = false;
 			});
 		}
-		let lastScroll = window.scrollY;
-		let travel = 0;
+		lastScroll = window.scrollY;
 		function handleScroll() {
 			const next = Math.max(0, window.scrollY);
 			const delta = next - lastScroll;
 			lastScroll = next;
-			if (!document.fullscreenElement && delta !== 0) {
+			if (!scrubbing && !document.fullscreenElement && delta !== 0) {
 				// Direction and accumulated travel survive runway extension and arbitrary offsets.
 				travel = Math.sign(delta) === Math.sign(travel) ? travel + delta : delta;
 				if (Math.abs(travel) >= 32) {
@@ -59,7 +67,7 @@
 
 <div class="share-prototype" data-mode={theater ? 'theater' : 'default'}>
 	<div class="stage">
-		<ClipPlayer minimal {theater} ontheater={enterTheater} />
+		<ClipPlayer minimal {theater} ontheater={enterTheater} onscrubchange={scrubChanged} />
 	</div>
 	<!-- Native root-document scroll range; not a nested scroll panel. -->
 	<div
