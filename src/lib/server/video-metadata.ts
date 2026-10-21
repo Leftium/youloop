@@ -84,11 +84,7 @@ export function createVideoMetadataResolver({
 			return {
 				title,
 				// YouTube oEmbed has no video description; attribution is a useful fallback.
-				description:
-					text(fields.description, 1000) ||
-					(author
-						? `Watch ${title} by ${author} and repeat segments with YouLoop.`
-						: defaultDescription),
+				description: author ? `by ${author} · YouLoop` : 'YouLoop',
 				image:
 					(await discoverThumbnail(videoId, fetcher, signal)) ??
 					thumbnail(fields.thumbnail_url, videoId)
@@ -168,7 +164,7 @@ export async function resolveSocialMetadata(
 	result.url = new URL(serializeShareUrl({ videoId, start, end }), siteOrigin).href;
 	const video = await resolve(videoId);
 	if (video) {
-		result.title = `${video.title} - YouLoop`;
+		result.title = video.title;
 		result.description = video.description;
 		result.image = video.image;
 		result.type = 'video.other';

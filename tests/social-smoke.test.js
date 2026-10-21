@@ -33,7 +33,9 @@ for (const route of ['/', '/s']) {
 			assert.ok(head.includes(`content="https://youloop.leftium.com/${id}/31~38"`));
 			assert.equal((head.match(/<title>/g) ?? []).length, 1);
 			if (requireVideo) {
-				assert.match(head, /property="og:title" content="[^"<>]+ - YouLoop"/);
+				assert.match(head, /property="og:title" content="[^"<>]+"/);
+				assert.doesNotMatch(head, /property="og:title" content="[^"]+ - YouLoop"/);
+				assert.match(head, /property="og:description" content="by [^"]+ · YouLoop"/);
 				assert.match(head, /property="og:type" content="video.other"/);
 				assert.ok(head.includes(`https://i.ytimg.com/vi/${id}/`));
 			}
