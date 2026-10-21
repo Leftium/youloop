@@ -64,8 +64,8 @@ test('legacy and canonical routes preserve clip identity while ignoring UI flags
 			resolve
 		);
 		assert.equal(result.url, `https://youloop.leftium.com/${id}/31~38`);
-		assert.equal(result.title, 'Test video - YouLoop');
-		assert.match(result.description, /Creator/);
+		assert.equal(result.title, 'Test video');
+		assert.equal(result.description, 'by Creator · YouLoop');
 		assert.equal(result.image, payload.thumbnail_url);
 		assert.equal(result.type, 'video.other');
 		const zero = await resolveSocialMetadata(url(`v=${id}&a=0&b=0`, route), resolve);
@@ -201,7 +201,7 @@ test('cache capacity, concurrency and lookup budget bound work', async () => {
 	assert.equal(calls, 4);
 });
 
-test('untrusted thumbnails are rejected, optional descriptions and lengths are handled', async () => {
+test('untrusted thumbnails are rejected; author attributions and lengths are handled', async () => {
 	for (const image of [
 		'javascript:alert(1)',
 		'http://i.ytimg.com/vi/' + id + '/x.jpg',
@@ -216,20 +216,31 @@ test('untrusted thumbnails are rejected, optional descriptions and lengths are h
 		});
 		const result = await resolve(id);
 		assert.equal(result.image, payload.thumbnail_url);
-		assert.equal(result.description, 'Video description');
+		assert.equal(result.description, 'by Creator · YouLoop');
 	}
 	const resolve = createVideoMetadataResolver({
-		fetcher: async () => reply({ title: 'x'.repeat(1000), description: 'y'.repeat(2000) })
+		fetcher: async () =>
+			reply({ title: 'x'.repeat(1000), author_name: 'y'.repeat(2000), description: 'Ignored' })
 	});
 	assert.equal((await resolve(id)).title.length, 300);
-	assert.equal((await resolve(id)).description.length, 1000);
+	assert.equal((await resolve(id)).description, `by ${'y'.repeat(200)} · YouLoop`);
+	const noAuthor = createVideoMetadataResolver({
+		fetcher: async () => reply({ title: 'Untitled creator', description: 'Ignored' })
+	});
+	assert.equal((await noAuthor(id)).description, 'YouLoop');
 });
 
 test('Svelte renders escaped OG and Twitter tags in server head, with no upstream HTML', async () => {
 	const attack = '"><script>alert(1)</script>&';
 	const resolve = createVideoMetadataResolver({
 		fetcher: async () =>
-			reply({ ...payload, title: attack, description: attack, html: '<script>upstream()</script>' })
+			reply({
+				...payload,
+				title: attack,
+				author_name: attack,
+				description: attack,
+				html: '<script>upstream()</script>'
+			})
 	});
 	const metadata = await resolveSocialMetadata(url(`v=${id}`), resolve);
 	const source = await readFile(new URL('../src/lib/SocialHead.svelte', import.meta.url), 'utf8');
@@ -243,6 +254,8 @@ test('Svelte renders escaped OG and Twitter tags in server head, with no upstrea
 	const { head } = render(Head, { props: { metadata } });
 	assert.match(head, /property="og:title"/);
 	assert.match(head, /name="twitter:title"/);
+	assert.match(head, /property="og:description" content="by &quot;/);
+	assert.match(head, /name="twitter:description" content="by &quot;/);
 	assert.match(head, /name="twitter:card" content="summary_large_image"/);
 	assert.match(head, /&quot;>&lt;script>alert\(1\)&lt;\/script>&amp;/);
 	assert.ok(!head.includes('<script>'));
@@ -273,7 +286,7 @@ test('canonical path and new range precedence also govern SSR identity', async (
 		resolve
 	);
 	assert.equal(result.url, `https://youloop.leftium.com/${id}/24.5~32.75`);
-	assert.equal(result.title, 'Test video - YouLoop');
+	assert.equal(result.title, 'Test video');
 	const editor = await resolveSocialMetadata(url(`v=${id}&t=24-32&once&mute=0`), resolve);
 	assert.equal(editor.url, `https://youloop.leftium.com/${id}/24~32`);
 	for (const query of [`v=${id}&t=bad`, `v=${id}&mute&mute=0`, `v=${id}&vertical=bad`]) {
